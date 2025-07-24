@@ -16,4 +16,6 @@ func (l Language) String() string {
 }
 
 type TypeInfo struct {
+	Id   string
+	Lang Language
 }
