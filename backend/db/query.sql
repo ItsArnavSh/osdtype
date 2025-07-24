@@ -15,10 +15,13 @@ SELECT id, language, snippet
 FROM language_store
 WHERE id = $1;
 
--- name: ListSnippetsByLanguage :many
-SELECT id, snippet
+
+-- name: GetRandomSnippetByLanguage :one
+SELECT id, language, snippet
 FROM language_store
-WHERE language = $1;
+WHERE language = $1
+ORDER BY RANDOM()
+LIMIT 1;
 
 -- =====================
 -- user_data queries

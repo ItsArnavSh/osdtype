@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"golang.org/x/oauth2/github"
 )
 
-func StartServer(ctx context.Context, log *zap.Logger) {
+func StartServer(ctx context.Context, log *zap.Logger, db *sql.DB) {
 	r := gin.Default()
 
 	var githubOauthConfig = &oauth2.Config{
