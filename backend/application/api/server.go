@@ -2,10 +2,10 @@ package api
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"os"
+	"osdtype/database"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/oauth2/github"
 )
 
-func StartServer(ctx context.Context, log *zap.Logger, db *sql.DB) {
+func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 	r := gin.Default()
 
 	var githubOauthConfig = &oauth2.Config{
@@ -58,6 +58,7 @@ func StartServer(ctx context.Context, log *zap.Logger, db *sql.DB) {
 		json.NewDecoder(resp.Body).Decode(&user)
 		c.JSON(http.StatusOK, user)
 	})
-	r.GET("ws", wsHandler)
+	wshandler := WSHandler{query: db, logger: log}
+	r.GET("ws", wshandler.wsHandler)
 	r.Run(":8080")
 }

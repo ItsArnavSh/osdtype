@@ -16,20 +16,14 @@ func (l Language) String() string {
 }
 
 type TypeInfo struct {
-	Id   string
-	Lang Language
+	SnippetID string
+	Lang      Language
 }
 
 // ////////
-type KeyStroke int
-
-const (
-	KeyDown KeyStroke = iota
-	KeyUp
-)
 
 type KeyDef struct {
-	Action KeyStroke `json:"action"`
-	Effect rune      `json:"effect"`
-	Time   int64     `json:"time"`
+	Delete bool  `json:"Delete"`
+	Effect rune  `json:"effect"`
+	Time   int64 `json:"time"`
 }

@@ -3,9 +3,12 @@ package api
 import (
 	"log"
 	"net/http"
+	"osdtype/application/services/livetype"
+	"osdtype/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 var upgrader = websocket.Upgrader{
@@ -14,8 +17,21 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func wsHandler(c *gin.Context) {
+type WSHandler struct {
+	query  *database.Queries
+	logger *zap.Logger
+}
+
+func (w *WSHandler) wsHandler(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	//	const ws = new WebSocket("ws://localhost:8080/ws?token=abc123&lang=en");
+	lang := c.Query("lang")
+	//Also add auth to this request later on
+	if lang == "" {
+		w.logger.Error("Language Parameter Not Set")
+		return
+	}
+	typeStruct := livetype.Typer{}
 	if err != nil {
 		log.Println("Upgrade error:", err)
 		return
