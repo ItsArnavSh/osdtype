@@ -1,4 +1,4 @@
-osdtype
+# OSDType
 
 A fully featured evolution of the OSDHack Mini-event at type.osdc.dev, osdtype is a next-generation typing test platform with a robust backend and advanced, real-time anti-cheating systems.
 🚧 UNDER PROGRESS 🚧
