@@ -1,10 +1,13 @@
 package api
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"osdtype/application/entity"
 	"osdtype/application/services/livetype"
 	"osdtype/database"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -23,21 +26,47 @@ type WSHandler struct {
 }
 
 func (w *WSHandler) wsHandler(c *gin.Context) {
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	//	const ws = new WebSocket("ws://localhost:8080/ws?token=abc123&lang=en");
-	lang := c.Query("lang")
-	//Also add auth to this request later on
-	if lang == "" {
-		w.logger.Error("Language Parameter Not Set")
-		return
-	}
-	typeStruct := livetype.Typer{}
 	if err != nil {
-		log.Println("Upgrade error:", err)
+		log.Println("WebSocket upgrade error:", err)
 		return
 	}
 	defer conn.Close()
 
+	// Get and check the language parameter from the query
+	lang := c.Query("lang")
+	if lang == "" {
+		w.logger.Error("Language Parameter Not Set")
+		return
+	}
+
+	// Add authentication here in the future (e.g., check token param, etc.)
+
+	// Get snippet using language (no need for rec/typeStruct yet)
+	snippet, err := w.query.GetRandomSnippetByLanguage(c.Request.Context(), lang)
+	if err != nil {
+		w.logger.Error("Could not load snippet", zap.Error(err))
+		// Optionally, send an error response over websocket
+		return
+	}
+
+	// Now, create the Recording and Typer structs, AFTER snippet is fetched
+	rec := entity.Recording{
+		OriginalID: snippet.ID,
+	}
+	var typChan = make(chan entity.KeyDef)
+	typeStruct := livetype.Typer{
+		Query:   w.query,
+		Logger:  *w.logger,
+		Rec:     rec,
+		KeyChan: typChan,
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go typeStruct.LiveSave(c.Request.Context(), &wg)
+
+	defer wg.Wait()
 	for {
 		// Read message from client
 		_, msg, err := conn.ReadMessage()
@@ -45,8 +74,9 @@ func (w *WSHandler) wsHandler(c *gin.Context) {
 			log.Println("Read error:", err)
 			break
 		}
-		log.Printf("Received: %s", msg)
-
+		var keystroke entity.KeyDef
+		json.Unmarshal(msg, &keystroke)
+		typChan <- keystroke
 		// Echo back
 		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 			log.Println("Write error:", err)

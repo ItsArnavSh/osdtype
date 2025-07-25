@@ -4,31 +4,34 @@ import (
 	"context"
 	"osdtype/application/entity"
 	"osdtype/database"
+	"sync"
 
 	"go.uber.org/zap"
 )
 
 type Typer struct {
-	query   *database.Queries
-	logger  zap.Logger
-	keyChan chan entity.KeyDef
+	Query   *database.Queries
+	Logger  zap.Logger
+	KeyChan chan entity.KeyDef
+	Rec     entity.Recording
 }
 
-func (t *Typer) GetSnippet(ctx context.Context, Info entity.TypeInfo, query *database.Queries) (database.LanguageStore, error) {
-	snippet, err := query.GetRandomSnippetByLanguage(ctx, Info.Lang.String())
+func (t *Typer) GetSnippet(ctx context.Context, lang string, query *database.Queries) (database.LanguageStore, error) {
+	snippet, err := query.GetRandomSnippetByLanguage(ctx, lang)
 	if err != nil {
-		t.logger.Error("Could not load snippet")
+		t.Logger.Error("Could not load snippet")
 		return database.LanguageStore{}, err
 	}
 
 	return snippet, nil
 }
 
-func (t *Typer) LiveSave(ctx context.Context, snippetid string) {
+func (t *Typer) LiveSave(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	recording := []byte{}
 
 	var start, latest int64
-	for keystroke := range t.keyChan {
+	for keystroke := range t.KeyChan {
 		if start == 0 {
 			start = keystroke.Time
 			latest = start
@@ -48,5 +51,5 @@ func (t *Typer) LiveSave(ctx context.Context, snippetid string) {
 		}
 
 	}
-	//Now recording has a compressed recoding of each keystroke pressed.
+
 }
