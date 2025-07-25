@@ -7,6 +7,7 @@ import (
 	"os"
 	"osdtype/database"
 
+	"github.com/asaskevich/EventBus"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
@@ -15,7 +16,7 @@ import (
 
 func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 	r := gin.Default()
-
+	bus := EventBus.New() //For Decoupled Anticheat
 	var githubOauthConfig = &oauth2.Config{
 		ClientID:     os.Getenv("GITHUB_KEY"),
 		ClientSecret: os.Getenv("GITHUB_AUTH"),
