@@ -36,4 +36,6 @@ type Recording struct {
 	Diff       []KeyDef
 	Final      string
 	OriginalID string
+	RunID      string
+	Timestamps []int64
 }
