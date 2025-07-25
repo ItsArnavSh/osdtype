@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"osdtype/application/services/anticheat"
 	"osdtype/database"
 
 	"github.com/asaskevich/EventBus"
@@ -17,6 +18,8 @@ import (
 func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 	r := gin.Default()
 	bus := EventBus.New() //For Decoupled Anticheat
+	antiCheat := anticheat.AntiCheat{Query: db, Bus: &bus, Logger: log}
+	bus.Subscribe("cheatcheck", antiCheat.RunAntiCheat)
 	var githubOauthConfig = &oauth2.Config{
 		ClientID:     os.Getenv("GITHUB_KEY"),
 		ClientSecret: os.Getenv("GITHUB_AUTH"),
@@ -59,7 +62,7 @@ func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 		json.NewDecoder(resp.Body).Decode(&user)
 		c.JSON(http.StatusOK, user)
 	})
-	wshandler := WSHandler{query: db, logger: log}
+	wshandler := WSHandler{query: db, logger: log, bus: bus}
 	r.GET("ws", wshandler.wsHandler)
 	r.Run(":8080")
 }

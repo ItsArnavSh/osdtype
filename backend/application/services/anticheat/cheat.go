@@ -9,9 +9,9 @@ import (
 )
 
 type AntiCheat struct {
-	query  *database.Queries
-	logger *zap.Logger
-	bus    *EventBus.Bus
+	Query  *database.Queries
+	Logger *zap.Logger
+	Bus    *EventBus.Bus
 }
 
 func (a *AntiCheat) RunAntiCheat(rec entity.Recording) {

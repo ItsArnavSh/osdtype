@@ -9,6 +9,7 @@ import (
 	"osdtype/database"
 	"sync"
 
+	"github.com/asaskevich/EventBus"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -23,6 +24,7 @@ var upgrader = websocket.Upgrader{
 type WSHandler struct {
 	query  *database.Queries
 	logger *zap.Logger
+	bus    EventBus.Bus
 }
 
 func (w *WSHandler) wsHandler(c *gin.Context) {
@@ -77,10 +79,7 @@ func (w *WSHandler) wsHandler(c *gin.Context) {
 		var keystroke entity.KeyDef
 		json.Unmarshal(msg, &keystroke)
 		typChan <- keystroke
-		// Echo back
-		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-			log.Println("Write error:", err)
-			break
-		}
+		w.bus.Publish("cheatcheck", typChan)
 	}
+
 }
