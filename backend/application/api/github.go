@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"osdtype/application/auth"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -53,6 +55,8 @@ func GitHubAuth(log *zap.Logger, r *gin.Engine) {
 
 		var user map[string]any
 		json.NewDecoder(resp.Body).Decode(&user)
+		fmt.Println(user)
+		auth.GenerateJWT("text")
 		c.JSON(http.StatusOK, user)
 	})
 }
