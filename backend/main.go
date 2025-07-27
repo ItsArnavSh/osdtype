@@ -13,7 +13,7 @@ import (
 func main() {
 	ctx := context.Background()
 	log, _ := zap.NewProduction()
-	conn, err := pgx.Connect(ctx, "ipostgres://user:123@localhost:5432/typedata?sslmode=disable")
+	conn, err := pgx.Connect(ctx, "postgres://user:123@localhost:5432/typedata?sslmode=disable")
 	if err != nil {
 		log.Error("Could not connect to the database")
 		return

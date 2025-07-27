@@ -43,8 +43,6 @@ func (w *WSHandler) wsHandler(c *gin.Context) {
 		return
 	}
 
-	// Add authentication here in the future (e.g., check token param, etc.)
-
 	// Get snippet using language (no need for rec/typeStruct yet)
 	snippet, err := w.query.GetRandomSnippetByLanguage(c.Request.Context(), lang)
 	if err != nil {

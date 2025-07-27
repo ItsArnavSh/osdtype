@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:15
     container_name: typ
     restart: always
     environment:
@@ -10,6 +10,6 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgvector-data:/var/lib/postgresql/data
+      - ./docker_data/postgres_data:/var/lib/postgresql/data                                        │
 volumes:
   pgvector-data:
