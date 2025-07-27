@@ -20,12 +20,14 @@ func AuthMiddleware() gin.HandlerFunc {
 			func(token *jwt.Token) (any, error) {
 				return jwtKey, nil
 			})
-		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			return
+		if err == nil || token.Valid {
+			c.Set("userID", claims.Subject)
 		}
-		// pass user info into the context for subsequent handlers
-		c.Set("userID", claims.Subject)
+		//We are keeping auth optional so that non logged users can also play
 		c.Next()
 	}
+}
+func IsAuth(c *gin.Context) bool {
+	_, exists := c.Get("userID")
+	return exists
 }
