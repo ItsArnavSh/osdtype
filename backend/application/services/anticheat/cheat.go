@@ -20,8 +20,9 @@ func (a *AntiCheat) RunAntiCheat(ctx context.Context, rec entity.Recording) {
 	// Also check for pasting...too much text was saved in too little span of time
 
 	time_diff := util.CumulativeToDiffs(rec.Timestamps)
-	is_flagged := false
-	if is_flagged {
+
+	is_flagged := a.StandardDeviationTest(time_diff) + a.ShortestInterval(time_diff)
+	if is_flagged > 0 {
 		a.Query.FlagTypeRun(ctx, rec.RunID)
 	} else {
 		a.Query.VerifyTypeRun(ctx, rec.RunID)
