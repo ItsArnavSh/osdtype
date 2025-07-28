@@ -6,6 +6,7 @@ import (
 	"osdtype/application/auth"
 	"osdtype/application/entity"
 	"osdtype/application/services/wpm"
+	"osdtype/application/util"
 	"osdtype/database"
 	"sync"
 	"time"
@@ -43,7 +44,8 @@ func ConductTest(lang string, tim int, c *gin.Context, logger *zap.Logger, query
 	go typeStruct.LiveSave(c.Request.Context(), &wg)
 
 	defer wg.Wait()
-
+	//Max deadline before crash
+	conn.SetReadDeadline(time.Now().Add(20 * time.Second))
 	first_hit := GetKeyStrokes(conn)
 	start_time := first_hit.Time
 	latest_time := int64(0)
@@ -60,9 +62,18 @@ func ConductTest(lang string, tim int, c *gin.Context, logger *zap.Logger, query
 		typChan <- keystroke
 	}
 	close(typChan)
+	//After this the frontend will send us the snippet as text
+	// First we send it a "end" message
+	conn.WriteMessage(websocket.TextMessage, []byte("end"))
+
+	_, usersnippet, err := conn.ReadMessage()
+	if err != nil {
+		log.Println("Read error:", err)
+		return err
+	}
 	st_time := time.Unix(start_time, 0)
 	//Save the events in the database as Pending
-	wpm := wpm.Calculate_WPM(entity.WPM{OriginalSnippet: snippet.Snippet, UserSnippet: snippet.Snippet, DurationMS: latest_time - start_time})
+	wpm := wpm.Calculate_WPM(entity.WPM{OriginalSnippet: snippet.Snippet, UserSnippet: string(usersnippet), DurationMS: latest_time - start_time})
 	wpm_json, err := json.Marshal(wpm)
 	if err != nil {
 		return err
@@ -82,6 +93,7 @@ func ConductTest(lang string, tim int, c *gin.Context, logger *zap.Logger, query
 			Wpm:       wpm.WPM,
 			RawWpm:    wpm.RAW,
 			SnippetID: snippet.ID,
+			Delta:     util.GenerateDeltas(snippet.Snippet, string(usersnippet)),
 		})
 		//Set off to the anticheat software non blocking
 		bus.Publish("cheatcheck", typChan)
