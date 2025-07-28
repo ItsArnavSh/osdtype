@@ -3,6 +3,7 @@ package livetype
 import (
 	"encoding/json"
 	"log"
+	"osdtype/application/auth"
 	"osdtype/application/entity"
 	"osdtype/application/services/wpm"
 	"osdtype/database"
@@ -45,27 +46,46 @@ func ConductTest(lang string, tim int, c *gin.Context, logger *zap.Logger, query
 
 	first_hit := GetKeyStrokes(conn)
 	start_time := first_hit.Time
+	latest_time := int64(0)
 	typChan <- first_hit
 	for {
 		// Read message from client
 
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("Read error:", err)
+		keystroke := GetKeyStrokes(conn)
+		emp := entity.KeyDef{}
+		if keystroke == emp {
 			break
 		}
-		var keystroke entity.KeyDef
-		json.Unmarshal(msg, &keystroke)
-
+		latest_time = keystroke.Time
 		typChan <- keystroke
 	}
 	close(typChan)
 	st_time := time.Unix(start_time, 0)
 	//Save the events in the database as Pending
-	wpm := wpm.Calculate_WPM(entity.WPM{OriginalSnippet: snippet.Snippet, UserSnippet: ""})
-	query.CreateTypeRun(c.Request.Context(), database.CreateTypeRunParams{StartTime: pgtype.Timestamp{Time: st_time}, ID: run_id, RunData: rec.Recording, UserID: "", Language: lang, Wpm: wpm.WPM, RawWpm: wpm.RAW})
-	//Set off to the anticheat software non blocking
-	bus.Publish("cheatcheck", typChan)
+	wpm := wpm.Calculate_WPM(entity.WPM{OriginalSnippet: snippet.Snippet, UserSnippet: snippet.Snippet, DurationMS: latest_time - start_time})
+	wpm_json, err := json.Marshal(wpm)
+	if err != nil {
+		return err
+	}
+	err = conn.WriteMessage(websocket.TextMessage, wpm_json)
+	if err != nil {
+		logger.Error("Could not send the WPM data")
+	}
+	if auth.IsAuth(c) { //Only save run if authenticated
+		user, _ := auth.GetUser(c)
+		query.CreateTypeRun(c.Request.Context(), database.CreateTypeRunParams{
+			StartTime: pgtype.Timestamp{Time: st_time},
+			ID:        run_id,
+			RunData:   rec.Recording,
+			UserID:    user,
+			Language:  lang,
+			Wpm:       wpm.WPM,
+			RawWpm:    wpm.RAW,
+			SnippetID: snippet.ID,
+		})
+		//Set off to the anticheat software non blocking
+		bus.Publish("cheatcheck", typChan)
+	}
 	return nil
 }
 func GetKeyStrokes(conn *websocket.Conn) entity.KeyDef {
