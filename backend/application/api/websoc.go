@@ -1,13 +1,11 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
-	"osdtype/application/entity"
 	livetype "osdtype/application/services/typing"
 	"osdtype/database"
-	"sync"
+	"strconv"
 
 	"github.com/asaskevich/EventBus"
 	"github.com/gin-gonic/gin"
@@ -28,7 +26,7 @@ type WSHandler struct {
 }
 
 func (w *WSHandler) wsHandler(c *gin.Context) {
-
+	//Todo: Create a channel thingy to communicate the errors to the frontend
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Println("WebSocket upgrade error:", err)
@@ -42,42 +40,15 @@ func (w *WSHandler) wsHandler(c *gin.Context) {
 		w.logger.Error("Language Parameter Not Set")
 		return
 	}
-
-	// Get snippet using language (no need for rec/typeStruct yet)
-	snippet, err := w.query.GetRandomSnippetByLanguage(c.Request.Context(), lang)
-	if err != nil {
-		w.logger.Error("Could not load snippet", zap.Error(err))
-		// Optionally, send an error response over websocket
+	time := c.Query("time")
+	if time == "" {
+		w.logger.Error("Time duration not set")
 		return
 	}
-
-	// Now, create the Recording and Typer structs, AFTER snippet is fetched
-	rec := entity.Recording{
-		OriginalID: snippet.ID,
+	duration, err := strconv.Atoi(time)
+	if err != nil {
+		w.logger.Error("Time duration not a number")
 	}
-	var typChan = make(chan entity.KeyDef)
-	typeStruct := livetype.Typer{
-		Query:   w.query,
-		Logger:  *w.logger,
-		Rec:     rec,
-		KeyChan: typChan,
-	}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go typeStruct.LiveSave(c.Request.Context(), &wg)
-
-	defer wg.Wait()
-	for {
-		// Read message from client
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("Read error:", err)
-			break
-		}
-		var keystroke entity.KeyDef
-		json.Unmarshal(msg, &keystroke)
-		typChan <- keystroke
-		w.bus.Publish("cheatcheck", typChan)
-	}
-
+	//Todo: Do something with the error
+	_ = livetype.ConductTest(lang, duration, c, w.logger, w.query, conn, w.bus)
 }

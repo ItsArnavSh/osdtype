@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -30,4 +31,11 @@ func AuthMiddleware() gin.HandlerFunc {
 func IsAuth(c *gin.Context) bool {
 	_, exists := c.Get("userID")
 	return exists
+}
+func GetUser(c *gin.Context) (string, error) {
+	userid := c.GetString("UserID")
+	if userid == "" {
+		return "", fmt.Errorf("No Active User Logged in")
+	}
+	return userid, nil
 }
