@@ -26,10 +26,10 @@ func (t *Typer) GetSnippet(ctx context.Context, lang string, query *database.Que
 	return snippet, nil
 }
 
-func (t *Typer) LiveSave(ctx context.Context, wg *sync.WaitGroup) {
+func (t *Typer) LiveSave(ctx context.Context, wg *sync.WaitGroup) entity.Recording {
 	defer wg.Done()
 	recording := []byte{}
-
+	var timestamps []int64
 	var start, latest int64
 	for keystroke := range t.KeyChan {
 		if start == 0 {
@@ -38,6 +38,7 @@ func (t *Typer) LiveSave(ctx context.Context, wg *sync.WaitGroup) {
 		} else {
 			diff := keystroke.Time - int64(latest)
 			latest = keystroke.Time
+			timestamps = append(timestamps, keystroke.Time)
 			//Now diff has the time in milliseconds
 			// We will round it to 20ms
 			diff /= 20
@@ -49,7 +50,7 @@ func (t *Typer) LiveSave(ctx context.Context, wg *sync.WaitGroup) {
 			recording = append(recording, make([]byte, empty)...)
 			recording = append(recording, last)
 		}
-
 	}
 
+	return entity.Recording{Recording: recording, Timestamps: timestamps}
 }

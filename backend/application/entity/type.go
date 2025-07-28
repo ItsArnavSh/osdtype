@@ -32,10 +32,10 @@ type KeyDef struct {
 
 // ///////
 type Recording struct {
-	Recording  []byte
-	Diff       []KeyDef
-	Final      string
-	OriginalID string
-	RunID      string
-	Timestamps []int64
+	Recording  []byte   //Compressed Recording
+	Diff       []KeyDef //All the keystrokes recording
+	Final      string   //What did the person write
+	OriginalID string   //
+	RunID      string   //Special ID of the run
+	Timestamps []int64  //Timestamps
 }

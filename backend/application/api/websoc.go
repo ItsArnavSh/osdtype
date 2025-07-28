@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 	"osdtype/application/entity"
-	"osdtype/application/services/livetype"
+	livetype "osdtype/application/services/typing"
 	"osdtype/database"
 	"sync"
 
