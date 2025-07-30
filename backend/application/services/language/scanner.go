@@ -1,4 +1,4 @@
-package scan
+package langauge
 
 import (
 	"osdtype/application/entity"
