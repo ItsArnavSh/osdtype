@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"osdtype/application/auth"
+	"osdtype/application/entity"
 	"osdtype/application/services/anticheat"
+	langauge "osdtype/application/services/language"
 	"osdtype/database"
 
 	"github.com/asaskevich/EventBus"
@@ -21,6 +23,14 @@ func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 	r.Use(auth.AuthMiddleware())
 	ws := r.Group("/", auth.AuthMiddleware())
 	wshandler := WSHandler{query: db, logger: log, bus: bus}
+	r.GET("get", func(c *gin.Context) {
+		var lang_data entity.LangData
+		err := c.ShouldBindBodyWithJSON(&lang_data)
+		if err != nil {
+			log.Error(err.Error())
+		}
+		langauge.InsertSnippet(ctx, *db, lang_data.Language, lang_data.Snippet)
+	})
 	ws.GET("ws", wshandler.wsHandler)
 	r.Run(":8080")
 }
