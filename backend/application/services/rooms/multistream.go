@@ -2,23 +2,49 @@ package room
 
 import (
 	"context"
-	"osdtype/application/entity"
+	"fmt"
+	"osdtype/application/services/rooms/players"
+	"osdtype/application/services/rooms/viewers"
 	"sync"
 )
 
-func (R *RoomHandler) PlayersReady(ctx context.Context) {
+type GameHandler struct {
+	players         players.PlayerHub
+	viewers         viewers.ViewerHub
+	snippet         string
+	playerSnippet   []string
+	denyConnections bool
+	roomid          string
+}
+
+func NewGameHandler(roomid string) GameHandler {
+	return (GameHandler{
+		players:         players.NewPlayerHub(),
+		viewers:         viewers.NewViewerHub(),
+		snippet:         "",
+		playerSnippet:   nil,
+		denyConnections: false,
+	})
+}
+
+func (g *GameHandler) ReadyCompetition() {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	//Boot up background processes
+	go g.players.RunHub(&wg)
+	go g.viewers.RunHub(&wg)
 
 }
-func (R *RoomHandler) StartTyping(ctx context.Context, wg *sync.WaitGroup, keychan chan entity.KeyDef) {
+
+func (g *GameHandler) StartCompetition(snippet string) {
+	g.denyConnections = true
+	//Once the final 5 sec timer starts players cannot enroll
+	//
 
 }
-
-//So they will be sharing a channel pretty much getting the updates of all the users
-// And run in parallel
-
-func (R *RoomHandler) AddViewer() {
-	//Send the whole currently typed scene of all members, then add him in the viewers list (Also look for locking mechanisms to do so)
-}
-func (R *RoomHandler) ViewerStream() {
-	// Fetch the viewers list everytime from the class def, so that it can be updated parallely.
+func (g *GameHandler) RegisterForGame(ctx context.Context) error {
+	if g.denyConnections {
+		return fmt.Errorf("Cannot Register once contest has started")
+	}
+	return nil
 }
