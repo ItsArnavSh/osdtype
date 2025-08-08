@@ -68,7 +68,7 @@ func (p *Player) SendSnippet(snippet string) {
 	p.Conn.WriteMessage(websocket.TextMessage, []byte(snippet))
 }
 
-func (p *PlayerHub) RunHub(wg *sync.WaitGroup) {
+func (p *PlayerHub) RunHub(wg *sync.WaitGroup, key chan KeyPress) {
 	//Call all when the timer is up for all players
 	defer wg.Done()
 	for {
@@ -80,12 +80,14 @@ func (p *PlayerHub) RunHub(wg *sync.WaitGroup) {
 				delete(p.Players, v)
 				close(v.Rec)
 			}
-		case _ = <-p.Keychan:
+		case keyp := <-p.Keychan:
 			//Decide what to do when player actually sends a keychan
+			//Nothing is done here with the key its just there...
+			key <- keyp
 		}
 	}
 }
-func (p *Player) RecordKeystrokes(ctx context.Context, ess entity.Essentials, snippet database.LanguageStore, config entity.GameConf) error {
+func (p *Player) RecordKeystrokes(ctx context.Context, ess entity.Essentials, snippet database.LanguageStore, config entity.GameConf, keychan chan KeyPress) error {
 	run_id := uuid.NewString()
 	rec := entity.Recording{
 		OriginalID: snippet.ID,
@@ -119,6 +121,8 @@ func (p *Player) RecordKeystrokes(ctx context.Context, ess entity.Essentials, sn
 		}
 		latest_time = keystroke.Time
 		typChan <- keystroke
+		keychan <- KeyPress{UserName: p.Username, action: keystroke.Delta}
+
 	}
 	close(typChan)
 	//After this the frontend will send us the snippet as text

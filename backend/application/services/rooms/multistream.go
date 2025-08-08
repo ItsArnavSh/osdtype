@@ -6,6 +6,7 @@ import (
 	"osdtype/application/entity"
 	"osdtype/application/services/rooms/players"
 	"osdtype/application/services/rooms/viewers"
+	"osdtype/database"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -14,32 +15,38 @@ import (
 type GameHandler struct {
 	players         players.PlayerHub
 	viewers         viewers.ViewerHub
-	snippet         string
+	snippet         database.LanguageStore
 	playerSnippet   []string
 	denyConnections bool
 	roomid          string
 	essentials      entity.Essentials
 	gamConf         entity.GameConf
+	keychan         chan players.KeyPress
 }
 
-func NewGameHandler(roomid string, ess entity.Essentials, gameConf entity.GameConf) GameHandler {
+func NewGameHandler(ctx context.Context, roomid string, ess entity.Essentials, gameConf entity.GameConf) (GameHandler, error) {
+	snippet, err := ess.Db.GetRandomSnippetByLanguage(ctx, gameConf.Language)
+	if err != nil {
+		return GameHandler{}, err
+	}
 	return (GameHandler{
 		players:         players.NewPlayerHub(),
 		viewers:         viewers.NewViewerHub(),
-		snippet:         "",
+		snippet:         snippet,
 		playerSnippet:   nil,
 		denyConnections: false,
 		roomid:          roomid,
 		essentials:      ess,
 		gamConf:         gameConf,
-	})
+		keychan:         make(chan players.KeyPress),
+	}), nil
 }
 
 func (g *GameHandler) ReadyCompetition() {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	//Boot up background processes
-	go g.players.RunHub(&wg)
+	go g.players.RunHub(&wg, g.keychan)
 	go g.viewers.RunHub(&wg)
 	wg.Wait()
 }
@@ -48,12 +55,9 @@ func (g *GameHandler) StartCompetition(ctx context.Context) error {
 	g.denyConnections = true
 	//if start game is called, players cannot enroll
 	//Send the snippet to all the players
-	snippet, err := g.essentials.Db.GetRandomSnippetByLanguage(ctx, "javascript")
-	if err != nil {
-		return err
-	}
+
 	for player := range g.players.Players {
-		go player.SendSnippet(snippet.Snippet)
+		go player.SendSnippet(g.snippet.Snippet)
 	}
 	//Now all have got the data, so we can safely begin taking responses.
 	return nil
