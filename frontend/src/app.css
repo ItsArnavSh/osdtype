@@ -7,17 +7,189 @@ body {
 	font-family: 'cascadia', monospace;
 	overflow: hidden;
 }
-.error {
-	color: #ff3333;
+
+.terminal {
+	padding: 2rem;
+	box-sizing: border-box;
+	position: relative;
 }
 
-.response {
-	color: #09af01;
+.terminal::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+	background-size: 100% 4px;
+	pointer-events: none;
+	z-index: 2;
+	animation: scanline 10ms linear infinite;
 }
+
+@keyframes scanline {
+	0% {
+		background-position: 0 -100vh;
+	}
+	100% {
+		background-position: 0 100vh;
+	}
+}
+
 .terminal-text {
-	font-size: 2rem;
+	font-size: 1.25rem;
 	line-height: 1.5;
 	margin-bottom: 0.75rem;
 	position: relative;
 	display: inline-block;
+}
+
+.prompt {
+	color: #00ff00;
+	text-shadow:
+		0 0 5px #00ff00,
+		0 0 10px rgba(0, 255, 0, 0.8);
+	animation: textFlicker 3s infinite alternate;
+}
+
+.response {
+	color: #00ff00;
+	text-shadow:
+		0 0 5px #00ff00,
+		0 0 8px rgba(0, 255, 0, 0.6);
+	animation: textPulse 2s infinite alternate;
+}
+
+.error {
+	color: #ff3333;
+	text-shadow:
+		0 0 5px #ff0000,
+		0 0 10px rgba(255, 0, 0, 0.8);
+	animation: errorPulse 1.5s infinite alternate;
+}
+
+.cursor {
+	display: inline-block;
+	width: 0.2rem;
+	height: 1.2rem;
+	background-color: #00ff00;
+	vertical-align: middle;
+	margin-left: 0.1rem;
+	animation: cursorBlink 1.2s step-end infinite;
+	box-shadow:
+		0 0 5px #00ff00,
+		0 0 8px rgba(0, 255, 0, 0.6);
+	opacity: 50%;
+}
+
+@keyframes cursorBlink {
+	0%,
+	49% {
+		opacity: 1;
+	}
+	50%,
+	100% {
+		opacity: 0;
+	}
+}
+
+@keyframes textFlicker {
+	0%,
+	19%,
+	21%,
+	23%,
+	25%,
+	54%,
+	56%,
+	100% {
+		text-shadow:
+			0 0 5px #00ff00,
+			0 0 10px rgba(0, 255, 0, 0.8);
+	}
+	20%,
+	24%,
+	55% {
+		text-shadow: none;
+	}
+}
+
+@keyframes textPulse {
+	0% {
+		text-shadow:
+			0 0 5px #00ff00,
+			0 0 8px rgba(0, 255, 0, 0.6);
+	}
+	100% {
+		text-shadow:
+			0 0 2px #00ff00,
+			0 0 10px rgba(0, 255, 0, 0.9);
+	}
+}
+
+@keyframes errorPulse {
+	0% {
+		text-shadow:
+			0 0 5px #ff0000,
+			0 0 8px rgba(255, 0, 0, 0.6);
+	}
+	100% {
+		text-shadow:
+			0 0 2px #ff0000,
+			0 0 15px rgba(255, 0, 0, 0.9);
+	}
+}
+
+.screen {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: radial-gradient(
+		ellipse at center,
+		rgba(0, 40, 0, 0.2) 0%,
+		rgba(0, 20, 0, 0.2) 70%,
+		rgba(0, 0, 0, 0.5) 100%
+	);
+	pointer-events: none;
+	z-index: 1;
+}
+
+.flicker {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 10, 0, 0.1);
+	z-index: 3;
+	opacity: 0;
+	pointer-events: none;
+	animation: screenFlicker 6s infinite;
+}
+
+@keyframes screenFlicker {
+	0%,
+	95%,
+	100% {
+		opacity: 0;
+	}
+	96%,
+	97% {
+		opacity: 0.8;
+	}
+	97.5%,
+	98.5% {
+		opacity: 0.2;
+	}
+}
+
+/* Custom class to hide scrollbar across browsers */
+.hide-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+.hide-scrollbar {
+	-ms-overflow-style: none; /* IE and Edge */
+	scrollbar-width: none; /* Firefox */
 }

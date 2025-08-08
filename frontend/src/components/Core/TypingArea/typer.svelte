@@ -1,10 +1,8 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
 	let competitionTime: number = 10;
 	let targetText: string = 'Hello';
-	targetText = targetText.repeat(5);
+	targetText = targetText.repeat(3);
 	let allowSpace = true;
-	const dispatch = createEventDispatcher();
 	const newSpace = '\u0131'; // dotless i
 	const newEnter = '\u02BC'; // modifier apostrophe
 	const newTab = '\u03BC'; // Greek mu
@@ -14,18 +12,12 @@
 		.replace(/\n/g, newEnter) // Keep newlines as newEnter for display
 		.replace(/\t/g, newTab)
 		.split('');
-	function runAfter(callback: () => void) {
-		setTimeout(callback, competitionTime * 1000);
-	}
-	let wpm: number;
 
 	let userInput = '';
 	let userInpArray: string[] = [];
 	let forbiddenArr = allowSpace ? [newEnter, newTab] : [newSpace, newEnter, newTab]; // Keep newEnter in forbidden since it's auto-added
 	function updateData() {
 		if (yetToStart) {
-			dispatch('activateTimer', null);
-			yetToStart = false;
 		}
 		// Convert spaces and user-entered newlines to the space character
 		userInput = userInput.replaceAll(' ', allowSpace ? newSpace : '');
@@ -81,7 +73,7 @@
 	}
 </script>
 
-<div class="terminal hide-scrollbar h-[50%] scroll-m-0 overflow-auto font-mono">
+<div class="terminal hide-scrollbar h-[50%] scroll-m-0 overflow-auto bg-black font-mono">
 	<button
 		class="fixed z-10 h-[40%] w-[60%] opacity-0"
 		type="button"
@@ -92,7 +84,7 @@
 	<div class="screen"></div>
 	<div class="flicker"></div>
 	<!-- Target text in light opacity -->
-	<p class="hide-scrollbar absolute top-20 left-20 z-1 overflow-auto text-gray-500">
+	<p class="hide-scrollbar absolute top-20 left-20 z-1 overflow-auto opacity-40">
 		{#each displayText as char, i (i)}
 			{#if i >= letLower && i <= letHigher}
 				{#if (i < userInput.length ? userInput[i] : char) == newEnter}
@@ -102,7 +94,7 @@
 				{:else if (i < userInput.length ? userInput[i] : char) == newTab}
 					<span>&nbsp;&nbsp</span>
 				{:else}
-					<span class="terminal-text">{i < userInput.length ? userInput[i] : char}</span>
+					<span class="terminal-text response">{i < userInput.length ? userInput[i] : char}</span>
 				{/if}
 			{/if}
 		{/each}

@@ -22,6 +22,8 @@ func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 
 	r.Use(auth.AuthMiddleware())
 	ws := r.Group("/", auth.AuthMiddleware())
+	_ = entity.Essentials{Db: db, Logger: log, Bus: bus}
+	//Todo: Remove these with essentials
 	wshandler := WSHandler{query: db, logger: log, bus: bus}
 	r.GET("get", func(c *gin.Context) {
 		var lang_data entity.LangData

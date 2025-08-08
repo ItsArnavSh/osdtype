@@ -5,7 +5,7 @@ import (
 	"log"
 	"osdtype/application/auth"
 	"osdtype/application/entity"
-	"osdtype/application/services/wpm"
+	"osdtype/application/services/typing/wpm"
 	"osdtype/application/util"
 	"osdtype/database"
 	"sync"
