@@ -100,3 +100,31 @@ JOIN user_data u ON tr.user_id = u.user_id
 WHERE tr.language = $1 AND tr.is_verified = TRUE AND tr.is_flagged = FALSE
 ORDER BY tr.wpm DESC
 LIMIT $2;
+
+
+-- name: CreateRoom :exec
+INSERT INTO room (id, admin_id, room_name)
+VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE
+SET admin_id = EXCLUDED.admin_id,
+    room_name = EXCLUDED.room_name;
+
+-- name: AddPlayer :exec
+INSERT INTO room_perms (user_id, room_id, perm_level)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id, room_id) DO UPDATE
+SET perm_level = EXCLUDED.perm_level;
+
+-- name: ChangePlayerPerms :exec
+UPDATE room_perms
+SET perm_level = $3
+WHERE user_id = $1 AND room_id = $2;
+
+-- name: RemovePlayer :exec
+DELETE FROM room_perms
+WHERE user_id = $1 AND room_id = $2;
+
+-- name: CheckUserPerm :one
+SELECT perm_level
+FROM room_perms
+WHERE user_id = $1 AND room_id = $2;

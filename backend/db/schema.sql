@@ -24,5 +24,17 @@ CREATE TABLE IF NOT EXISTS type_run (
     snippet_id TEXT NOT NULL REFERENCES language_store(id),
     start_time TIMESTAMP NOT NULL,
     is_verified BOOLEAN DEFAULT FALSE,
-    is_flagged BOOLEAN DEFAULT FALSE
+    is_flagged BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS room(
+    id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL,
+    room_name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS room_perms(
+    user_id TEXT NOT NULL,
+    room_id TEXT NOT NULL,
+    perm_level TEXT NOT NULL
 );

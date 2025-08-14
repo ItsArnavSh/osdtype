@@ -1,16 +1,10 @@
 package room
 
 import (
-	"osdtype/database"
-
-	"go.uber.org/zap"
+	"osdtype/application/entity"
 )
 
 type RoomHandler struct {
-	db      *database.Queries
-	logger  *zap.Logger
-	actions map[string]func(info string) error
+	essentials entity.Essentials
+	actions    map[string]func(info string) error
 }
-
-//Create Room
-//

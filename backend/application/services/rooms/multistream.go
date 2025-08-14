@@ -63,7 +63,7 @@ func (g *GameHandler) StartCompetition(ctx context.Context) error {
 	return nil
 }
 
-func (g *GameHandler) RegisterForGame(ctx *gin.Context, gameid string) error {
+func (g *GameHandler) RegisterForGame(ctx *gin.Context) error {
 	if g.denyConnections {
 		return fmt.Errorf("Cannot Register once contest has started")
 	}
@@ -73,5 +73,14 @@ func (g *GameHandler) RegisterForGame(ctx *gin.Context, gameid string) error {
 		return err
 	}
 	g.players.Register <- &player
+	return nil
+}
+
+func (g *GameHandler) SubStream(ctx *gin.Context) error {
+	viewer, err := viewers.NewViewer(ctx)
+	if err != nil {
+		return err
+	}
+	g.viewers.Register <- &viewer
 	return nil
 }
