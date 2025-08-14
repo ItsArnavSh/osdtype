@@ -33,6 +33,7 @@ func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 		}
 		langauge.InsertSnippet(ctx, *db, lang_data.Language, lang_data.Snippet)
 	})
+
 	ws.GET("ws", wshandler.wsHandler)
 	r.Run(":8080")
 }

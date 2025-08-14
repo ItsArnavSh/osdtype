@@ -7,7 +7,8 @@ type RoomRole struct {
 // Define all the room structs here
 type GameConf struct {
 	Language string
-	time     int
+	Time     int
+	Room     string
 }
 
 // Room structs
