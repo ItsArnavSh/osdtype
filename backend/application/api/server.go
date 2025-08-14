@@ -6,6 +6,7 @@ import (
 	"osdtype/application/entity"
 	"osdtype/application/services/anticheat"
 	langauge "osdtype/application/services/language"
+	room "osdtype/application/services/rooms"
 	"osdtype/database"
 
 	"github.com/asaskevich/EventBus"
@@ -13,7 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
+type Server struct {
+	//Todo: Add all server stuff here
+}
+
+func (s *Server) StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 	r := gin.Default()
 	bus := EventBus.New() //For Decoupled Anticheat
 	antiCheat := anticheat.AntiCheat{Query: db, Logger: log}
@@ -22,7 +27,9 @@ func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 
 	r.Use(auth.AuthMiddleware())
 	ws := r.Group("/", auth.AuthMiddleware())
-	_ = entity.Essentials{Db: db, Logger: log, Bus: bus}
+	ess := entity.Essentials{Db: db, Logger: log, Bus: bus}
+
+	_ = room.NewActiveGames(ess) //Shift to server
 	//Todo: Remove these with essentials
 	wshandler := WSHandler{query: db, logger: log, bus: bus}
 	r.GET("get", func(c *gin.Context) {
@@ -36,4 +43,9 @@ func StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
 
 	ws.GET("ws", wshandler.wsHandler)
 	r.Run(":8080")
+}
+
+func NewServer(ctx context.Context) (Server, error) {
+	return Server{}, nil
+	//Todo: Finish this function too
 }
