@@ -15,14 +15,15 @@ import (
 )
 
 type Server struct {
-	//Todo: Add all server stuff here
+	//Todo: Remove bus from essentials...its not
+	essen        entity.Essentials
+	bus          EventBus.Bus
+	active_games room.ActiveGames
+	gin_engine   *gin.Engine
+	anti_cheat   anticheat.AntiCheat
 }
 
 func (s *Server) StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
-	r := gin.Default()
-	bus := EventBus.New() //For Decoupled Anticheat
-	antiCheat := anticheat.AntiCheat{Query: db, Logger: log}
-	bus.Subscribe("cheatcheck", antiCheat.RunAntiCheat)
 	GitHubAuth(log, r)
 
 	r.Use(auth.AuthMiddleware())
@@ -45,7 +46,20 @@ func (s *Server) StartServer(ctx context.Context, log *zap.Logger, db *database.
 	r.Run(":8080")
 }
 
-func NewServer(ctx context.Context) (Server, error) {
-	return Server{}, nil
-	//Todo: Finish this function too
+func NewServer(ctx context.Context, essen entity.Essentials) (Server, error) {
+
+	r := gin.Default()
+	da_bus := EventBus.New() //For Decoupled Anticheat
+
+	antiCheat := anticheat.AntiCheat{Query: essen.Db, Logger: essen.Logger}
+	da_bus.Subscribe("cheatcheck", antiCheat.RunAntiCheat)
+
+	active_games := room.NewActiveGames(essen)
+	return Server{
+		gin_engine:   r,
+		essen:        essen,
+		bus:          da_bus,
+		active_games: active_games,
+		anti_cheat:   antiCheat,
+	}, nil
 }

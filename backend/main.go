@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"osdtype/application/api"
+	"osdtype/application/entity"
 	"osdtype/database"
 
 	"github.com/jackc/pgx/v5"
@@ -21,5 +22,9 @@ func main() {
 	defer conn.Close(ctx)
 	log.Sync()
 	query := database.New(conn)
-	api.StartServer(ctx, log, query)
+
+	essen := entity.Essentials{Db: query, Logger: log}
+
+	server, _ := api.NewServer(ctx, essen)
+	server.StartServer(ctx, log, query)
 }

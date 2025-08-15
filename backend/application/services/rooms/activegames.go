@@ -12,8 +12,8 @@ type ActiveGames struct {
 	essentials entity.Essentials
 }
 
-func NewActiveGames(ess entity.Essentials) *ActiveGames {
-	return &ActiveGames{
+func NewActiveGames(ess entity.Essentials) ActiveGames {
+	return ActiveGames{
 		games:      make(map[string]GameHandler),
 		essentials: ess,
 	}
