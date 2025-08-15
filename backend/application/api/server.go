@@ -24,16 +24,16 @@ type Server struct {
 }
 
 func (s *Server) StartServer(ctx context.Context, log *zap.Logger, db *database.Queries) {
-	GitHubAuth(log, r)
+	GitHubAuth(log, s.gin_engine)
 
-	r.Use(auth.AuthMiddleware())
-	ws := r.Group("/", auth.AuthMiddleware())
-	ess := entity.Essentials{Db: db, Logger: log, Bus: bus}
+	s.gin_engine.Use(auth.AuthMiddleware())
+	ws := s.gin_engine.Group("/", auth.AuthMiddleware())
+	ess := entity.Essentials{Db: db, Logger: log, Bus: s.bus}
 
 	_ = room.NewActiveGames(ess) //Shift to server
 	//Todo: Remove these with essentials
-	wshandler := WSHandler{query: db, logger: log, bus: bus}
-	r.GET("get", func(c *gin.Context) {
+	wshandler := WSHandler{query: db, logger: log, bus: s.bus}
+	s.gin_engine.GET("get", func(c *gin.Context) {
 		var lang_data entity.LangData
 		err := c.ShouldBindBodyWithJSON(&lang_data)
 		if err != nil {
@@ -43,11 +43,10 @@ func (s *Server) StartServer(ctx context.Context, log *zap.Logger, db *database.
 	})
 
 	ws.GET("ws", wshandler.wsHandler)
-	r.Run(":8080")
+	s.gin_engine.Run(":8080")
 }
 
 func NewServer(ctx context.Context, essen entity.Essentials) (Server, error) {
-
 	r := gin.Default()
 	da_bus := EventBus.New() //For Decoupled Anticheat
 

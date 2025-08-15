@@ -147,7 +147,3 @@ func (g *GameHandler) stream(ctx *gin.Context, _ []byte) error {
 	g.SubStream(ctx)
 	return nil
 }
-
-//Todo: Maintain a roomid ->  active game handlers maps
-// Whenever a user comes in, redirect them to this monstrosity
-//Todo: Seperate the game handler from Room Handler
