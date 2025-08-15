@@ -11,3 +11,10 @@
 .hljs {
 	box-shadow: none !important;
 }
+.squiggly {
+	text-decoration: underline;
+	text-decoration-color: transparent;
+	text-decoration-thickness: 2px;
+	text-decoration-style: wavy; /* Works in most modern browsers */
+	text-decoration-color: red;
+}
