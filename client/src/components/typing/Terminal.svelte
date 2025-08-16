@@ -76,7 +76,7 @@
 			<BlandCode code={expected_code} />
 		</div>
 		<div class="relative z-10">
-			<Code language="typescript" code={typed_code} />
+			<Code language="typescript" typed={typed_code} expected={expected_code} />
 		</div>
 	</div>
 </div>

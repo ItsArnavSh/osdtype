@@ -7,8 +7,8 @@
 
 <div class="">
 	{#if code}
-		<Highlight language={markdown} {code} let:highlighted>
-			<LineNumbers {highlighted} wrapLines hideBorder />
+		<Highlight language={markdown} let:highlighted {code}>
+			<LineNumbers {highlighted} startingLineNumber={100} />
 		</Highlight>
 	{/if}
 </div>
