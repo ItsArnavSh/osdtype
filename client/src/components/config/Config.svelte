@@ -4,6 +4,6 @@
 </script>
 
 <div class="flex flex-1 flex-row justify-between">
-	<Timer time={30} />
+	<Timer time={45} />
 	<LanguageSel />
 </div>

@@ -18,3 +18,9 @@
 	text-decoration-style: wavy; /* Works in most modern browsers */
 	text-decoration-color: red;
 }
+
+.bebas {
+	font-family: 'Bebas Neue', sans-serif;
+	font-weight: 400;
+	font-style: normal;
+}

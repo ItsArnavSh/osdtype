@@ -1,10 +1,17 @@
 <script lang="ts">
-	import Page from '../../routes/+page.svelte';
 	import BlandCode from './BlandCode.svelte';
 	import Code from './Code.svelte';
 	let scrollContainer: HTMLDivElement;
-	let expected_code, typed_code: string;
+	let expected_code: string = '',
+		typed_code: string = '';
 	let myTextarea;
+	let game_started = false;
+	function end_game() {
+		game_started = false;
+	}
+	function start_game() {
+		game_started = true;
+	}
 
 	function focusTextarea() {
 		myTextarea.focus();
