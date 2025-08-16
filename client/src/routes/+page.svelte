@@ -1,13 +1,18 @@
 <script lang="ts">
+	import Config from '../components/config/Config.svelte';
 	import Navbar from '../components/nav/Navbar.svelte';
-	import Code from '../components/typing/Code.svelte';
 	import Terminal from '../components/typing/Terminal.svelte';
-	import Timer from '../components/typing/Timer.svelte';
 
 	//Homepage is the solo typing page
 </script>
 
-<Navbar />
-<div class="flex h-screen w-full flex-col items-center justify-center bg-[#11111b] p-4 pr-10 pl-10">
-	<Terminal />
+<div class="flex h-lvh flex-col bg-[#202432]">
+	<div class="flex w-full flex-1 flex-col p-4 pr-10 pl-10">
+		<Config />
+
+		<!-- pushes terminal to bottom -->
+		<div class="mt-auto">
+			<Terminal />
+		</div>
+	</div>
 </div>

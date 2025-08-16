@@ -1,8 +1,14 @@
 <script lang="ts">
+	import Page from '../../routes/+page.svelte';
 	import BlandCode from './BlandCode.svelte';
 	import Code from './Code.svelte';
 	let scrollContainer: HTMLDivElement;
 	let expected_code, typed_code: string;
+	let myTextarea;
+
+	function focusTextarea() {
+		myTextarea.focus();
+	}
 	let tokens = [
 		'let',
 		' ',
@@ -48,18 +54,15 @@
 			});
 		}
 	}
+	function block_event(event) {
+		event.preventDefault();
+	}
 </script>
 
 <div
-	class="rounded-1xl relative m-4 h-[66.66vh] w-full overflow-hidden border border-gray-700 bg-[#1E1E2E] p-4 font-mono text-2xl text-[#CDD6F4] shadow-2xl"
+	class="700 relative m-4 h-[66.66vh] w-full overflow-hidden rounded-2xl bg-[#292d3e] p-4 font-mono text-2xl text-[#CDD6F4] shadow-2xl"
+	onclick={focusTextarea}
 >
-	<!-- Terminal Header -->
-	<div class="flex items-center gap-3 px-4 py-2">
-		<span class="h-4 w-4 rounded-full bg-red-400"></span>
-		<span class="h-4 w-4 rounded-full bg-yellow-400"></span>
-		<span class="h-4 w-4 rounded-full bg-green-400"></span>
-	</div>
-
 	<!-- Code Area -->
 	<div class="absolute inset-0 top-[2.5rem] overflow-auto p-4" bind:this={scrollContainer}>
 		<div class="absolute z-1 opacity-30">
@@ -71,4 +74,17 @@
 	</div>
 </div>
 
-<textarea class="" bind:value={typed_code}></textarea>
+<textarea
+	class="flxed z-10 opacity-0"
+	bind:this={myTextarea}
+	bind:value={typed_code}
+	onpaste={block_event}
+	onselect={block_event}
+	oncontextmenu={block_event}
+	ondrop={block_event}
+	onkeypress={(event) => {
+		if (event.ctrlKey) {
+			block_event(event);
+		}
+	}}
+></textarea>

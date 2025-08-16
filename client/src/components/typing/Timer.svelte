@@ -28,8 +28,22 @@
 	}
 </script>
 
-{#if remaining_time >= last_secs}
-	{remaining_time}
-{:else}
-	{Math.round(remaining_time / 1000)}.{Math.round(remaining_time % 1000)}
-{/if}
+<div class="mt-10 ml-10 flex flex-col items-start justify-end space-y-2 font-mono text-white">
+	<!-- Big number -->
+	<div
+		class="text-6xl leading-none font-bold"
+		class:opacity-40={remaining_time >= last_secs}
+		class:text-red-300={remaining_time < last_secs}
+		style="min-width: 10ch;"
+	>
+		{#if remaining_time >= last_secs}
+			{remaining_time}
+		{:else}
+			{Math.floor(remaining_time / 1000)}<span class="text-3xl"
+				>.{Math.floor(remaining_time % 1000)}
+			</span>
+		{/if}
+	</div>
+	<!-- Label -->
+	<div class=" text-sm tracking-widest uppercase">Timer</div>
+</div>

@@ -1,13 +1,13 @@
 <script>
 	import Highlight, { LineNumbers } from 'svelte-highlight';
-	import atomOneDark from 'svelte-highlight/styles/atom-one-dark';
 	import { langHighlighter } from '../../core/lsp';
 	export let code = '';
+	import materialPalenight from 'svelte-highlight/styles/material-palenight';
 	export let language;
 </script>
 
 <svelte:head>
-	{@html atomOneDark}
+	{@html materialPalenight}
 </svelte:head>
 
 <Highlight language={langHighlighter(language)} {code} let:highlighted>
