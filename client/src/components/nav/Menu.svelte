@@ -70,8 +70,6 @@
 <nav
 	class="fixed top-5 right-[2%] z-40 flex flex-1 flex-row items-center justify-center space-x-6 p-5 font-sans tracking-widest text-gray-300"
 >
-	<a href="/" class="transition-colors hover:text-white">ROOMS</a>
-
 	{#if isLoading}
 		<div class="h-10 w-10 animate-pulse rounded-full bg-gray-700" />
 	{:else if user && avatarUrl}

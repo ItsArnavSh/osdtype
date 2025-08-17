@@ -59,7 +59,6 @@ func GitHubAuth(log *zap.Logger, r *gin.Engine) {
 			return
 		}
 		login, ok := user["login"].(string)
-		avatar_url, ok := user[""].(string)
 		if !ok {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "login field not found"})
 			return
@@ -73,9 +72,6 @@ func GitHubAuth(log *zap.Logger, r *gin.Engine) {
 
 		// Store JWT in cookie
 		c.SetCookie("token", jwt, 3600, "/", "localhost", false, true)
-
-		c.SetCookie("username", login, 3600, "/", "localhost", false, true)
-		c.SetCookie("avatar", avatar_url, 3600, "/", "localhost", false, true)
 
 		c.Redirect(http.StatusSeeOther, "http://localhost:5173/")
 	})
