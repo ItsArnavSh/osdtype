@@ -18,7 +18,7 @@
 	{@html materialPalenight}
 </svelte:head>
 
-<div class="relative font-mono text-4xl leading-snug">
+<div class="relative font-mono text-3xl leading-snug">
 	<!-- Highlighted code -->
 	<div class="code-layer pointer-events-none absolute inset-0 z-0">
 		<Highlight language={langHighlighter(language)} code={expected.substring(0, typed.length)} />

@@ -27,6 +27,7 @@
 			<div class="mt-auto">
 				<Terminal />
 			</div>
+			<p class="mb-2 text-center font-mono text-white">Made with ☕️ by Arnav</p>
 		</div>
 	</div>
 </div>
