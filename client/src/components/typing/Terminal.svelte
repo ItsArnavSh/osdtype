@@ -1,6 +1,7 @@
 <script lang="ts">
 	import BlandCode from './BlandCode.svelte';
 	import Code from './Code.svelte';
+	import { onMount } from 'svelte';
 	let scrollContainer: HTMLDivElement;
 	let expected_code: string = '',
 		typed_code: string = '';
@@ -44,6 +45,9 @@
 		'\n'
 	];
 
+	onMount(() => {
+		typed_code = '';
+	});
 	const lineHeight = 32; // px
 	const preScrollZone = 4; // start scrolling when caret is within 4 lines from center
 	expected_code = tokens.join('');
@@ -67,11 +71,11 @@
 </script>
 
 <div
-	class="700 relative m-4 h-[66.66vh] w-full overflow-hidden rounded-2xl bg-[#292d3e] p-4 font-mono text-2xl text-[#CDD6F4] shadow-2xl"
+	class="700 relative m-3 h-[66.66vh] w-full overflow-hidden rounded-2xl bg-[#292d3e] p-4 font-mono text-2xl text-[#CDD6F4] shadow-2xl"
 	onclick={focusTextarea}
 >
 	<!-- Code Area -->
-	<div class="absolute inset-0 top-[2.5rem] overflow-auto p-4" bind:this={scrollContainer}>
+	<div class="absolute inset-0 top-[2.5rem] ml-5 overflow-auto p-4" bind:this={scrollContainer}>
 		<div class="absolute z-1 opacity-30">
 			<BlandCode code={expected_code} />
 		</div>

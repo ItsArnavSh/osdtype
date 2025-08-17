@@ -12,20 +12,10 @@
 		OSDTYPE
 	</div>
 
-	<div class="group fixed top-10 right-[2%] z-50">
-		<button>
-			<div
-				class="relative flex items-center justify-center text-xl tracking-widest text-gray-100 uppercase"
-				aria-label="menu"
-			>
-				Menu
-				<span
-					class="absolute -bottom-1 left-0 h-[2px] w-0 bg-gray-400 transition-all duration-300 group-hover:w-full"
-				></span>
-			</div>
-		</button>
+	<div class="group fixed top-[1%] right-[2%] z-50">
 		<div
-			class="invisible mt-2 opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100"
+			class="relative flex items-center justify-center text-xl tracking-widest text-gray-100 uppercase"
+			aria-label="menu"
 		>
 			<Menu />
 		</div>

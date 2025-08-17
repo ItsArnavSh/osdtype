@@ -1,40 +1,35 @@
 <script>
-	import Highlight, { LineNumbers } from 'svelte-highlight';
+	import Highlight from 'svelte-highlight';
 	import { langHighlighter } from '../../core/lsp';
+	import materialPalenight from 'svelte-highlight/styles/material-palenight';
+
 	export let expected = '';
 	export let typed = '';
-	import materialPalenight from 'svelte-highlight/styles/material-palenight';
 	export let language = 'typescript';
 
-	function getDifferingLines(str1, str2) {
-		const lines1 = str1.split('\n');
-		const lines2 = str2.split('\n');
-		const maxLen = Math.max(lines1.length, lines2.length);
-
-		const differingLines = [];
-
-		for (let i = 0; i < maxLen; i++) {
-			const line1 = lines1[i] ?? ''; // default empty if missing
-			const line2 = lines2[i] ?? '';
-			if (line1 !== line2) {
-				differingLines.push(i); // index starts at 0
-			}
-		}
-
-		return differingLines;
-	}
-	let lines = getDifferingLines(expected, typed);
+	// produce an array of chars with a "diff" flag
+	$: diffed = typed.split('').map((ch, i) => ({
+		char: ch,
+		isDiff: expected[i] !== ch
+	}));
 </script>
 
 <svelte:head>
 	{@html materialPalenight}
 </svelte:head>
 
-<Highlight language={langHighlighter(language)} code={typed} let:highlighted>
-	<LineNumbers
-		{highlighted}
-		highlightedLines={[0, 2]}
-		startingLineNumber={100}
-		--highlighted-background="rgba(239, 42, 42, 0.2)"
-	/>
-</Highlight>
+<div class="relative font-mono text-4xl leading-snug">
+	<!-- Highlighted code -->
+	<div class="code-layer pointer-events-none absolute inset-0 z-0">
+		<Highlight language={langHighlighter(language)} code={expected.substring(0, typed.length)} />
+	</div>
+
+	<!-- Overlay typed text -->
+	<code class="code-layer absolute inset-0 z-10 whitespace-pre caret-white">
+		{#each diffed as d, i}
+			<span class={d.isDiff ? 'errline text-red-500' : 'text-transparent'}>
+				{expected[i]}
+			</span>
+		{/each}
+	</code>
+</div>

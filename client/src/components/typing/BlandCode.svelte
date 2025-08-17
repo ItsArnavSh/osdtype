@@ -1,14 +1,13 @@
 <script>
-	import Highlight, { LineNumbers } from 'svelte-highlight';
+	import Highlight from 'svelte-highlight';
 	import markdown from 'svelte-highlight/languages/markdown';
 
-	export let code = '';
+	export let code = 'code';
 </script>
 
-<div class="">
-	{#if code}
-		<Highlight language={markdown} let:highlighted {code}>
-			<LineNumbers {highlighted} startingLineNumber={100} />
-		</Highlight>
-	{/if}
+<div class="relative font-mono text-4xl leading-snug">
+	<!-- Highlighted code (not clipped) -->
+	<div class="code-layer pointer-events-none">
+		<Highlight language={markdown} {code} />
+	</div>
 </div>
