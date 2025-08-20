@@ -70,12 +70,6 @@
 		}
 	});
 
-	// Remove the problematic reactive statement and handle it in onMount instead
-	// $: {
-	//     tokens = snippet.Snippet;
-	//     expected_code = tokens.join('');
-	// }
-
 	function block_event(event: Event) {
 		event.preventDefault();
 	}
