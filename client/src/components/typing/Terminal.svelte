@@ -232,7 +232,7 @@
 </script>
 
 <div
-	class="700 relative m-3 h-[66.66vh] w-full overflow-hidden rounded-2xl bg-[#292d3e] p-4 font-mono text-xl text-[#CDD6F4] shadow-2xl"
+	class=" 700 relative m-3 h-[66.66vh] w-full overflow-hidden rounded-2xl bg-[#292d3e] p-4 font-mono text-xl text-[#CDD6F4] shadow-2xl"
 	onclick={focusTextarea}
 >
 	<div class="absolute inset-0 top-[2.5rem] ml-5 overflow-auto p-4" bind:this={scrollContainer}>
@@ -246,7 +246,7 @@
 </div>
 
 <textarea
-	class="flxed z-10 opacity-0"
+	class="fixed z-0 opacity-0"
 	bind:this={myTextarea}
 	bind:value={typed_code}
 	onpaste={block_event}

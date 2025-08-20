@@ -3,6 +3,7 @@ package langauge
 import (
 	"context"
 	"encoding/json"
+	"osdtype/application/entity"
 	"osdtype/database"
 
 	"github.com/google/uuid"
@@ -22,4 +23,8 @@ func InsertSnippet(ctx context.Context, db database.Queries, language, snippet s
 		Snippet:  encoded_snippet,
 		ID:       id,
 	})
+}
+func GetSnippet(ctx context.Context, essen entity.Essentials, lang string) (database.LanguageStore, error) {
+	return essen.Db.GetRandomSnippetByLanguage(ctx, lang)
+
 }
