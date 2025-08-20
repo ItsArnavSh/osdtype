@@ -3,25 +3,17 @@
 	import { diffChars, createPatch } from 'diff';
 	import Code from './Code.svelte';
 	import { onMount } from 'svelte';
+	import { getsnippet } from '../../api/snippet';
 
 	let scrollContainer: HTMLDivElement;
-	let expected_code: string = '',
-		typed_code: string = '';
-	let myTextarea;
-	let game_started = false;
-	// Add these variables for diff tracking
+	let typed_code: string = '';
+	let expected_code: string = ''; // Add this declaration
+	let myTextarea: HTMLTextAreaElement;
 	let previous_typed_code = '';
-	let changes_log = [];
 
-	function end_game() {
-		game_started = false;
-	}
-
-	function start_game() {
-		game_started = true;
-		// Reset tracking when game starts
-		previous_typed_code = '';
-		changes_log = [];
+	// Add type definition if not imported
+	interface SnippetResponse {
+		Snippet: string[];
 	}
 
 	interface ChangeEvent {
@@ -54,186 +46,46 @@
 	}
 
 	function focusTextarea() {
-		myTextarea.focus();
+		myTextarea?.focus();
 	}
 
-	let tokens = [
-		'let',
-		' ',
-		'count',
-		':',
-		' ',
-		'number',
-		' ',
-		'=',
-		' ',
-		'0',
-		';',
-		'\n',
-		'function',
-		' ',
-		'add',
-		'(',
-		'a',
-		':',
-		' ',
-		'number',
-		',',
-		' ',
-		'b',
-		':',
-		' ',
-		'number',
-		')',
-		':',
-		' ',
-		'number',
-		' ',
-		'{',
-		'\n',
-		'return',
-		' ',
-		'a',
-		' ',
-		'+',
-		' ',
-		'b',
-		';',
-		'\n',
-		'}',
-		'\n',
-		'class',
-		' ',
-		'Person',
-		' ',
-		'{',
-		'\n',
-		'name',
-		':',
-		' ',
-		'string',
-		';',
-		'\n',
-		'constructor',
-		'(',
-		'name',
-		':',
-		' ',
-		'string',
-		')',
-		' ',
-		'{',
-		'\n',
-		'this',
-		'.',
-		'name',
-		' ',
-		'=',
-		' ',
-		'name',
-		';',
-		'\n',
-		'}',
-		'\n',
-		'greet',
-		'(',
-		')',
-		':',
-		' ',
-		'void',
-		' ',
-		'{',
-		'\n',
-		'console',
-		'.',
-		'log',
-		'(',
-		'"',
-		'Hello,',
-		' ',
-		'"',
-		'+',
-		' ',
-		'this',
-		'.',
-		'name',
-		')',
-		';',
-		'\n',
-		'}',
-		'\n',
-		'}',
-		'\n',
-		'const',
-		' ',
-		'p',
-		' ',
-		'=',
-		' ',
-		'new',
-		' ',
-		'Person',
-		'(',
-		'"',
-		'Arnav',
-		'"',
-		')',
-		';',
-		'\n',
-		'console',
-		'.',
-		'log',
-		'(',
-		'add',
-		'(',
-		'5',
-		',',
-		' ',
-		'7',
-		')',
-		')',
-		';',
-		'\n',
-		'p',
-		'.',
-		'greet',
-		'(',
-		')',
-		';'
-	];
+	let snippet: SnippetResponse | null = null; // Initialize as null
+	let tokens: string[] = [];
 
-	onMount(() => {
+	onMount(async () => {
 		typed_code = '';
 		previous_typed_code = '';
+		try {
+			snippet = await getsnippet('typescript');
+			console.log('Raw snippet:', snippet);
+
+			// Parse the JSON string to get the actual array
+			tokens = JSON.parse(snippet.Snippet);
+			expected_code = tokens.join('');
+
+			console.log('Parsed tokens:', tokens);
+			console.log('Expected code:', expected_code);
+		} catch (error) {
+			console.error('Failed to load snippet:', error);
+		}
 	});
 
-	const lineHeight = 32;
-	const preScrollZone = 4;
-	expected_code = tokens.join('');
+	// Remove the problematic reactive statement and handle it in onMount instead
+	// $: {
+	//     tokens = snippet.Snippet;
+	//     expected_code = tokens.join('');
+	// }
 
-	$: if (scrollContainer) {
-		const linesTyped = typed_code.split('\n').length;
-		const caretPos = linesTyped * lineHeight;
-		const containerMid = scrollContainer.scrollTop + scrollContainer.clientHeight / 2;
-		const triggerZoneStart = containerMid - preScrollZone * lineHeight;
-		const triggerZoneEnd = containerMid + preScrollZone * lineHeight;
-
-		if (caretPos > triggerZoneEnd || caretPos < triggerZoneStart) {
-			scrollContainer.scrollTo({
-				top: caretPos - scrollContainer.clientHeight / 2 + lineHeight,
-				behavior: 'smooth'
-			});
-		}
-	}
-
-	function block_event(event) {
+	function block_event(event: Event) {
 		event.preventDefault();
 	}
 </script>
 
 <div
-	class=" 700 relative m-3 h-[66.66vh] w-full overflow-hidden rounded-2xl bg-[#292d3e] p-4 font-mono text-xl text-[#CDD6F4] shadow-2xl"
-	onclick={focusTextarea}
+	class="relative m-3 h-[66.66vh] w-full overflow-hidden rounded-2xl bg-[#292d3e] p-4 font-mono text-xl text-[#CDD6F4] shadow-2xl"
+	on:click={focusTextarea}
+	role="button"
+	tabindex="0"
 >
 	<div class="absolute inset-0 top-[2.5rem] ml-5 overflow-auto p-4" bind:this={scrollContainer}>
 		<div class="absolute z-1 opacity-30">
@@ -249,13 +101,14 @@
 	class="fixed z-0 opacity-0"
 	bind:this={myTextarea}
 	bind:value={typed_code}
-	onpaste={block_event}
-	onselect={block_event}
-	oncontextmenu={block_event}
-	ondrop={block_event}
-	onkeyup={onKeystroke}
-	onkeypress={(event) => {
-		if (event.key === ' ') {
+	on:paste={block_event}
+	on:select={block_event}
+	on:contextmenu={block_event}
+	on:drop={block_event}
+	on:keyup={onKeystroke}
+	on:keypress={(event) => {
+		// Only prevent spaces if we're not expecting a space
+		if (event.key === ' ' && expected_code[typed_code.length] !== ' ') {
 			event.preventDefault();
 		}
 	}}
