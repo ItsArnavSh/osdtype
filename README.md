@@ -1,37 +1,30 @@
 # OSDType
+Speedtyping, but for Coders.
 
-A fully featured evolution of the OSDHack Mini-event at type.osdc.dev, osdtype is a next-generation typing test platform with a robust backend and advanced, real-time anti-cheating systems.
-🚧 UNDER PROGRESS 🚧
-Overview
+![Main Page](assets/Home.png)
 
-osdtype is designed for speed, security, and fairness:
+---
 
-    Modern UI for engaging typing tests
+## 🚧 Project Status
+This project is currently **under development**.  
+Stay tuned — **V1 dropping soon!**
 
-    Secure GitHub OAuth authentication
+---
 
-    Real-time anti-cheat technologies
+## ✨ Features
+- **Live keystrokes:** WebSocket-based storage and replay of every typing session.  
+- **Decoupled Anti-Cheat:** Detects copy-pasting and automated typing.  
+- **Rooms:**  
+  - Create private or public rooms with friends.  
+  - Compete in real-time.  
+  - Join as a player or viewer and watch live keystrokes being streamed.  
+  - Great for organizing events and competitions.  
+- **GitHub-based login only** → built *by developers, for developers*.  
 
-    Robust, scalable backend powered by PostgreSQL (managed via Docker)
+---
 
-Roadmap
+## 🛠 Tech Stack
+- **Frontend:** Svelte  
+- **Backend:** Golang  
 
-    In Progress:
-
-        WebSocket-Based Anti-Cheat:
-        User actions and keystrokes are streamed in real-time for active analysis and cheat detection during tests.
-
-        Efficient Keystroke Compression:
-        Each keystroke’s timing is delta-encoded: time between strokes is quantized, and most events are stored in just one byte. Long pauses are handled by a compact multi-byte encoding, ensuring low storage and accurate replay for all sessions.
-
-Compression Details
-
-    Keystrokes are stored as the delta (time difference) from the previous stroke, measured in 20ms intervals.
-
-    Most user activity is captured at 1 byte per press; only unusually long pauses use extra space.
-
-    This design produces audit-friendly, replayable logs while minimizing data size and protecting user privacy.
-
-
-
-Note:  Once the prototype is complete, osdtype will become part of OSDC.
+---
