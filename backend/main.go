@@ -26,5 +26,6 @@ func main() {
 	essen := entity.Essentials{Db: query, Logger: log}
 
 	server, _ := api.NewServer(ctx, essen)
+	server.SetRoutes()
 	server.StartServer(ctx, log, query)
 }

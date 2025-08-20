@@ -9,12 +9,11 @@ import (
 	"osdtype/application/auth"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 )
 
-func GitHubAuth(log *zap.Logger, r *gin.Engine) {
+func (s *Server) GitHubAuth() {
 	var githubOauthConfig = &oauth2.Config{
 		ClientID:     os.Getenv("GITHUB_KEY"),
 		ClientSecret: os.Getenv("GITHUB_AUTH"),
@@ -23,19 +22,19 @@ func GitHubAuth(log *zap.Logger, r *gin.Engine) {
 		Endpoint:     github.Endpoint,
 	}
 	if githubOauthConfig.ClientID == "" {
-		log.Error("GithubKey Not Set")
+		s.essen.Logger.Error("GithubKey Not Set")
 		return
 	}
 	if githubOauthConfig.ClientSecret == "" {
-		log.Error("GithubAuth not Set")
+		s.essen.Logger.Error("GithubAuth not Set")
 	}
 	// Step 1: Redirect user to GitHub login
-	r.GET("/login/github", func(c *gin.Context) {
+	s.gin_engine.GET("/login/github", func(c *gin.Context) {
 		url := githubOauthConfig.AuthCodeURL("randomstate")
 		c.Redirect(http.StatusTemporaryRedirect, url)
 	})
 
-	r.GET("/auth/github/callback", func(c *gin.Context) {
+	s.gin_engine.GET("/auth/github/callback", func(c *gin.Context) {
 		code := c.Query("code")
 		token, err := githubOauthConfig.Exchange(context.Background(), code)
 		if err != nil {

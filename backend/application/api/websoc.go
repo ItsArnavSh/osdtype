@@ -4,13 +4,10 @@ import (
 	"log"
 	"net/http"
 	livetype "osdtype/application/services/typing"
-	"osdtype/database"
 	"strconv"
 
-	"github.com/asaskevich/EventBus"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 )
 
 var upgrader = websocket.Upgrader{
@@ -19,13 +16,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type WSHandler struct {
-	query  *database.Queries
-	logger *zap.Logger
-	bus    EventBus.Bus
-}
-
-func (w *WSHandler) wsHandler(c *gin.Context) {
+func (s *Server) wsHandler(c *gin.Context) {
 	//Todo: Create a channel thingy to communicate the errors to the frontend
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -35,20 +26,21 @@ func (w *WSHandler) wsHandler(c *gin.Context) {
 	defer conn.Close()
 
 	// Get and check the language parameter from the query
-	lang := c.Query("lang")
-	if lang == "" {
-		w.logger.Error("Language Parameter Not Set")
+	snip_id := c.Query("snip_id")
+	if snip_id == "" {
+		s.essen.Logger.Error("Language Parameter Not Set")
 		return
 	}
 	time := c.Query("time")
 	if time == "" {
-		w.logger.Error("Time duration not set")
+		s.essen.Logger.Error("Time duration not set")
 		return
 	}
 	duration, err := strconv.Atoi(time)
 	if err != nil {
-		w.logger.Error("Time duration not a number")
+		s.essen.Logger.Error("Time duration not a number")
 	}
 	//Todo: Do something with the error
-	_ = livetype.ConductTest(lang, duration, c, w.logger, w.query, conn, w.bus)
+	//Modify conduct test to get snippet from snip id
+	_ = livetype.ConductTest(snip_id, duration, c, s.essen.Logger, s.essen.Db, conn, s.essen.Bus)
 }

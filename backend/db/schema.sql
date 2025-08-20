@@ -7,9 +7,7 @@ CREATE TABLE IF NOT EXISTS language_store (
 
 CREATE TABLE IF NOT EXISTS user_data (
     user_id TEXT PRIMARY KEY,
-    github_id TEXT NOT NULL UNIQUE,
     username TEXT NOT NULL,
-    dp_link TEXT NOT NULL,
     top_wpm FLOAT NOT NULL DEFAULT 0
 );
 
