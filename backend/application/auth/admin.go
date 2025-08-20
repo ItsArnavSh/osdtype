@@ -2,35 +2,32 @@ package auth
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
-// In your auth package
 func AdminMiddleware() gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
-		// First check if user is authenticated
-		jwtToken, err := c.Cookie("token")
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+	adminKey := os.Getenv("ADMINKEY")
+
+	return func(c *gin.Context) {
+		password := c.GetHeader("X-Admin-Key")
+		if password == "" {
+			password = c.Query("admin_key")
+		}
+
+		if password == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing admin key"})
+			c.Abort()
+			return
+		}
+		if password != adminKey {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid admin key"})
 			c.Abort()
 			return
 		}
 
-		username, err := ValidateJWT(jwtToken)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-			c.Abort()
-			return
-		}
-
-		if username != "itsarnavsh" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
-			c.Abort()
-			return
-		}
-
-		c.Set("username", username)
+		// Passed check → grant access
 		c.Next()
-	})
+	}
 }

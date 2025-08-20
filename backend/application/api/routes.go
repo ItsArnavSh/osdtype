@@ -7,9 +7,9 @@ func (s *Server) SetRoutes() {
 	//Public Routes
 	s.GitHubAuth() //Sets up routes for github
 	publicgroup := s.gin_engine.Group("/")
-	publicgroup.Use(nil) //No Auth
 	{
 		publicgroup.GET("/health", s.ping)
+		publicgroup.GET("/get-snippet", s.get_snippet)
 	}
 	//User Routes -> Protected
 	usergroup := s.gin_engine.Group("/user")
@@ -23,6 +23,7 @@ func (s *Server) SetRoutes() {
 	admingroup := s.gin_engine.Group("/admin")
 	admingroup.Use(auth.AdminMiddleware())
 	{
+		admingroup.GET("/ping", s.admin_ping)
 		admingroup.POST("/insert-snippet", s.insert_snippet)
 	}
 }
