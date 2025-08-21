@@ -1,9 +1,11 @@
 <script lang="ts">
-	export let time: number;
+	import type { Confi } from '../../api/snippet';
+
+	export let config: Confi;
 	let is_hovering = false;
 
 	function setTime(newTime: number) {
-		time = newTime;
+		config.time = newTime;
 		is_hovering = false;
 	}
 </script>
@@ -16,7 +18,7 @@
 		on:mouseenter={() => (is_hovering = true)}
 		on:mouseleave={() => (is_hovering = false)}
 	>
-		{time}
+		{config.time}
 		{#if is_hovering}
 			<div class="slide-in flex gap-2 text-lg">
 				<button

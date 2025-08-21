@@ -7,7 +7,7 @@ import (
 	"osdtype/application/entity"
 	"osdtype/database"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 )
@@ -20,7 +20,7 @@ func main() {
 		fmt.Print("Could not set up logger")
 		return
 	}
-	conn, err := pgx.Connect(ctx, "postgres://user:123@localhost:5432/typedata?sslmode=disable")
+	conn, err := pgxpool.New(ctx, "postgres://user:123@localhost:5432/typedata?sslmode=disable")
 	if err != nil {
 		log.Error("Could not connect to the database")
 		return

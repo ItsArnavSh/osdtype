@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Config from '../components/config/Config.svelte';
+	import type { Confi } from '../api/snippet';
 	import Menu from '../components/nav/Menu.svelte';
 	import Terminal from '../components/typing/Terminal.svelte';
+	import Config from '../components/config/Config.svelte';
 	let started = false;
+
+	let config: Confi = { lang: 'typescript', time: 30 };
+	$: console.log(`config is ${config.lang} and ${config.time}`);
 </script>
 
 <div class="relative bg-[#202432]">
@@ -24,7 +28,7 @@
 
 	<div class="relative z-10 flex h-lvh flex-col">
 		<div class="flex w-full flex-1 flex-col p-4 pr-10 pl-10">
-			<Config />
+			<Config bind:config />
 			<div class="mt-auto">
 				{#if started}
 					<div>
@@ -33,7 +37,7 @@
 						></div>
 					</div>
 				{/if}
-				<Terminal />
+				<Terminal language={config.lang} />
 			</div>
 			<p class="mb-2 text-center font-mono text-white">Made with ☕️ by Arnav</p>
 		</div>

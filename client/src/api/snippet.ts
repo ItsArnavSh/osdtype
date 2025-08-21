@@ -3,6 +3,10 @@ interface SnippetResponse {
 	Language: string;
 	Snippet: string[]; // it comes as a JSON string in your response
 }
+export interface Confi {
+	lang: string;
+	time: number;
+}
 export async function getsnippet(lang: string): Promise<SnippetResponse> {
 	try {
 		const res = await fetch(`http://localhost:8080/get-snippet?lang=${lang}`);

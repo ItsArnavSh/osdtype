@@ -2,6 +2,7 @@ package api
 
 import (
 	langauge "osdtype/application/services/language"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -16,7 +17,7 @@ func (s *Server) ping(g *gin.Context) {
 func (s *Server) get_snippet(g *gin.Context) {
 	s.essen.Logger.Info("Snippet handler hit")
 
-	lang := g.Query("lang")
+	lang := strings.ToLower(g.Query("lang"))
 	if lang == "" {
 		s.essen.Logger.Warn("Language param missing")
 		g.JSON(404, gin.H{"error": "Language Param not found"})

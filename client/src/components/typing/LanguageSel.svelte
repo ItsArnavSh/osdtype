@@ -1,11 +1,13 @@
-<script>
+<script lang="ts">
+	import type { Confi } from '../../api/snippet';
+	export let config: Confi;
 	let language = {
 		id: 'typescript',
 		name: 'TypeScript'
 	};
 
 	const languages = [
-		{ id: 'javascript', name: 'JavaScript' },
+		{ id: 'typescript', name: 'TypeScript' },
 		{ id: 'python', name: 'Python' },
 		{ id: 'java', name: 'Java' },
 		{ id: 'cpp', name: 'C++' },
@@ -15,7 +17,7 @@
 	let isHovering = false;
 
 	function selectLanguage(lang) {
-		language = lang;
+		config.lang = lang.name;
 		// Don't close immediately, let the hover state handle it
 	}
 
@@ -71,7 +73,7 @@
 		<div
 			class="cursor-pointer text-right text-4xl font-bold tracking-wide opacity-40 transition-opacity hover:opacity-60"
 		>
-			{language.name}
+			{config.lang}
 		</div>
 	</div>
 	<div class="text-sm tracking-widest uppercase">Language</div>

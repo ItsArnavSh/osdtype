@@ -2,7 +2,7 @@
 	import BlandCode from './BlandCode.svelte';
 	import { diffChars, createPatch } from 'diff';
 	import Code from './Code.svelte';
-	import { onMount } from 'svelte';
+	import { afterUpdate, onMount } from 'svelte';
 	import { getsnippet } from '../../api/snippet';
 
 	let scrollContainer: HTMLDivElement;
@@ -10,10 +10,34 @@
 	let expected_code: string = ''; // Add this declaration
 	let myTextarea: HTMLTextAreaElement;
 	let previous_typed_code = '';
-
+	export let language = 'TypeScript';
 	// Add type definition if not imported
 	interface SnippetResponse {
 		Snippet: string[];
+	}
+	//Todo: AfterUpdate is depricated change it
+	afterUpdate(() => {
+		if (scrollContainer) {
+			// Always keep the scroll pinned to bottom
+			scrollContainer.scrollTop = scrollContainer.scrollHeight;
+		}
+	});
+
+	let currentLanguage = '';
+
+	$: if (language && language !== currentLanguage) {
+		currentLanguage = language;
+		(async () => {
+			typed_code = '';
+			previous_typed_code = '';
+			try {
+				snippet = await getsnippet(language);
+				tokens = JSON.parse(snippet.Snippet);
+				expected_code = tokens.join('');
+			} catch (error) {
+				console.error('Failed to load snippet:', error);
+			}
+		})();
 	}
 
 	interface ChangeEvent {
@@ -56,7 +80,7 @@
 		typed_code = '';
 		previous_typed_code = '';
 		try {
-			snippet = await getsnippet('typescript');
+			snippet = await getsnippet(language);
 			console.log('Raw snippet:', snippet);
 
 			// Parse the JSON string to get the actual array
@@ -86,7 +110,7 @@
 			<BlandCode code={expected_code} />
 		</div>
 		<div class="relative z-10">
-			<Code language="typescript" typed={typed_code} expected={expected_code} />
+			<Code {language} typed={typed_code} expected={expected_code} />
 		</div>
 	</div>
 </div>
