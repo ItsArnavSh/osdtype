@@ -20,6 +20,7 @@ type Server struct {
 	active_games room.ActiveGames
 	gin_engine   *gin.Engine
 	anti_cheat   anticheat.AntiCheat
+	room_handler room.RoomHandler
 }
 
 func (s *Server) StartServer(ctx context.Context) {
@@ -43,11 +44,13 @@ func NewServer(ctx context.Context, essen entity.Essentials) (Server, error) {
 	da_bus.Subscribe("cheatcheck", antiCheat.RunAntiCheat)
 
 	active_games := room.NewActiveGames(essen)
+	roomHandler := room.NewRoomHandler(essen.Db, essen.Logger)
 	return Server{
 		gin_engine:   r,
 		essen:        essen,
 		bus:          da_bus,
 		active_games: active_games,
 		anti_cheat:   antiCheat,
+		room_handler: roomHandler,
 	}, nil
 }
