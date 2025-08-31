@@ -1,6 +1,8 @@
 package api
 
-import "osdtype/application/auth"
+import (
+	"osdtype/application/auth"
+)
 
 // Setting up routes
 func (s *Server) SetRoutes() {
@@ -17,6 +19,13 @@ func (s *Server) SetRoutes() {
 	{
 		usergroup.GET("/whoami", s.whoami)
 		usergroup.GET("/ws", s.wsHandler)
+		roomgroup := usergroup.Group("/room")
+		{
+			roomgroup.POST("create-room", s.room_handler.Create_room)
+			roomgroup.POST("add-player", s.room_handler.Add_player)
+			roomgroup.POST("change-player-perms", s.room_handler.Change_player_perms)
+			roomgroup.POST("remove-player", s.room_handler.Remove_player)
+		}
 	}
 
 	// Admin Route
