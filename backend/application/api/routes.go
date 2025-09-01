@@ -25,6 +25,9 @@ func (s *Server) SetRoutes() {
 			roomgroup.POST("add-player", s.room_handler.Add_player)
 			roomgroup.POST("change-player-perms", s.room_handler.Change_player_perms)
 			roomgroup.POST("remove-player", s.room_handler.Remove_player)
+			gameroom := roomgroup.Group("/game")
+			gameroom.POST("start-game", s.create_game)
+
 		}
 	}
 

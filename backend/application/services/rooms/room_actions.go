@@ -200,23 +200,18 @@ func (g *RoomHandler) Remove_player(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "Player removed successfully"})
 }
-func (g *GameHandler) ready(_ []byte) error {
-	//Needs to be admin or mod
+func (g *GameHandler) ready() {
 	g.ReadyCompetition()
-	return nil
 }
-func (g *GameHandler) start(ctx *gin.Context, _ []byte) error {
+func (g *GameHandler) start(ctx *gin.Context) {
 	//Admin or Mod
 	g.StartCompetition(ctx.Request.Context())
-	return nil
 }
-func (g *GameHandler) join(_ *gin.Context, _ []byte) error {
+func (g *GameHandler) join(_ *gin.Context) {
 	//user
 	g.ReadyCompetition()
-	return nil
 }
-func (g *GameHandler) stream(ctx *gin.Context, _ []byte) error {
+func (g *GameHandler) stream(ctx *gin.Context) {
 	//user
 	g.SubStream(ctx)
-	return nil
 }

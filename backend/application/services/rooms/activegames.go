@@ -19,20 +19,20 @@ func NewActiveGames(ess entity.Essentials) ActiveGames {
 	}
 }
 
-func (a *ActiveGames) NewGame(ctx context.Context, request []byte) error {
+func (a *ActiveGames) NewGame(ctx context.Context, request []byte) (GameHandler, error) {
 	var conf entity.GameConf
 	err := json.Unmarshal(request, &conf)
 	if err != nil {
-		return err
+		return GameHandler{}, err
 	}
 	gameHandler, err := NewGameHandler(ctx, conf.Room, a.essentials, conf)
 	if err != nil {
-		return err
+		return GameHandler{}, err
 	}
 	//Now we will save the gameHandler state
 	a.games[conf.Room] = gameHandler
 	//Todo: Add a purge function to purge inactive functions from here
-	return nil
+	return gameHandler, nil
 }
 func (a *ActiveGames) RemoveGame(ctx context.Context, roomID string) {
 	delete(a.games, roomID)
