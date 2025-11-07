@@ -10,9 +10,9 @@
 	$: console.log(`config is ${config.lang} and ${config.time}`);
 </script>
 
-<div class="relative bg-[#202432]">
+<div class="relative bg-[#0B0C0E]">
 	<div
-		class="bebas fixed top-[-10%] left-[10%] z-0 text-[430px] font-bold tracking-[.02em] text-[#292d3e] opacity-[60%] drop-shadow-[0_4px_6px_rgba(0,0,0,0.05)]"
+		class="bebas fixed top-[-10%] left-[10%] z-0 text-[430px] font-bold tracking-[.02em] text-[#16181C] opacity-[60%] drop-shadow-[0_4px_6px_rgba(0,0,0,0.05)]"
 	>
 		OSDTYPE
 	</div>

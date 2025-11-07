@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: osdtyp
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: typedata
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker_data/postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: osdtyp-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./docker_data/redis_data:/data
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+
+volumes:
+  pgvector-data:
+  redis-data:

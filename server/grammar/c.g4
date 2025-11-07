@@ -1,0 +1,22 @@
+
+program :  function^;
+function:functionheader'{''\n'functioncontent'}';
+functionheader:datatype ' ' identifier '(' ')' ;
+functioncontent:block+;
+block:(statement+) | ifblock | whileblock ;
+ifblock: 'if(' conditionalexpression '){\n' statement+ '}\n';
+whileblock :'while(' conditionalexpression '){\n' statement+ '}\n';
+conditionalexpression: conditionalexpone (conditionaljoin conditionalexpone)*;
+conditionalexpone: (identifier conditionaloperation operand);
+conditionaloperation: ' < ' | ' > ';
+conditionaljoin: ' && ' | ' || ';
+statement:assignment;
+assignment: datatype ' ' identifier ' = ' expression ';\n';
+expression: operand (operator (operand | '(' expression ')'))*;
+operand: identifier | integer | float;
+operator : ' + ' | ' - ' | ' * ' | ' / ';
+datatype: 'int'|'float'|'double';
+identifier: [a-z];
+integer:[0-9];
+float:[0-9]'.'[0-9];
+whitespace: ' ';

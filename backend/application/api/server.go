@@ -54,3 +54,11 @@ func NewServer(ctx context.Context, essen entity.Essentials) (Server, error) {
 		room_handler: roomHandler,
 	}, nil
 }
+
+
+import "strings"
+
+func (w zapWriter) Write(p []byte) (n int, err error) {
+	w.logger.Debug(strings.TrimSpace(string(p)))
+	return len(p), nil
+}

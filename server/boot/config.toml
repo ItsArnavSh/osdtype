@@ -1,0 +1,25 @@
+[Core]
+port=":8080"
+
+[DB]
+name="typ"
+user="user"
+password="password"
+dbname="typedata"
+port=5432
+host="localhost"
+[Redis]
+addr="localhost:6379"
+[CodeGen]
+max_wait_queue=100000
+starting_id="program"
+
+[Bots.LEWIS]
+accuracy = 95
+relative_speed = 1.2
+[Bots.MAX]
+accuracy = 85
+relative_speed = 1.5
+[Bots.LANCE]
+accuracy = 75
+relative_speed = 1.8
