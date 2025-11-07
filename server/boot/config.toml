@@ -7,11 +7,11 @@ user="user"
 password="password"
 dbname="typedata"
 port=5432
-host="localhost"
+host="postgres"
 [Redis]
 addr="localhost:6379"
 [CodeGen]
-max_wait_queue=100000
+max_wait_queue=1000
 starting_id="program"
 
 [Bots.LEWIS]
