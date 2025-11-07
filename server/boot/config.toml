@@ -2,12 +2,12 @@
 port=":8080"
 
 [DB]
-name="typ"
+name="osdtyp_postgres"
 user="user"
 password="password"
 dbname="typedata"
 port=5432
-host="localhost"
+host="postgres"
 [Redis]
 addr="localhost:6379"
 [CodeGen]

@@ -2,19 +2,11 @@ package boot
 
 import (
 	"fmt"
-	"log"
 
-	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
-func init() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
-}
 func Initialize_App() *zap.SugaredLogger {
 	logger, err := zap.NewDevelopment()
 	if err != nil {

@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: .
+    container_name: osdtyp_backend
+    env_file:
+      - ./server/.env
+    ports:
+      - "8080:8080"
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=typedata
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    container_name: osdtyp_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: typedata
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker_data/postgres_data:/var/lib/postgresql/data
