@@ -1,10 +1,12 @@
 package api
 
 import (
+	"os"
 	"osdtyp/app/api/auth"
 	"osdtyp/app/core"
 	"osdtyp/app/services"
 	"osdtyp/app/utils"
+	"strings"
 	"time"
 
 	ginzap "github.com/gin-contrib/zap"
@@ -54,14 +56,26 @@ func (s *Server) SetupRoutes() {
 	s.GitHubAuth()
 }
 func (s *Server) StartServer() {
-	port := viper.GetString("Core.port")
+	port := os.Getenv("PORT")
+	if port == "" {
+		// Fall back to Viper config for local development
+		port = viper.GetString("Core.port")
+	}
+
+	// Ensure port has colon prefix for Gin
+	if port != "" && !strings.HasPrefix(port, ":") {
+		port = ":" + port
+	}
+
 	//Booting all the internal services
 	s.logger.Debug("Booting Core")
 	s.core.BootCodeCore()
+
 	if port == "" {
-		s.logger.Errorf("Port not found in config")
+		s.logger.Errorf("Port not found in config or environment")
 		return
 	}
+
 	s.logger.Infof("Server is running on %s", port)
 	s.gin_engine.Run(port)
 }
