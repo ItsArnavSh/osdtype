@@ -11,7 +11,6 @@ import (
 // It is "optional" - if a token is present and valid, it sets the userID in the context.
 // If not, it proceeds without setting a user, allowing for guest access.
 func AuthMiddleware() gin.HandlerFunc {
-	fmt.Println("Here")
 
 	return func(c *gin.Context) {
 		var tokenString string
@@ -39,7 +38,6 @@ func AuthMiddleware() gin.HandlerFunc {
 		if err == nil {
 			c.Set("userID", userID)
 		}
-
 		c.Next()
 	}
 }
@@ -48,10 +46,13 @@ func IsAuth(c *gin.Context) bool {
 	_, exists := c.Get("userID")
 	return exists
 }
-func GetUser(c *gin.Context) (string, error) {
-	userid := c.GetString("UserID")
+func GetUserID(c *gin.Context) (string, error) {
+	userid := c.GetString("userID")
 	if userid == "" {
 		return "", fmt.Errorf("No Active User Logged in")
 	}
 	return userid, nil
+}
+func SetUserID(c *gin.Context, uid uint64) {
+	c.Set("userID", uid)
 }

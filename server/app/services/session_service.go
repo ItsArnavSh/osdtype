@@ -1,9 +1,11 @@
 package services
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+)
 
-func (s *ServiceLayer) StartSession(g *gin.Context, username string) error {
-	user, err := s.db.GetUser(g.Request.Context(), username)
+func (s *ServiceLayer) StartSession(g *gin.Context, userid uint64) error {
+	user, err := s.db.GetUser(g.Request.Context(), userid)
 	if err != nil {
 		return err
 	}

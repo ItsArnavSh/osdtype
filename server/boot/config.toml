@@ -7,7 +7,7 @@ user="user"
 password="password"
 dbname="typedata"
 port=5432
-host="postgres"
+host="localhost"
 [Redis]
 addr="localhost:6379"
 [CodeGen]

@@ -1,32 +1,30 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"osdtyp/app/api/auth"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) whoami(c *gin.Context) {
-	// 1. Get the token from the cookie
-	jwtToken, err := c.Cookie("token")
-	fmt.Println("Token is: ", jwtToken)
+	userStr, err := auth.GetUserID(c)
+	s.logger.Debug("Reached Here", userStr)
+
 	if err != nil {
-		// If no cookie is present, the user is not logged in
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "failed to get user ID"})
 		return
 	}
-
-	// 2. Validate the JWT (your auth.ValidateJWT function would do this)
-	// For this example, we'll assume auth.ValidateJWT returns the username
-	username, err := auth.ValidateJWT(jwtToken)
+	userID, err := strconv.ParseUint(userStr, 10, 64)
 	if err != nil {
-		fmt.Println(err.Error())
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
 		return
 	}
-
-	// 3. Return the user's information
-	c.JSON(http.StatusOK, gin.H{"login": username})
+	userdata, err := s.services.GetUser(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user data"})
+		return
+	}
+	c.JSON(http.StatusOK, userdata)
 }

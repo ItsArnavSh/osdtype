@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"osdtyp/app/api/auth"
+	"osdtyp/app/entity"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
@@ -75,4 +77,29 @@ func (s *Server) GitHubAuth() {
 		c.Redirect(http.StatusSeeOther, "http://localhost:5173/")
 	})
 
+}
+
+func (s *Server) FakeGitHubAuth() {
+	s.gin_engine.GET("/login/github/fake", func(c *gin.Context) {
+		testLogin := c.Query("username")
+		if testLogin == "" {
+			testLogin = "testuser"
+		}
+
+		userid, err := s.services.LoginUser(c, entity.User{Username: testLogin})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed To Save user to db"})
+		}
+
+		// Generate JWT for the test user
+		jwt, err := auth.GenerateJWT(strconv.FormatUint(userid, 10))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+			return
+		}
+
+		// Set JWT token cookie
+		c.SetCookie("token", jwt, 3600, "/", "localhost", false, true)
+		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Logged in as %s with userid  %d", testLogin, userid)})
+	})
 }

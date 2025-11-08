@@ -51,6 +51,7 @@ func (s *Server) SetupRoutes() {
 	}
 	//Auth Route
 	s.GitHubAuth()
+	s.FakeGitHubAuth()
 }
 func (s *Server) StartServer() {
 	port := os.Getenv("PORT")
