@@ -33,3 +33,11 @@ func (d *Database) ChangeRank(ctx context.Context, userid uint64, rank uint16) e
 	result := d.db.WithContext(ctx).Update("rank", rank).Where("id =?", userid)
 	return result.Error
 }
+func (d *Database) GetRank(ctx context.Context, userid uint64) (uint16, error) {
+	var user entity.User
+	err := d.db.WithContext(ctx).Where("id= ?", userid).First(&user).Error
+	if err != nil {
+		return 0, err
+	}
+	return user.CurrentRank, nil
+}

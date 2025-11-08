@@ -12,3 +12,7 @@ type Friends struct {
 	B        uint64 `gorm:"primaryKey"`
 	Relation Relation
 }
+type Invite struct {
+	From    string `json:"from"`
+	LobbyID uint64 `json:"lobby_id"`
+}

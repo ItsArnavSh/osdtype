@@ -48,3 +48,6 @@ func (c *ControlledLobby) StartGameFromLobby(lobby_id uint64, duration time.Dura
 	c.ac.NewGame(players, duration)
 	return nil
 }
+func (c *ControlledLobby) RemoveLobby(lobbyid uint64) {
+	delete(c.lobby, lobbyid)
+}
