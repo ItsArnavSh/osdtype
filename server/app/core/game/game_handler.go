@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
 
@@ -38,17 +37,18 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 	for _, item := range player_conns {
 		wg.Add(1)
 		player := player.Player{
-			State:    strings.Builder{},
-			Conn:     item.Websock,
-			Out:      common_out,
-			In:       make(chan entity.Keypress),
-			ID:       item.ID,
-			Rank:     item.Rank,
-			LocalOut: make(chan player.OutGoing, 10),
-			Logger:   logger,
-			Duration: duration,
-			Snippet:  snippet,
-			WG:       &wg,
+			State:     strings.Builder{},
+			WebSocIn:  item.IN,
+			WebSocOut: item.OUT,
+			Out:       common_out,
+			In:        make(chan entity.Keypress),
+			ID:        item.ID,
+			Rank:      item.Rank,
+			LocalOut:  make(chan player.OutGoing, 10),
+			Logger:    logger,
+			Duration:  duration,
+			Snippet:   snippet,
+			WG:        &wg,
 		}
 
 		players = append(players, player)
@@ -61,7 +61,7 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 	binary.BigEndian.PutUint64(buf, seed)
 
 	for _, conn := range player_conns {
-		conn.Websock.WriteMessage(websocket.TextMessage, fmt.Appendf(nil, "%d", seed))
+		conn.OUT <- fmt.Appendf(nil, "%d", seed)
 	}
 
 	return GameHandler{
@@ -108,7 +108,8 @@ func (g *GameHandler) EndLiveStream() {
 	//Send the scores to all the players
 	for _, player := range g.Player {
 		go func() {
-			player.Conn.WriteJSON(leaderboard)
+			player.WebSocOut <- leaderboard
+			player.WebSocOut <- nil //Unsub message
 		}()
 	}
 }

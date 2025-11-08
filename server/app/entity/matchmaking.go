@@ -4,14 +4,14 @@ import (
 	"time"
 
 	"github.com/google/btree"
-	"github.com/gorilla/websocket"
 )
 
 type LobbyEntry struct {
 	ID       uint64
 	Rank     uint16
 	JoinedAt time.Time
-	Websock  *websocket.Conn
+	IN       <-chan []byte
+	OUT      chan<- any
 }
 type PlayerItem LobbyEntry
 

@@ -2,13 +2,12 @@ package matchmaker
 
 import (
 	"osdtyp/app/core/game"
+	"osdtyp/app/core/usersession"
 	"osdtyp/app/entity"
 	"osdtyp/app/internal/redis"
-	"osdtyp/app/utils"
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/btree"
 	"go.uber.org/zap"
 )
@@ -19,11 +18,12 @@ import (
 // Migrate this functionality to redis later
 
 type Matchmaker struct {
-	rdb    *redis.RedisClient
-	logger *zap.SugaredLogger
-	lobby  map[entity.LobbyType]*btree.BTree
-	mu     sync.RWMutex
-	ac     *game.ActiveGames
+	rdb     *redis.RedisClient
+	logger  *zap.SugaredLogger
+	lobby   map[entity.LobbyType]*btree.BTree
+	mu      sync.RWMutex
+	ac      *game.ActiveGames
+	session *usersession.ActiveSessions
 }
 
 func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.ActiveGames) *Matchmaker {
@@ -41,12 +41,9 @@ func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.A
 
 	return mm
 }
-func (m *Matchmaker) AddToGlobalLobby(c *gin.Context, userid uint64, current_rank uint16, duration entity.LobbyType) error {
-	websoc, err := utils.UpgradeToWebSocket(c)
-	if err != nil {
-		return err
-	}
-	m.lobby[duration].ReplaceOrInsert(entity.PlayerItem{ID: userid, Websock: websoc, Rank: current_rank, JoinedAt: time.Now()})
+func (m *Matchmaker) AddToGlobalLobby(userid uint64, current_rank uint16, duration entity.LobbyType) error {
+	in, out := m.session.Users[userid].Subscribe()
+	m.lobby[duration].ReplaceOrInsert(entity.PlayerItem{ID: userid, Rank: current_rank, JoinedAt: time.Now(), IN: in, OUT: out})
 	//m.rdb.JoinLobby(c.Request.Context(), 0, userid, current_rank)
 	return nil
 }

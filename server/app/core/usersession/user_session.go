@@ -14,22 +14,44 @@ type UserSession struct {
 	Outgoing         chan any
 	OnDisconnect     func(uint64)
 	UserID           uint64
-	lock             sync.RWMutex
-	ReadChannelFree  bool
-	WriteChannelFree bool
+	ChannelShareLock sync.Mutex //Only one process can have the channel at a time
+
+}
+
+func NewUserSession(ws *websocket.Conn, disc func(uint64), id uint64) *UserSession {
+	user := UserSession{
+		Status:           entity.AVAILABLE,
+		WS:               ws,
+		Incoming:         make(chan []byte),
+		Outgoing:         make(chan any),
+		OnDisconnect:     disc,
+		UserID:           id,
+		ChannelShareLock: sync.Mutex{},
+	}
+	go user.sendData()
+	go user.receiveData()
+	return &user
 }
 
 //Using this pattern to avoid concurrent write on
 
-func (u *UserSession) SendData() { //A running goroutine
+func (u *UserSession) sendData() { //A running goroutine
 	for data := range u.Outgoing {
-		_ = u.WS.WriteJSON(data)
-		//If error is related to disconnect, close the channel and handle everything
+		if data == nil {
+			//Nil data will be sent only when the data wants to unsub from channel
+			//Will probably find a better way later, for now, I dont wanna just have UserSession references around the code
+			u.UnSubscribe()
+			continue
+		}
+		err := u.WS.WriteJSON(data)
+		if err != nil {
+			u.UserOffline()
+		}
 	}
 }
 
 // We want to ensure only one goroutine has access to this channel at one time, to avoid bugs
-func (u *UserSession) ReceiveData() { //Keeps filling the channel
+func (u *UserSession) receiveData() { //Keeps filling the channel
 
 	for {
 		// Read message from client
@@ -46,32 +68,12 @@ func (u *UserSession) UserOffline() {
 	close(u.Outgoing)
 	u.OnDisconnect(u.UserID)
 }
-func (u *UserSession) SubscribeRead() chan []byte {
-	u.lock.Lock()
-	u.ReadChannelFree = false
-	u.lock.Unlock()
-
-	return u.Incoming
+func (u *UserSession) Subscribe() (<-chan []byte, chan<- any) {
+	u.ChannelShareLock.Lock()
+	return u.Incoming, u.Outgoing
 }
 
 // It MUST be called and channel to stopped being read from from that section of code
-func (u *UserSession) UnSubRead() {
-	u.lock.Lock()
-	u.ReadChannelFree = true
-	u.lock.Unlock()
-}
-
-func (u *UserSession) SubscribeWrite() chan any {
-	u.lock.Lock()
-	u.WriteChannelFree = false
-	u.lock.Unlock()
-
-	return u.Outgoing
-}
-
-// It MUST be called and channel to stopped being written from from that section of code
-func (u *UserSession) UnSubWrite() {
-	u.lock.Lock()
-	u.WriteChannelFree = true
-	u.lock.Unlock()
+func (u *UserSession) UnSubscribe() {
+	u.ChannelShareLock.Unlock()
 }
