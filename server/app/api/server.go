@@ -48,12 +48,19 @@ func (s *Server) SetupRoutes() {
 	user_group.Use(auth.AuthMiddleware())
 	{
 		user_group.GET("/whoami", s.whoami)
+		//whoami
 		user_group.GET("/join-lobby", s.joinLobby)
+		//join-lobby?duration=30
 		user_group.GET("/imonline", s.joinsession)
+		//imonline
 		user_group.POST("/follow", s.follow)
+		//follow?user=name
 		user_group.POST("/unfollow", s.unfollow)
+		//unfollow?user=name
 		user_group.GET("/join-clobby", s.joinControlledLobby)
+		//join-clobby?lobbyid=id
 		user_group.GET("invite-to-lobby", s.invitePlayerToLobby)
+		//invite-to-lobby?invitee=name
 	}
 	//Auth Route
 	s.GitHubAuth()
