@@ -2,44 +2,41 @@ package api
 
 import (
 	"net/http"
+	"osdtyp/app/api/auth"
 	"osdtyp/app/entity"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) joinLobby(g *gin.Context) {
-	useridStr := g.Query("userid")
-	rankStr := g.Query("rank")
-	durationStr := g.Query("duration")
-
-	// Check for missing parameters
-	if useridStr == "" || rankStr == "" || durationStr == "" {
-		s.logger.Warnw("missing query parameters", "userid", useridStr, "rank", rankStr, "duration", durationStr)
-		g.JSON(http.StatusBadRequest, gin.H{
-			"error": "missing required query parameters: userid, rank, duration",
-		})
-		return
-	}
-
-	// Parse user ID
-	userid, err := strconv.ParseUint(useridStr, 10, 64)
+	userid, err := auth.GetUserID(g)
 	if err != nil {
-		s.logger.Warnw("invalid userid", "userid", useridStr, "error", err)
+		s.logger.Warnw("invalid userid", "error", err)
 		g.JSON(http.StatusBadRequest, gin.H{"error": "invalid userid format"})
 		return
 	}
 
-	// Parse rank
-	rankVal, err := strconv.ParseUint(rankStr, 10, 16)
+	rankStr, err := s.services.GetRank(g.Request.Context(), userid)
 	if err != nil {
-		s.logger.Warnw("invalid rank", "rank", rankStr, "error", err)
+		s.logger.Warnw("invalid rank", "userid", userid, "error", err)
 		g.JSON(http.StatusBadRequest, gin.H{"error": "invalid rank format"})
 		return
 	}
-	currentRank := uint16(rankVal)
 
-	// Parse duration into lobby type
+	durationStr := g.Query("duration")
+	if durationStr == "" {
+		s.logger.Warnw("missing duration", "userid", userid)
+		g.JSON(http.StatusBadRequest, gin.H{"error": "missing duration parameter"})
+		return
+	}
+
+	// Check for zero values explicitly
+	if userid == 0 || rankStr == 0 {
+		s.logger.Warnw("invalid userid or rank", "userid", userid, "rank", rankStr)
+		g.JSON(http.StatusBadRequest, gin.H{"error": "userid or rank cannot be zero"})
+		return
+	}
+
 	var lobbyType entity.LobbyType
 	switch durationStr {
 	case "30":
@@ -54,14 +51,12 @@ func (s *Server) joinLobby(g *gin.Context) {
 		return
 	}
 
-	// Try to add to global lobby
-	if err := s.core.Matchmaker.AddToGlobalLobby(userid, currentRank, lobbyType); err != nil {
-		s.logger.Errorw("failed to join lobby", "userid", userid, "rank", currentRank, "lobbyType", lobbyType, "error", err)
+	if err := s.core.Matchmaker.AddToGlobalLobby(userid, rankStr, lobbyType); err != nil {
+		s.logger.Errorw("failed to join lobby", "userid", userid, "rank", rankStr, "lobbyType", lobbyType, "error", err)
 		g.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join lobby"})
 		return
 	}
 
-	// Success
-	s.logger.Infow("user joined lobby", "userid", userid, "rank", currentRank, "lobbyType", lobbyType)
+	s.logger.Infow("user joined lobby", "userid", userid, "rank", rankStr, "lobbyType", lobbyType)
 	g.JSON(http.StatusOK, gin.H{"message": "joined lobby successfully"})
 }

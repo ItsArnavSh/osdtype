@@ -36,3 +36,7 @@ func (s *ServiceLayer) GetUser(ctx context.Context, userid uint64) (entity.User,
 	s.logger.Debug(userid)
 	return s.db.GetUser(ctx, userid)
 }
+
+func (s *ServiceLayer) GetUserFromName(ctx context.Context, username string) (entity.User, error) {
+	return s.db.GetUserFromName(ctx, username)
+}

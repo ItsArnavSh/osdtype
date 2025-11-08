@@ -13,4 +13,7 @@ func (s *ServiceLayer) JoinRankedLobby(ctx context.Context, userid uint64, durat
 	return s.core.Matchmaker.AddToGlobalLobby(userid, rank, duration)
 }
 
-//The game will be handled automatically using za core/
+// The game will be handled automatically using za core/
+func (s *ServiceLayer) GetRank(ctx context.Context, userid uint64) (uint16, error) {
+	return s.db.GetRank(ctx, userid)
+}

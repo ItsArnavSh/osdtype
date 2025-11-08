@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -46,12 +47,13 @@ func IsAuth(c *gin.Context) bool {
 	_, exists := c.Get("userID")
 	return exists
 }
-func GetUserID(c *gin.Context) (string, error) {
+func GetUserID(c *gin.Context) (uint64, error) {
 	userid := c.GetString("userID")
 	if userid == "" {
-		return "", fmt.Errorf("No Active User Logged in")
+		return 0, fmt.Errorf("No Active User Logged in")
 	}
-	return userid, nil
+	uid, _ := strconv.ParseUint(userid, 10, 64)
+	return uid, nil
 }
 func SetUserID(c *gin.Context, uid uint64) {
 	c.Set("userID", uid)

@@ -42,12 +42,18 @@ func (s *Server) SetupRoutes() {
 	root_group := s.gin_engine.Group("/")
 	{
 		root_group.GET("/ping", s.ping)
-		root_group.GET("/join-lobby", s.joinLobby)
+		root_group.GET("get-user", s.getuser)
 	}
 	user_group := s.gin_engine.Group("/user")
 	user_group.Use(auth.AuthMiddleware())
 	{
 		user_group.GET("/whoami", s.whoami)
+		user_group.GET("/join-lobby", s.joinLobby)
+		user_group.GET("/imonline", s.joinsession)
+		user_group.POST("/follow", s.follow)
+		user_group.POST("/unfollow", s.unfollow)
+		user_group.GET("/join-clobby", s.joinControlledLobby)
+		user_group.GET("invite-to-lobby", s.invitePlayerToLobby)
 	}
 	//Auth Route
 	s.GitHubAuth()
