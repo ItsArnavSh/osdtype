@@ -16,13 +16,11 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var tokenString string
 
-		// 1. Try to get the token from the cookie first
 		cookie, err := c.Cookie("token")
 		if err == nil {
 			tokenString = cookie
 		}
 
-		// 2. If no cookie, fall back to the Authorization header
 		if tokenString == "" {
 			bearerToken := c.GetHeader("Authorization")
 			// The header should be in the format "Bearer <token>"
@@ -31,7 +29,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			}
 		}
 
-		// 3. If no token was found in either place, proceed as a guest
 		if tokenString == "" {
 			c.Next()
 			return
@@ -40,13 +37,9 @@ func AuthMiddleware() gin.HandlerFunc {
 		// 4. Validate the token using your dedicated function
 		userID, err := ValidateJWT(tokenString)
 		if err == nil {
-			// Token is valid. Set the userID in the context for other handlers to use.
 			c.Set("userID", userID)
 		}
-		// If err is not nil, the token is invalid (expired, bad signature, etc.).
-		// We do nothing and treat them as a guest user.
 
-		// 5. Always proceed to the next handler
 		c.Next()
 	}
 }

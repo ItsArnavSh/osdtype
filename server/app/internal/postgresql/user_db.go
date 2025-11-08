@@ -29,3 +29,7 @@ func (d *Database) UserExists(ctx context.Context, username string) (bool, error
 	}
 	return result.RowsAffected > 0, nil
 }
+func (d *Database) ChangeRank(ctx context.Context, userid uint64, rank uint16) error {
+	result := d.db.WithContext(ctx).Update("rank", rank).Where("id =?", userid)
+	return result.Error
+}

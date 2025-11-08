@@ -11,7 +11,8 @@ import (
 //This package houses all the core backend services that are not exactly "event based" from the internal library
 
 type CodeCore struct {
-	Matchmaker  *matchmaker.Matchmaker
+	Matchmaker *matchmaker.Matchmaker
+
 	ActiveGames game.ActiveGames
 	Sessions    usersession.ActiveSessions
 }

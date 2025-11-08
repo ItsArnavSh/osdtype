@@ -1,6 +1,7 @@
 package services
 
 import (
+	"osdtyp/app/core"
 	"osdtyp/app/internal/postgresql"
 	"osdtyp/app/utils"
 
@@ -11,13 +12,14 @@ type ServiceLayer struct {
 	db      postgresql.Database
 	logger  *zap.SugaredLogger
 	int_gen utils.Generator
+	core    *core.CodeCore
 }
 
-func NewServiceLayer(logger *zap.SugaredLogger) (ServiceLayer, error) {
+func NewServiceLayer(logger *zap.SugaredLogger, core *core.CodeCore) (ServiceLayer, error) {
 	db, err := postgresql.ConnectDatabase(logger)
 	if err != nil {
 		return ServiceLayer{}, err
 	}
 	gen := utils.NewGenerator()
-	return ServiceLayer{logger: logger, db: db, int_gen: gen}, nil
+	return ServiceLayer{logger: logger, db: db, int_gen: gen, core: core}, nil
 }

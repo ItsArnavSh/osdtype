@@ -30,17 +30,14 @@ func NewServer(logger *zap.SugaredLogger) Server {
 		gin.DefaultWriter = utils.ZapWriter{Logger: logger}
 		gin.DefaultErrorWriter = utils.ZapWriter{Logger: logger}
 	}
-	service, err := services.NewServiceLayer(logger)
-
 	core := core.NewCodeCore(logger)
+	service, err := services.NewServiceLayer(logger, &core)
 	if err != nil {
 		return Server{}
 	}
-
 	return Server{logger: logger, gin_engine: r, services: service, core: &core}
 }
 func (s *Server) SetupRoutes() {
-
 	//Setting up general routes
 	root_group := s.gin_engine.Group("/")
 	{
