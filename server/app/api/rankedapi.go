@@ -55,7 +55,7 @@ func (s *Server) joinLobby(g *gin.Context) {
 	}
 
 	// Try to add to global lobby
-	if err := s.core.Matchmaker.AddToGlobalLobby(g, userid, currentRank, lobbyType); err != nil {
+	if err := s.core.Matchmaker.AddToGlobalLobby(userid, currentRank, lobbyType); err != nil {
 		s.logger.Errorw("failed to join lobby", "userid", userid, "rank", currentRank, "lobbyType", lobbyType, "error", err)
 		g.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join lobby"})
 		return
