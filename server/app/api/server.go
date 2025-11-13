@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -30,6 +31,15 @@ func NewServer(logger *zap.SugaredLogger) Server {
 		gin.DefaultWriter = utils.ZapWriter{Logger: logger}
 		gin.DefaultErrorWriter = utils.ZapWriter{Logger: logger}
 	}
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
+
 	core := core.NewCodeCore(logger)
 	service, err := services.NewServiceLayer(logger, &core)
 	if err != nil {

@@ -11,12 +11,10 @@ import (
 
 func (s *ServiceLayer) LoginUser(g *gin.Context, user entity.User) (uint64, error) {
 	user_exists, err := s.db.UserExists(g.Request.Context(), user.Username)
-	if err != nil {
-		return 0, err
-	}
+
 	if user_exists {
 		user, _ = s.db.GetUserFromName(g.Request.Context(), user.Username)
-		return user.ID, err
+		return user.ID, nil
 	}
 	//Register User
 	user.ID = s.int_gen.GenerateID()

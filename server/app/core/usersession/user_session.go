@@ -1,6 +1,7 @@
 package usersession
 
 import (
+	"fmt"
 	"osdtyp/app/entity"
 	"sync"
 
@@ -19,6 +20,8 @@ type UserSession struct {
 }
 
 func NewUserSession(ws *websocket.Conn, disc func(uint64), id uint64) *UserSession {
+
+	fmt.Println("Making new session for ", id)
 	user := UserSession{
 		Status:           entity.AVAILABLE,
 		WS:               ws,
@@ -57,13 +60,16 @@ func (u *UserSession) receiveData() { //Keeps filling the channel
 		// Read message from client
 		_, message, err := u.WS.ReadMessage()
 		if err != nil {
+			fmt.Println(err.Error())
 			u.UserOffline() //Disconnect in case of error from websocket
+			return
 		}
 		u.Incoming <- message
 	}
 
 }
 func (u *UserSession) UserOffline() {
+	fmt.Println("Ending Session")
 	close(u.Incoming)
 	close(u.Outgoing)
 	u.OnDisconnect(u.UserID)

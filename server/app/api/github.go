@@ -89,6 +89,7 @@ func (s *Server) FakeGitHubAuth() {
 		userid, err := s.services.LoginUser(c, entity.User{Username: testLogin})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed To Save user to db"})
+			return
 		}
 
 		// Generate JWT for the test user
@@ -99,7 +100,16 @@ func (s *Server) FakeGitHubAuth() {
 		}
 
 		// Set JWT token cookie
-		c.SetCookie("token", jwt, 3600, "/", "localhost", false, true)
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:        "token",
+			Value:       jwt,
+			Path:        "/",
+			MaxAge:      3600,
+			HttpOnly:    true,
+			Secure:      false, // must be true if using "SameSite=None"
+			SameSite:    http.SameSiteNoneMode,
+			Partitioned: true, // requires Go 1.22+
+		})
 		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Logged in as %s with userid  %d", testLogin, userid)})
 	})
 }
