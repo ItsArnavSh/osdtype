@@ -1,6 +1,7 @@
 package matchmaker
 
 import (
+	"fmt"
 	"osdtyp/app/core/game"
 	"osdtyp/app/core/usersession"
 	"osdtyp/app/entity"
@@ -26,22 +27,31 @@ type Matchmaker struct {
 	session *usersession.ActiveSessions
 }
 
-func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.ActiveGames) *Matchmaker {
-	mm := &Matchmaker{
-		rdb:    rdb,
-		logger: logger,
-		lobby:  make(map[entity.LobbyType]*btree.BTree),
-		ac:     ac,
+func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.ActiveGames, sessions *usersession.ActiveSessions) Matchmaker {
+	return Matchmaker{
+		rdb:     rdb,
+		logger:  logger,
+		lobby:   make(map[entity.LobbyType]*btree.BTree),
+		ac:      ac,
+		session: sessions,
 	}
 
+}
+func (m *Matchmaker) Initialize() {
 	// Initialize different lobbies
 	for _, duration := range []entity.LobbyType{entity.SPRINT, entity.STANDARD, entity.MARATHON} {
-		mm.lobby[duration] = btree.New(2) // degree 2 BTree per duration
+		m.lobby[duration] = btree.New(2) // degree 2 BTree per duration
 	}
-
-	return mm
 }
 func (m *Matchmaker) AddToGlobalLobby(userid uint64, current_rank uint16, duration entity.LobbyType) error {
+	if m.session.Users[userid] == nil {
+		m.logger.Info("Total ", len(m.session.Users))
+		for k, v := range m.session.Users {
+			m.logger.Info("Finding ", userid)
+			m.logger.Debug("Member ", k, v)
+		}
+		return fmt.Errorf("Empty\n\n\n\n\n")
+	}
 	in, out := m.session.Users[userid].Subscribe()
 	m.lobby[duration].ReplaceOrInsert(entity.PlayerItem{ID: userid, Rank: current_rank, JoinedAt: time.Now(), IN: in, OUT: out})
 	//m.rdb.JoinLobby(c.Request.Context(), 0, userid, current_rank)

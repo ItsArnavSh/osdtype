@@ -106,7 +106,7 @@ func (s *Server) FakeGitHubAuth() {
 			Path:        "/",
 			MaxAge:      3600,
 			HttpOnly:    true,
-			Secure:      false, // must be true if using "SameSite=None"
+			Secure:      true, // must be true if using "SameSite=None"
 			SameSite:    http.SameSiteNoneMode,
 			Partitioned: true, // requires Go 1.22+
 		})

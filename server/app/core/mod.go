@@ -12,7 +12,7 @@ import (
 //This package houses all the core backend services that are not exactly "event based" from the internal library
 
 type CodeCore struct {
-	Matchmaker  *matchmaker.Matchmaker
+	Matchmaker  matchmaker.Matchmaker
 	ManualLobby controlledlobby.ControlledLobby
 	ActiveGames game.ActiveGames
 	Sessions    usersession.ActiveSessions
@@ -23,11 +23,15 @@ func NewCodeCore(logger *zap.SugaredLogger) CodeCore {
 	session := usersession.NewActiveSessions()
 	return CodeCore{
 		ActiveGames: games,
-		Matchmaker:  matchmaker.NewMatchMaker(nil, logger, &games),
-		Sessions:    usersession.NewActiveSessions(),
+		Matchmaker:  matchmaker.NewMatchMaker(nil, logger, &games, &session),
+		Sessions:    session,
 		ManualLobby: controlledlobby.NewControlledLobby(logger, &games, &session),
 	}
 }
 func (c *CodeCore) BootCodeCore() {
-	go c.Matchmaker.BackgroundMatchmaker()
+	{ //Matchmaker stuff
+		c.Matchmaker.Initialize()
+		go c.Matchmaker.BackgroundMatchmaker()
+	}
+
 }

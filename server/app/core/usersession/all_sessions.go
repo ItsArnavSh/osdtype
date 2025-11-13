@@ -1,6 +1,7 @@
 package usersession
 
 import (
+	"fmt"
 	"osdtyp/app/entity"
 	"osdtyp/app/utils"
 
@@ -33,6 +34,11 @@ func (a *ActiveSessions) NewUserSession(g *gin.Context, id uint64) error {
 		return err
 	}
 	a.Users[id] = NewUserSession(ws, a.RemoveSession, id)
+	fmt.Println("New Session is here")
+	fmt.Print("Total ", len(a.Users))
+	for k, v := range a.Users {
+		fmt.Println("Member ", k, v)
+	}
 	return nil
 }
 func (a *ActiveSessions) UpdateSession(id uint64, status entity.UserStatus) {

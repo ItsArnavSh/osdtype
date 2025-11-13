@@ -31,7 +31,7 @@ func (s *Server) joinLobby(g *gin.Context) {
 	}
 
 	// Check for zero values explicitly
-	if userid == 0 || rankStr == 0 {
+	if userid == 0 {
 		s.logger.Warnw("invalid userid or rank", "userid", userid, "rank", rankStr)
 		g.JSON(http.StatusBadRequest, gin.H{"error": "userid or rank cannot be zero"})
 		return
