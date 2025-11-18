@@ -32,7 +32,8 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 	wg := sync.WaitGroup{}
 
 	seed := rand.Uint64()
-	snippet := cg.Generate("c", seed, 1000)
+	lang_choice := entity.Language(seed % 10)
+	snippet := cg.Generate(lang_choice.String(), seed, 1000)
 	common_out := make(chan player.OutGoing)
 	for _, item := range player_conns {
 		wg.Add(1)
