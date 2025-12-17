@@ -1,15 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	// Only import your actual Rust functions – NO init!
-	import { add } from '../rust-core/pkg/rust_core.js'; // Or absolute '/rust-core/pkg/rust_core.js'
+	import { generate } from '../rust-core/pkg/rust_core.js';
+	import { CGrammar } from '$lib/core/templates/c.js';
 
-	let result = 0;
+	let result: string[] = [];
 	let loading = true;
-
 	onMount(async () => {
 		try {
-			// No await init() needed – the plugin makes functions usable directly
-			result = add(2, 3); // Works immediately (async under the hood, handled by plugin)
+			result = generate(CGrammar, 12312, 1000);
 		} catch (err) {
 			console.error('Wasm failed:', err);
 		} finally {

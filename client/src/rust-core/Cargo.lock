@@ -39,9 +39,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "resrap-rs"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35a64f188d0dfb6484511feb2b16ec43d3a436fdbad1f950fd899ec7231cc943"
+
+[[package]]
 name = "rust-core"
 version = "0.1.0"
 dependencies = [
+ "resrap-rs",
  "wasm-bindgen",
 ]
 
