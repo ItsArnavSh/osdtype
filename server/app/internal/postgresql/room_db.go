@@ -13,7 +13,11 @@ func (d *Database) AddMember(ctx context.Context, room_user entity.Room_User) er
 	return d.db.WithContext(ctx).Create(&room_user).Error
 }
 func (d *Database) UpdateMembership(ctx context.Context, room_user entity.Room_User) error {
-	return d.db.WithContext(ctx).Update("perm", room_user.Perm).Where("room_id=? and user_id=?", room_user.RoomID, room_user.UserID).Error
+	return d.db.WithContext(ctx).
+		Model(&entity.Room_User{}).
+		Where("room_id=? AND user_id=?", room_user.RoomID, room_user.UserID).
+		Update("perm", room_user.Perm).
+		Error
 }
 func (d *Database) SeePerms(ctx context.Context, room_user entity.Room_User) (entity.Room_User, error) {
 	result := d.db.WithContext(ctx).
@@ -24,10 +28,23 @@ func (d *Database) SeePerms(ctx context.Context, room_user entity.Room_User) (en
 	}
 	return room_user, nil
 }
-func (d *Database) RemovePlayer(ctx context.Context, room_user entity.Room_User) error {
-	result := d.db.Where("room_id=? AND user_id=?", room_user.RoomID, room_user.UserID).Delete(ctx)
-	if result.Error != nil {
-		return result.Error
+
+func (d *Database) PageList(ctx context.Context, user_id uint64, index, limit uint8) ([]entity.Room, error) {
+
+	var rooms []entity.Room
+
+	offset := int(index) * int(limit)
+
+	err := d.db.WithContext(ctx).
+		Where("user_id = ?", user_id).
+		Order("id DESC").
+		Offset(offset).
+		Limit(int(limit)).
+		Find(&rooms).Error
+
+	if err != nil {
+		return nil, err
 	}
-	return nil
+
+	return rooms, nil
 }

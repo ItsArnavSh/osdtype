@@ -11,3 +11,4 @@ services:
       - "5432:5432"
     volumes:
       - ./docker_data/postgres_data:/var/lib/postgresql/data
+    command: postgres -c listen_addresses='*'

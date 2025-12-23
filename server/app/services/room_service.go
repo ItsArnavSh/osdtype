@@ -117,3 +117,7 @@ func (s *ServiceLayer) UnBlockUser(ctx context.Context, room_user entity.Room_Us
 	s.logger.Error("Not Enough Perms")
 	return fmt.Errorf("Not enough perms")
 }
+
+func (s *ServiceLayer) ListRooms(ctx context.Context, user_id uint64, index uint8) ([]entity.Room, error) {
+	return s.db.PageList(ctx, user_id, index, 10)
+}

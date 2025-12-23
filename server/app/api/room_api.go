@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"osdtyp/app/api/auth"
 	"osdtyp/app/entity"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -213,4 +214,29 @@ func (s *Server) UnBlockUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
+}
+
+func (s *Server) GetRoomList(c *gin.Context) {
+	user_id, err := auth.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+		return
+	}
+	index_str := c.Query("index")
+	index, err := strconv.ParseUint(index_str, 10, 8)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Error in query"})
+		return
+	}
+	rooms, err := s.services.ListRooms(c.Request.Context(), user_id, uint8(index))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error"})
+		return
+	}
+	rooms_json, err := json.Marshal(rooms)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to marshal"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"rooms": rooms_json})
 }

@@ -72,6 +72,28 @@ func (s *Server) SetupRoutes() {
 		user_group.GET("invite-to-lobby", s.invitePlayerToLobby)
 		//invite-to-lobby?invitee=name
 	}
+	room_group := s.gin_engine.Group("/room")
+
+	room_group.Use(auth.AuthMiddleware())
+	{
+		room_group.POST("/create", s.CreateRoom)
+		// POST /room/create
+		room_group.POST("/add-member", s.AddMember)
+		// POST /room/add-member
+		room_group.POST("/promote", s.PromoteToMod)
+		// POST /room/promote
+		room_group.POST("/demote", s.DemoteToMember)
+		// POST /room/demote
+		room_group.POST("/block", s.BlockUser)
+		// POST /room/block
+		room_group.POST("/unblock", s.UnBlockUser)
+		// POST /room/unblock
+		room_group.POST("/remove", s.RemoveUser)
+		// POST /room/remove
+		room_group.GET("/list", s.GetRoomList)
+		// GET /room/list?index=0
+	}
+
 	//Auth Route
 	s.GitHubAuth()
 	s.FakeGitHubAuth()
