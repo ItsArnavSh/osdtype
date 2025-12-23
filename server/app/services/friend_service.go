@@ -46,3 +46,6 @@ func (s *ServiceLayer) InvitePlayerToLobby(invitor string, invitee uint64, lobby
 		send <- nil //Unsubscribe
 	}
 }
+func (s *ServiceLayer) SearchUsers(ctx context.Context, username string) ([]entity.User, error) {
+	return s.db.SearchPeople(ctx, username, 10)
+}

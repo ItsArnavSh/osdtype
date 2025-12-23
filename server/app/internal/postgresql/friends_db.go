@@ -103,3 +103,25 @@ func (d *Database) GetFriends(ctx context.Context, id uint64) ([]uint64, error) 
 
 	return friends, nil
 }
+
+func (d *Database) SearchPeople(
+	ctx context.Context,
+	txt string,
+	limit uint8,
+) ([]entity.User, error) {
+
+	var users []entity.User
+
+	err := d.db.WithContext(ctx).
+		Where("user_name LIKE ?", "%"+txt+"%").
+		Order("user_name ASC").
+		Limit(int(limit)).
+		Find(&users).
+		Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
