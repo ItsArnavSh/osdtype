@@ -6,6 +6,7 @@ const (
 	MOD room_perm = iota
 	MEMBER
 	BLOCKED
+	LEFT
 )
 
 type room_type int
@@ -16,6 +17,7 @@ const (
 )
 
 type Room struct {
+	ID     uint64
 	Name   string
 	Desc   string
 	Public room_type

@@ -7,6 +7,6 @@ type Scheduler struct {
 	logger *zap.SugaredLogger
 }
 
-func (s *Scheduler) ParseYaml() {
+func (s *Scheduler) StartScheduler() {
 
 }
