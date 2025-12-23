@@ -4,6 +4,7 @@ import (
 	"os"
 	"osdtyp/app/api/auth"
 	"osdtyp/app/core"
+	"osdtyp/app/internal/postgresql"
 	"osdtyp/app/services"
 	"osdtyp/app/utils"
 	"strings"
@@ -39,9 +40,12 @@ func NewServer(logger *zap.SugaredLogger) Server {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
-
-	core := core.NewCodeCore(logger)
-	service, err := services.NewServiceLayer(logger, &core)
+	db, err := postgresql.ConnectDatabase(logger)
+	if err != nil {
+		return Server{}
+	}
+	core := core.NewCodeCore(logger, &db)
+	service, err := services.NewServiceLayer(logger, &core, &db)
 	if err != nil {
 		return Server{}
 	}
