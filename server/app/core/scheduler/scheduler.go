@@ -73,13 +73,14 @@ func (s *Scheduler) TaskHandler(task entity.Task) {
 			}
 		//Update the task time
 		case entity.LOBBY:
-			sig := make(chan struct{})
+			sig := make(chan []entity.WPMRes)
 			s.lobby.StartGameFromLobby(contest.LobbyID, contest.Duration.Duration(), sig)
 			contest.Status = entity.STARTED
 			err = s.db.UpdateContest(contest)
 			select {
-			case <-sig:
+			case leaderboard := <-sig:
 				contest.Status = entity.ENDED
+				contest.Leaderboard = leaderboard
 				err := s.db.UpdateContest(contest)
 				if err != nil {
 					return

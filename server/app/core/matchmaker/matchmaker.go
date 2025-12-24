@@ -5,7 +5,9 @@ import (
 	"osdtyp/app/core/game"
 	"osdtyp/app/core/usersession"
 	"osdtyp/app/entity"
+	"osdtyp/app/internal/postgresql"
 	"osdtyp/app/internal/redis"
+	"osdtyp/app/utils"
 	"sync"
 	"time"
 
@@ -25,15 +27,17 @@ type Matchmaker struct {
 	mu      sync.RWMutex
 	ac      *game.ActiveGames
 	session *usersession.ActiveSessions
+	db      *postgresql.Database
 }
 
-func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.ActiveGames, sessions *usersession.ActiveSessions) Matchmaker {
+func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.ActiveGames, sessions *usersession.ActiveSessions, db *postgresql.Database) Matchmaker {
 	return Matchmaker{
 		rdb:     rdb,
 		logger:  logger,
 		lobby:   make(map[entity.LobbyType]*btree.BTree),
 		ac:      ac,
 		session: sessions,
+		db:      db,
 	}
 
 }
@@ -123,6 +127,29 @@ func (m *Matchmaker) BackgroundMatchmaker() {
 
 func (m *Matchmaker) startMatch(players []entity.PlayerItem, duration time.Duration) {
 	m.logger.Infof("Starting new game")
-	sig := make(chan struct{})
+	sig := make(chan []entity.WPMRes)
 	m.ac.NewGame(players, duration, sig)
+	m.updateRanks(<-sig)
+}
+
+// Post match rank changes
+func (m *Matchmaker) updateRanks(leaderboard []entity.WPMRes) {
+	var ranks []uint16
+	var pos []uint16
+	for i, entry := range leaderboard {
+		user, err := m.db.GetUser(entry.ID)
+		if err != nil {
+			return
+		}
+		ranks = append(ranks, user.CurrentRank)
+		pos = append(pos, uint16(i+1))
+	}
+
+	updated := utils.UpdateElo(ranks, pos)
+	for i, entry := range leaderboard {
+		err := m.db.ChangeRank(entry.ID, updated[i])
+		if err != nil {
+			return
+		}
+	}
 }

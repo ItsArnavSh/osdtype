@@ -32,7 +32,7 @@ func NewCodeCore(logger *zap.SugaredLogger, db *postgresql.Database) CodeCore {
 	}
 	return CodeCore{
 		ActiveGames: games,
-		Matchmaker:  matchmaker.NewMatchMaker(nil, logger, &games, &session),
+		Matchmaker:  matchmaker.NewMatchMaker(nil, logger, &games, &session, db),
 		Sessions:    session,
 		ManualLobby: ml,
 		Scheduler:   sch,

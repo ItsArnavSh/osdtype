@@ -5,7 +5,7 @@ import (
 )
 
 func (s *ServiceLayer) StartSession(g *gin.Context, userid uint64) error {
-	user, err := s.db.GetUser(g.Request.Context(), userid)
+	user, err := s.db.GetUser(userid)
 	if err != nil {
 		return err
 	}

@@ -8,9 +8,9 @@ import (
 func (d *Database) AddUser(ctx context.Context, user entity.User) error {
 	return d.db.WithContext(ctx).Create(&user).Error
 }
-func (d *Database) GetUser(ctx context.Context, userid uint64) (entity.User, error) {
+func (d *Database) GetUser(userid uint64) (entity.User, error) {
 	var userData entity.User
-	result := d.db.WithContext(ctx).Where("id = ?", userid).First(&userData)
+	result := d.db.Where("id = ?", userid).First(&userData)
 	if result.Error != nil {
 		return entity.User{}, result.Error
 	}
@@ -38,8 +38,8 @@ func (d *Database) UserExists(ctx context.Context, username string) (bool, error
 	return count > 0, nil
 }
 
-func (d *Database) ChangeRank(ctx context.Context, userid uint64, rank uint16) error {
-	result := d.db.WithContext(ctx).
+func (d *Database) ChangeRank(userid uint64, rank uint16) error {
+	result := d.db.
 		Model(&entity.User{}).
 		Where("id = ?", userid).
 		Update("rank", rank)

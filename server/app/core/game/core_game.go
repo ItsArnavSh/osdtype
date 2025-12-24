@@ -22,12 +22,11 @@ func NewActiveGames(logger *zap.SugaredLogger) ActiveGames {
 	}
 
 }
-func (a *ActiveGames) NewGame(players []entity.PlayerItem, duration time.Duration, sig chan struct{}) {
+func (a *ActiveGames) NewGame(players []entity.PlayerItem, duration time.Duration, sig chan []entity.WPMRes) {
 	a.logger.Debug("Duration is ", duration)
-	gh := NewGameHandler(&a.code_gen, players, a.logger, duration)
+	gh := NewGameHandler(&a.code_gen, players, a.logger, duration, sig)
 	go gh.GlobalBroadcaster()
 	//Added a delay just in case one of the ws is slower
 	time.AfterFunc(duration+500*time.Millisecond, gh.EndLiveStream)
-	sig <- struct{}{}
 
 }

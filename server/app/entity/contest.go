@@ -20,10 +20,5 @@ type Contest struct {
 	Duration    LobbyType
 	LobbyID     uint64 //Will be alloted by the scheduler
 	Status      ContestStatus
-	Leaderboard ContestLeaderboard
-}
-type ContestLeaderboard struct {
-	UserID   uint64
-	Position int
-	Stats    WPMRes
+	Leaderboard []WPMRes
 }

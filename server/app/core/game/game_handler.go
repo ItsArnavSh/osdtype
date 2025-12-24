@@ -23,10 +23,10 @@ type GameHandler struct {
 	Codegen   *utils.CodeGen
 	snippet   string //Later use tokens, and live generation
 	wg        *sync.WaitGroup
-	//Need to upgrade resrap for supporting that
+	signal    chan []entity.WPMRes
 }
 
-func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger *zap.SugaredLogger, duration time.Duration) GameHandler {
+func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger *zap.SugaredLogger, duration time.Duration, sig chan []entity.WPMRes) GameHandler {
 	logger.Infof("In the game handler")
 	var players []player.Player
 	wg := sync.WaitGroup{}
@@ -72,6 +72,7 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 		seed:      seed,
 		snippet:   snippet,
 		wg:        &wg,
+		signal:    sig,
 	}
 }
 

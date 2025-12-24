@@ -11,8 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
-//For Rooms and friends 1v1 where the user decides the lobby
-
+// For Rooms and friends 1v1 where the user decides the lobby
+// Also used by Contest
 type ControlledLobby struct {
 	logger    *zap.SugaredLogger
 	ac        *game.ActiveGames
@@ -39,7 +39,7 @@ func (c *ControlledLobby) JoinControlledLobby(userid, lobby_id uint64) error {
 	c.lobby[lobby_id] = append(c.lobby[lobby_id], entity.PlayerItem{ID: userid, IN: in, OUT: out})
 	return nil
 }
-func (c *ControlledLobby) StartGameFromLobby(lobby_id uint64, duration time.Duration, sig chan struct{}) error {
+func (c *ControlledLobby) StartGameFromLobby(lobby_id uint64, duration time.Duration, sig chan []entity.WPMRes) error {
 	players := c.lobby[lobby_id]
 	if len(players) == 0 {
 		return fmt.Errorf("Lobby not found in memory")
