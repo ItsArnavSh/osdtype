@@ -12,14 +12,15 @@ const (
 )
 
 type Contest struct {
-	JobID    uint64
-	RoomID   uint64
-	Time     time.Time
-	Data     []byte //The title, writeup etc
-	Lang     Language
-	Duration LobbyType
-	LobbyID  uint64 //Will be alloted by the scheduler
-	Status   ContestStatus
+	JobID       uint64
+	RoomID      uint64
+	Time        time.Time
+	Data        []byte //The title, writeup etc
+	Lang        Language
+	Duration    LobbyType
+	LobbyID     uint64 //Will be alloted by the scheduler
+	Status      ContestStatus
+	Leaderboard ContestLeaderboard
 }
 type ContestLeaderboard struct {
 	UserID   uint64
