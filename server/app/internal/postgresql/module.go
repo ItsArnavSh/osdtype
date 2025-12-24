@@ -41,6 +41,7 @@ func ConnectDatabase(logger *zap.SugaredLogger) (Database, error) {
 		&entity.Room_User{},
 		&entity.Friends{},
 		&entity.Task{},
+		&entity.Contest{},
 	)
 	if err != nil {
 		logger.Errorf("Failed to run migrations: %s", err)

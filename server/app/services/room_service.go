@@ -121,3 +121,17 @@ func (s *ServiceLayer) UnBlockUser(ctx context.Context, room_user entity.Room_Us
 func (s *ServiceLayer) ListRooms(ctx context.Context, user_id uint64, index uint8) ([]entity.Room, error) {
 	return s.db.PageList(ctx, user_id, index, 10)
 }
+func (s *ServiceLayer) NewContest(ctx context.Context, contest entity.Contest) error {
+	task := entity.Task{
+		Category: entity.CONTEST,
+		JobID:    s.int_gen.GenerateID(),
+		Time:     contest.Time,
+	}
+	err := s.db.NewContest(ctx, contest)
+	if err != nil {
+		return err
+	}
+	s.core.Scheduler.NewTask(task)
+	s.logger.Info("New Contest Scheduled")
+	return nil
+}

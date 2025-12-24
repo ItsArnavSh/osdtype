@@ -123,5 +123,6 @@ func (m *Matchmaker) BackgroundMatchmaker() {
 
 func (m *Matchmaker) startMatch(players []entity.PlayerItem, duration time.Duration) {
 	m.logger.Infof("Starting new game")
-	m.ac.NewGame(players, duration)
+	sig := make(chan struct{})
+	m.ac.NewGame(players, duration, sig)
 }

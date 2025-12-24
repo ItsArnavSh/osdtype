@@ -39,13 +39,13 @@ func (c *ControlledLobby) JoinControlledLobby(userid, lobby_id uint64) error {
 	c.lobby[lobby_id] = append(c.lobby[lobby_id], entity.PlayerItem{ID: userid, IN: in, OUT: out})
 	return nil
 }
-func (c *ControlledLobby) StartGameFromLobby(lobby_id uint64, duration time.Duration) error {
+func (c *ControlledLobby) StartGameFromLobby(lobby_id uint64, duration time.Duration, sig chan struct{}) error {
 	players := c.lobby[lobby_id]
 	if len(players) == 0 {
 		return fmt.Errorf("Lobby not found in memory")
 	}
 	delete(c.lobby, lobby_id)
-	c.ac.NewGame(players, duration)
+	c.ac.NewGame(players, duration, sig)
 	return nil
 }
 func (c *ControlledLobby) RemoveLobby(lobbyid uint64) {

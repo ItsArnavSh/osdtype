@@ -30,7 +30,7 @@ type Scheduler struct {
 
 func (s *Scheduler) StartScheduler() {
 	for {
-		mro, err := s.db.GetRecentTask()
+		mro, err := s.db.PopRecentTask()
 		if err != nil {
 			s.logger.Error("Scheduler has crashed", err)
 			return
@@ -53,12 +53,44 @@ func (s *Scheduler) StartScheduler() {
 func (s *Scheduler) TaskHandler(task entity.Task) {
 	switch task.Category {
 	case entity.CONTEST:
-		lobby_id := s.lobby.CreateNewLobby()
+		contest, err := s.db.GetContestData(task.JobID)
+		if err != nil {
+			return
+		}
+		switch contest.Status {
+		case entity.UPCOMING:
+			lobby_id := s.lobby.CreateNewLobby()
+			contest.LobbyID = lobby_id
+			contest.Status = entity.LOBBY
+			err = s.db.UpdateContest(contest)
+			if err != nil {
+				return
+			}
+			task.Time = task.Time.Add(5 * time.Minute) //Put back in scheduler so that it can now run the game
+			err := s.db.NewTask(task)
+			if err != nil {
+				return //Todo: Do better error handling over here
+			}
+		//Update the task time
+		case entity.LOBBY:
+			sig := make(chan struct{})
+			s.lobby.StartGameFromLobby(contest.LobbyID, contest.Duration.Duration(), sig)
+			contest.Status = entity.STARTED
+			err = s.db.UpdateContest(contest)
+			select {
+			case <-sig:
+				contest.Status = entity.ENDED
+				err := s.db.UpdateContest(contest)
+				if err != nil {
+					return
+				}
+			case <-time.After(10 * time.Minute):
+				return //Timeout
+			}
 
-		time.After(time.Until(task.Time) - time.Minute*5)
-		s.lobby.StartGameFromLobby()
-		//Since it is a general purpose scheduler, other entries can be simply added later on
+		}
 	}
+	//Since it is a general purpose scheduler, other entries can be simply added later on
 }
 func (s *Scheduler) NewTask(task entity.Task) {
 	//Wakey Wakey
