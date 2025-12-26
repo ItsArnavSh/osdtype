@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"encoding/json"
 	controlledlobby "osdtyp/app/core/controlled-lobby"
 	"osdtyp/app/entity"
 	"osdtyp/app/internal/postgresql"
@@ -32,13 +33,17 @@ func (s *Scheduler) StartScheduler() {
 	for {
 		mro, err := s.db.PopRecentTask()
 		if err != nil {
-			s.logger.Error("Scheduler has crashed", err)
+			s.logger.Error("Failed to pop task:", err)
+			return
+		}
+
+		if mro.JobID == 0 {
+			s.logger.Info("No tasks in queue")
 			return
 		}
 		if mro.JobID == 0 {
 			<-s.wakechan
 			continue
-			//Sleep till new tasks come
 		}
 		sleepDuration := time.Until(mro.Time)
 
@@ -80,8 +85,9 @@ func (s *Scheduler) TaskHandler(task entity.Task) {
 			select {
 			case leaderboard := <-sig:
 				contest.Status = entity.ENDED
-				contest.Leaderboard = leaderboard
-				err := s.db.UpdateContest(contest)
+				lb_json, err := json.Marshal(leaderboard)
+				contest.Leaderboard = lb_json
+				err = s.db.UpdateContest(contest)
 				if err != nil {
 					return
 				}

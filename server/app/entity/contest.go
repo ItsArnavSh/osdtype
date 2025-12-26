@@ -20,5 +20,5 @@ type Contest struct {
 	Duration    LobbyType
 	LobbyID     uint32 //Will be alloted by the scheduler
 	Status      ContestStatus
-	Leaderboard []WPMRes
+	Leaderboard []byte
 }
