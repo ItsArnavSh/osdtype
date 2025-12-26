@@ -6,7 +6,7 @@ import (
 	"osdtyp/app/entity"
 )
 
-func (s *ServiceLayer) CreateRoom(ctx context.Context, room entity.Room, requester_id uint64) error {
+func (s *ServiceLayer) CreateRoom(ctx context.Context, room entity.Room, requester_id uint32) error {
 	room.ID = s.int_gen.GenerateID()
 	err := s.db.CreateRoom(ctx, room)
 	if err != nil {
@@ -26,7 +26,7 @@ func (s *ServiceLayer) AddMember(ctx context.Context, room_user entity.Room_User
 	return s.db.AddMember(ctx, room_user)
 }
 
-func (s *ServiceLayer) PromoteToMod(ctx context.Context, room_user entity.Room_User, requester_id uint64) error {
+func (s *ServiceLayer) PromoteToMod(ctx context.Context, room_user entity.Room_User, requester_id uint32) error {
 	requester, err := s.db.SeePerms(ctx, entity.Room_User{RoomID: room_user.RoomID, UserID: requester_id})
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func (s *ServiceLayer) PromoteToMod(ctx context.Context, room_user entity.Room_U
 	return fmt.Errorf("Not enough perms")
 }
 
-func (s *ServiceLayer) DemoteToMember(ctx context.Context, room_user entity.Room_User, requester_id uint64) error {
+func (s *ServiceLayer) DemoteToMember(ctx context.Context, room_user entity.Room_User, requester_id uint32) error {
 	requester, err := s.db.SeePerms(ctx, entity.Room_User{RoomID: room_user.RoomID, UserID: requester_id})
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func (s *ServiceLayer) DemoteToMember(ctx context.Context, room_user entity.Room
 	s.logger.Error("Not Enough Perms")
 	return fmt.Errorf("Not enough perms")
 }
-func (s *ServiceLayer) BlockUser(ctx context.Context, room_user entity.Room_User, requester_id uint64) error {
+func (s *ServiceLayer) BlockUser(ctx context.Context, room_user entity.Room_User, requester_id uint32) error {
 	requester, err := s.db.SeePerms(ctx, entity.Room_User{RoomID: room_user.RoomID, UserID: requester_id})
 	if err != nil {
 		return err
@@ -75,7 +75,7 @@ func (s *ServiceLayer) BlockUser(ctx context.Context, room_user entity.Room_User
 	s.logger.Error("Not Enough Perms")
 	return fmt.Errorf("Not enough perms")
 }
-func (s *ServiceLayer) RemoveUser(ctx context.Context, room_user entity.Room_User, requester_id uint64) error {
+func (s *ServiceLayer) RemoveUser(ctx context.Context, room_user entity.Room_User, requester_id uint32) error {
 	requester, err := s.db.SeePerms(ctx, entity.Room_User{RoomID: room_user.RoomID, UserID: requester_id})
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (s *ServiceLayer) RemoveUser(ctx context.Context, room_user entity.Room_Use
 	s.logger.Error("Not Enough Perms")
 	return fmt.Errorf("Not enough perms")
 }
-func (s *ServiceLayer) UnBlockUser(ctx context.Context, room_user entity.Room_User, requester_id uint64) error {
+func (s *ServiceLayer) UnBlockUser(ctx context.Context, room_user entity.Room_User, requester_id uint32) error {
 	requester, err := s.db.SeePerms(ctx, entity.Room_User{RoomID: room_user.RoomID, UserID: requester_id})
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func (s *ServiceLayer) UnBlockUser(ctx context.Context, room_user entity.Room_Us
 	return fmt.Errorf("Not enough perms")
 }
 
-func (s *ServiceLayer) ListRooms(ctx context.Context, user_id uint64, index uint8) ([]entity.Room, error) {
+func (s *ServiceLayer) ListRooms(ctx context.Context, user_id uint32, index uint8) ([]entity.Room, error) {
 	return s.db.PageList(ctx, user_id, index, 10)
 }
 func (s *ServiceLayer) NewContest(ctx context.Context, contest entity.Contest) error {

@@ -5,7 +5,7 @@ import (
 	"osdtyp/app/entity"
 )
 
-func (d *Database) FollowUser(ctx context.Context, id, otherid uint64) error {
+func (d *Database) FollowUser(ctx context.Context, id, otherid uint32) error {
 	// Check if inverse relation exists (other->me)
 	var relation entity.Friends
 	result := d.db.WithContext(ctx).Where("B = ? AND A = ?", id, otherid).First(&relation)
@@ -34,7 +34,7 @@ func (d *Database) FollowUser(ctx context.Context, id, otherid uint64) error {
 	return nil
 }
 
-func (d *Database) UnfollowUser(ctx context.Context, id, otherid uint64) error {
+func (d *Database) UnfollowUser(ctx context.Context, id, otherid uint32) error {
 	// First, check if there's a direct relation (me->other)
 	var directRelation entity.Friends
 	directResult := d.db.WithContext(ctx).Where("A = ? AND B = ?", id, otherid).First(&directRelation)
@@ -79,8 +79,8 @@ func (d *Database) UnfollowUser(ctx context.Context, id, otherid uint64) error {
 	return nil
 }
 
-func (d *Database) GetFriends(ctx context.Context, id uint64) ([]uint64, error) {
-	var friends []uint64
+func (d *Database) GetFriends(ctx context.Context, id uint32) ([]uint32, error) {
+	var friends []uint32
 
 	// Find all FRIENDS relations where the user is either A or B
 	var relations []entity.Friends

@@ -86,13 +86,13 @@ func (s *Server) joinControlledLobby(g *gin.Context) {
 		return
 	}
 
-	lobbyid, err := strconv.ParseUint(lobbyidStr, 10, 64)
+	lobbyid64, err := strconv.ParseUint(lobbyidStr, 10, 32)
 	if err != nil {
 		s.logger.Warnw("invalid lobbyid format", "lobbyid", lobbyidStr, "error", err)
 		g.JSON(http.StatusBadRequest, gin.H{"error": "invalid lobbyid format"})
 		return
 	}
-
+	lobbyid := uint32(lobbyid64)
 	if err := s.services.JoinControlledLobby(userid, lobbyid); err != nil {
 		s.logger.Errorw("failed to join controlled lobby", "userid", userid, "lobbyid", lobbyid, "error", err)
 		g.JSON(http.StatusInternalServerError, gin.H{"error": "failed to join lobby"})
@@ -118,7 +118,7 @@ func (s *Server) invitePlayerToLobby(g *gin.Context) {
 		return
 	}
 
-	invitee, err := strconv.ParseUint(inviteeStr, 10, 64)
+	invitee, err := strconv.ParseUint(inviteeStr, 10, 32)
 	if err != nil {
 		s.logger.Warnw("invalid invitee format", "invitee", inviteeStr, "error", err)
 		g.JSON(http.StatusBadRequest, gin.H{"error": "invalid invitee format"})
@@ -132,7 +132,7 @@ func (s *Server) invitePlayerToLobby(g *gin.Context) {
 		return
 	}
 
-	lobbyid, err := strconv.ParseUint(lobbyidStr, 10, 64)
+	lobbyid, err := strconv.ParseUint(lobbyidStr, 10, 32)
 	if err != nil {
 		s.logger.Warnw("invalid lobbyid format", "lobbyid", lobbyidStr, "error", err)
 		g.JSON(http.StatusBadRequest, gin.H{"error": "invalid lobbyid format"})
@@ -148,7 +148,7 @@ func (s *Server) invitePlayerToLobby(g *gin.Context) {
 	}
 
 	// Call invite service and handle errors if any
-	s.services.InvitePlayerToLobby(invitorUser.Username, invitee, lobbyid)
+	s.services.InvitePlayerToLobby(invitorUser.Username, uint32(invitee), uint32(lobbyid))
 	s.logger.Infow("player invited to lobby", "invitor", invitorUser.Username, "invitee", invitee, "lobbyid", lobbyid)
 	g.JSON(http.StatusOK, gin.H{"message": "invitation sent"})
 }

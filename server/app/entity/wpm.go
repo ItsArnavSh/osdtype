@@ -6,10 +6,10 @@ type WPM struct {
 	DurationMS      int64
 }
 type WPMRes struct {
-	ID       uint64  `json:"id"`
-	RAW      float64 `json:"raw"`
-	WPM      float64 `json:"wpm"`
-	Accuracy float64 `json:"accuracy"`
+	ID       uint32  `json:"id"`
+	RAW      float32 `json:"raw"`
+	WPM      float32 `json:"wpm"`
+	Accuracy float32 `json:"accuracy"`
 	Correct  int32   `correct:"correct"`
 	Wrong    int32   `json:"wrong"`
 }

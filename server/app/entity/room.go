@@ -17,13 +17,13 @@ const (
 )
 
 type Room struct {
-	ID     uint64
+	ID     uint32
 	Name   string
 	Desc   string
 	Public room_type
 }
 type Room_User struct {
-	RoomID uint64
-	UserID uint64
+	RoomID uint32
+	UserID uint32
 	Perm   room_perm
 }

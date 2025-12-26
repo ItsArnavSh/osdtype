@@ -47,7 +47,7 @@ func (m *Matchmaker) Initialize() {
 		m.lobby[duration] = btree.New(2) // degree 2 BTree per duration
 	}
 }
-func (m *Matchmaker) AddToGlobalLobby(userid uint64, current_rank uint16, duration entity.LobbyType) error {
+func (m *Matchmaker) AddToGlobalLobby(userid uint32, current_rank uint16, duration entity.LobbyType) error {
 	if m.session.Users[userid] == nil {
 		m.logger.Info("Total ", len(m.session.Users))
 		for k, v := range m.session.Users {

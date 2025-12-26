@@ -29,7 +29,7 @@ func (d *Database) SeePerms(ctx context.Context, room_user entity.Room_User) (en
 	return room_user, nil
 }
 
-func (d *Database) PageList(ctx context.Context, user_id uint64, index, limit uint8) ([]entity.Room, error) {
+func (d *Database) PageList(ctx context.Context, user_id uint32, index, limit uint8) ([]entity.Room, error) {
 
 	var rooms []entity.Room
 

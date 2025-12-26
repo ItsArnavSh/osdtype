@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *ServiceLayer) StartSession(g *gin.Context, userid uint64) error {
+func (s *ServiceLayer) StartSession(g *gin.Context, userid uint32) error {
 	user, err := s.db.GetUser(userid)
 	if err != nil {
 		return err

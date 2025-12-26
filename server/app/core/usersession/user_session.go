@@ -13,13 +13,13 @@ type UserSession struct {
 	WS               *websocket.Conn //Not exposing this, communicate through channels
 	Incoming         chan []byte
 	Outgoing         chan any
-	OnDisconnect     func(uint64)
-	UserID           uint64
+	OnDisconnect     func(uint32)
+	UserID           uint32
 	ChannelShareLock sync.Mutex //Only one process can have the channel at a time
 
 }
 
-func NewUserSession(ws *websocket.Conn, disc func(uint64), id uint64) *UserSession {
+func NewUserSession(ws *websocket.Conn, disc func(uint32), id uint32) *UserSession {
 
 	fmt.Println("Making new session for ", id)
 	user := UserSession{

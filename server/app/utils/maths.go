@@ -2,12 +2,12 @@ package utils
 
 import "math"
 
-func CumulativeToDiffs(arr []int64) []int64 {
+func CumulativeToDiffs(arr []int32) []int32 {
 	if len(arr) == 0 {
 		return nil
 	}
-	diff := make([]int64, len(arr))
-	var prev int64
+	diff := make([]int32, len(arr))
+	var prev int32
 	for i, v := range arr {
 		diff[i] = v - prev
 		prev = v
@@ -15,14 +15,14 @@ func CumulativeToDiffs(arr []int64) []int64 {
 	return diff
 }
 
-func StandardDeviation(arr []int64) float64 {
+func StandardDeviation(arr []int32) float64 {
 	n := len(arr)
 	if n == 0 || n == 1 {
 		return 0
 	}
 
-	// Calculate mean as float64
-	var sum int64
+	// Calculate mean as float32
+	var sum int32
 	for _, v := range arr {
 		sum += v
 	}
@@ -37,7 +37,7 @@ func StandardDeviation(arr []int64) float64 {
 
 	return math.Sqrt(variance)
 }
-func FindMinIgnoringFirst(arr []int64) int64 {
+func FindMinIgnoringFirst(arr []int32) int32 {
 	if len(arr) <= 1 {
 		return 0
 	}

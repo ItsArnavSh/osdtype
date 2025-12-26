@@ -9,26 +9,26 @@ import (
 )
 
 type ActiveSessions struct {
-	Users map[uint64]*UserSession
+	Users map[uint32]*UserSession
 }
 
 func NewActiveSessions() ActiveSessions {
 	return ActiveSessions{
-		Users: make(map[uint64]*UserSession),
+		Users: make(map[uint32]*UserSession),
 	}
 }
-func (a *ActiveSessions) GetStatus(id uint64) entity.UserStatus {
+func (a *ActiveSessions) GetStatus(id uint32) entity.UserStatus {
 	user := a.Users[id]
 	if user == nil {
 		return entity.OFFLINE
 	}
 	return user.Status
 }
-func (a *ActiveSessions) GetSession(id uint64) *UserSession {
+func (a *ActiveSessions) GetSession(id uint32) *UserSession {
 	return a.Users[id]
 }
 
-func (a *ActiveSessions) NewUserSession(g *gin.Context, id uint64) error {
+func (a *ActiveSessions) NewUserSession(g *gin.Context, id uint32) error {
 	ws, err := utils.UpgradeToWebSocket(g)
 	if err != nil {
 		return err
@@ -41,10 +41,10 @@ func (a *ActiveSessions) NewUserSession(g *gin.Context, id uint64) error {
 	}
 	return nil
 }
-func (a *ActiveSessions) UpdateSession(id uint64, status entity.UserStatus) {
+func (a *ActiveSessions) UpdateSession(id uint32, status entity.UserStatus) {
 	a.Users[id].Status = status
 }
 
-func (a *ActiveSessions) RemoveSession(userID uint64) {
+func (a *ActiveSessions) RemoveSession(userID uint32) {
 	delete(a.Users, userID)
 }

@@ -47,11 +47,6 @@ func (s *Server) AddMember(c *gin.Context) {
 		return
 	}
 
-	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
-		return
-	}
-
 	err = s.services.AddMember(c.Request.Context(), room_user)
 	if err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

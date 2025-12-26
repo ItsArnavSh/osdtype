@@ -15,11 +15,11 @@ import (
 )
 
 type GameHandler struct {
-	Duration  uint64 //Duration of game in seconds
+	Duration  uint32 //Duration of game in seconds
 	Player    []player.Player
 	Logger    *zap.SugaredLogger
 	CommonOut chan player.OutGoing
-	seed      uint64
+	seed      uint32
 	Codegen   *utils.CodeGen
 	snippet   string //Later use tokens, and live generation
 	wg        *sync.WaitGroup
@@ -31,7 +31,7 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 	var players []player.Player
 	wg := sync.WaitGroup{}
 
-	seed := rand.Uint64()
+	seed := rand.Uint32()
 	lang_choice := entity.Language(seed % 10)
 	snippet := cg.Generate(lang_choice.String(), seed, 1000)
 	common_out := make(chan player.OutGoing)
@@ -59,7 +59,7 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 	//Sending the seed over
 
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, seed)
+	binary.BigEndian.PutUint32(buf, seed)
 
 	for _, conn := range player_conns {
 		conn.OUT <- fmt.Appendf(nil, "%d", seed)

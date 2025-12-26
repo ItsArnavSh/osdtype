@@ -12,6 +12,6 @@ const (
 
 type Task struct {
 	Category jobtyp
-	JobID    uint64
+	JobID    uint32
 	Time     time.Time
 }

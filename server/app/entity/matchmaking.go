@@ -7,7 +7,7 @@ import (
 )
 
 type LobbyEntry struct {
-	ID       uint64
+	ID       uint32
 	Rank     uint16
 	JoinedAt time.Time
 	IN       <-chan []byte

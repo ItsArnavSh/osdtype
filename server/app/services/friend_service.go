@@ -7,15 +7,15 @@ import (
 
 //Handles everything related to friends and friendly matches
 
-func (s *ServiceLayer) FollowUser(ctx context.Context, follower, following uint64) error {
+func (s *ServiceLayer) FollowUser(ctx context.Context, follower, following uint32) error {
 	return s.db.FollowUser(ctx, follower, following)
 }
-func (s *ServiceLayer) UnfollowUser(ctx context.Context, follower, following uint64) error {
+func (s *ServiceLayer) UnfollowUser(ctx context.Context, follower, following uint32) error {
 	return s.db.UnfollowUser(ctx, follower, following)
 }
 
 // Will return the lobby id of this lobby
-func (s *ServiceLayer) JoinNewLobby(userid uint64) (uint64, error) {
+func (s *ServiceLayer) JoinNewLobby(userid uint32) (uint32, error) {
 	lobby_id := s.core.ManualLobby.CreateNewLobby()
 	err := s.core.ManualLobby.JoinControlledLobby(userid, lobby_id)
 	if err != nil {
@@ -25,7 +25,7 @@ func (s *ServiceLayer) JoinNewLobby(userid uint64) (uint64, error) {
 	}
 	return lobby_id, nil
 }
-func (s *ServiceLayer) JoinControlledLobby(userid uint64, lobbyid uint64) error {
+func (s *ServiceLayer) JoinControlledLobby(userid uint32, lobbyid uint32) error {
 
 	err := s.core.ManualLobby.JoinControlledLobby(userid, lobbyid)
 	if err != nil {
@@ -35,7 +35,7 @@ func (s *ServiceLayer) JoinControlledLobby(userid uint64, lobbyid uint64) error 
 	return nil
 }
 
-func (s *ServiceLayer) InvitePlayerToLobby(invitor string, invitee uint64, lobbyid uint64) {
+func (s *ServiceLayer) InvitePlayerToLobby(invitor string, invitee uint32, lobbyid uint32) {
 	if s.core.Sessions.GetStatus(invitee) == entity.AVAILABLE {
 		_, send := s.core.Sessions.GetSession(invitee).Subscribe()
 		invitation := entity.Invite{

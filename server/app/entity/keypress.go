@@ -10,5 +10,5 @@ const (
 type Keypress struct {
 	Value  string `json:"value"`
 	Action action `json:"action"`
-	TimeMS uint64 `json:"time_ms"`
+	TimeMS uint32 `json:"time_ms"`
 }

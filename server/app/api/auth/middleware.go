@@ -47,14 +47,15 @@ func IsAuth(c *gin.Context) bool {
 	_, exists := c.Get("userID")
 	return exists
 }
-func GetUserID(c *gin.Context) (uint64, error) {
+func GetUserID(c *gin.Context) (uint32, error) {
 	userid := c.GetString("userID")
 	if userid == "" {
 		return 0, fmt.Errorf("No Active User Logged in")
 	}
-	uid, _ := strconv.ParseUint(userid, 10, 64)
-	return uid, nil
+	uid, _ := strconv.ParseUint(userid, 10, 32)
+
+	return uint32(uid), nil
 }
-func SetUserID(c *gin.Context, uid uint64) {
+func SetUserID(c *gin.Context, uid uint32) {
 	c.Set("userID", uid)
 }

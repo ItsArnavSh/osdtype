@@ -16,7 +16,7 @@ func (l Language) String() string {
 }
 
 type TypeInfo struct {
-	SnippetSeed uint64
+	SnippetSeed uint32
 	Lang        Language
 }
 
@@ -27,16 +27,16 @@ type TypeInfo struct {
 type KeyDef struct {
 	Delete bool   `json:"delete"`
 	Delta  string `json:"delta"`
-	Time   int64  `json:"time"`
+	Time   int32  `json:"time"`
 }
 
 // ///////
 type Recording struct {
-	ID         uint64
+	ID         uint32
 	Recording  []byte   //Compressed Recording
 	Diff       []KeyDef //All the keystrokes recording
 	Final      string   //What did the person write
 	OriginalID string   //
 	RunID      string   //Special ID of the run
-	Timestamps []int64  //Timestamps
+	Timestamps []int32  //Timestamps
 }

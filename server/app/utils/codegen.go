@@ -24,6 +24,6 @@ func NewCodeGen(logger *zap.SugaredLogger) CodeGen {
 	return gen
 }
 
-func (c *CodeGen) Generate(name string, seed uint64, tokens int) string {
-	return c.r.GenerateWithSeeded(name, viper.GetString("starting_id"), seed, tokens)
+func (c *CodeGen) Generate(name string, seed uint32, tokens int) string {
+	return c.r.GenerateWithSeeded(name, viper.GetString("starting_id"), uint64(seed), tokens)
 }

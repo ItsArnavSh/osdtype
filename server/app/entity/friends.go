@@ -8,11 +8,11 @@ const (
 )
 
 type Friends struct {
-	A        uint64 `gorm:"primaryKey"`
-	B        uint64 `gorm:"primaryKey"`
+	A        uint32 `gorm:"primaryKey"`
+	B        uint32 `gorm:"primaryKey"`
 	Relation Relation
 }
 type Invite struct {
 	From    string `json:"from"`
-	LobbyID uint64 `json:"lobby_id"`
+	LobbyID uint32 `json:"lobby_id"`
 }

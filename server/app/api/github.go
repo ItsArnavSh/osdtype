@@ -93,7 +93,7 @@ func (s *Server) FakeGitHubAuth() {
 		}
 
 		// Generate JWT for the test user
-		jwt, err := auth.GenerateJWT(strconv.FormatUint(userid, 10))
+		jwt, err := auth.GenerateJWT(strconv.FormatUint(uint64(userid), 10))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 			return

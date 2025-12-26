@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *ServiceLayer) LoginUser(g *gin.Context, user entity.User) (uint64, error) {
+func (s *ServiceLayer) LoginUser(g *gin.Context, user entity.User) (uint32, error) {
 	user_exists, err := s.db.UserExists(g.Request.Context(), user.Username)
 
 	if user_exists {
@@ -30,7 +30,7 @@ func (s *ServiceLayer) LoginUser(g *gin.Context, user entity.User) (uint64, erro
 	auth.SetUserID(g, user.ID)
 	return user.ID, nil
 }
-func (s *ServiceLayer) GetUser(ctx context.Context, userid uint64) (entity.User, error) {
+func (s *ServiceLayer) GetUser(ctx context.Context, userid uint32) (entity.User, error) {
 	s.logger.Debug(userid)
 	return s.db.GetUser(userid)
 }

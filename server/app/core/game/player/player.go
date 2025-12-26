@@ -12,7 +12,7 @@ import (
 )
 
 type OutGoing struct { //Common comms channel for the GameHandler
-	PlayerID      uint64          `json:"player_id"`
+	PlayerID      uint32          `json:"player_id"`
 	CurrentPoints uint16          `json:"current_points"`
 	Update        entity.Keypress //For the frontend to caliberate
 }
@@ -21,7 +21,7 @@ type OutGoing struct { //Common comms channel for the GameHandler
 // Will receive messages from the player, and handle them
 type Player struct {
 	State     strings.Builder
-	ID        uint64
+	ID        uint32
 	Rank      uint16
 	In        chan entity.Keypress
 	Out       chan OutGoing //Global Out

@@ -31,11 +31,11 @@ func Calculate_WPM(wpm entity.WPM) entity.WPMRes {
 		return entity.WPMRes{}
 	}
 
-	durationMinutes := float64(wpm.DurationMS) / 60000.0
+	durationMinutes := float32(wpm.DurationMS) / 60000.0
 
-	rawWPM := (float64(totalTyped) / 5.0) / durationMinutes
+	rawWPM := (float32(totalTyped) / 5.0) / durationMinutes
 
-	accuracy := float64(correct) / float64(totalTyped)
+	accuracy := float32(correct) / float32(totalTyped)
 
 	netWPM := rawWPM * accuracy
 
