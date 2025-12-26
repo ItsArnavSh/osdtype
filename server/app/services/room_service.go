@@ -135,3 +135,9 @@ func (s *ServiceLayer) NewContest(ctx context.Context, contest entity.Contest) e
 	s.logger.Info("New Contest Scheduled")
 	return nil
 }
+func (s *ServiceLayer) FetchContests(ctx context.Context, room_id uint32, index int) ([]entity.Contest, error) {
+	return s.db.ListContests(room_id, index, 10)
+}
+func (s *ServiceLayer) FetchContestData(ctx context.Context, job_id uint32) (entity.Contest, error) {
+	return s.db.GetContestData(job_id)
+}
