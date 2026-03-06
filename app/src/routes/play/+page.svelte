@@ -1,4 +1,8 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { gameState } from '$lib/core/state/state.svelte';
+
 	// No routing yet — purely visual
 </script>
 
@@ -30,10 +34,14 @@
 				<div class="text-center text-(--silver)">May the fastest fingers win</div>
 			</div>
 
-			{#each [{ name: 'Sprint', desc: 'Fast rounds. Instant action. No waiting.', time: '30s' }, { name: 'Standard', desc: 'Balanced gameplay. Steady pace. Pure fun.', time: '90s' }, { name: 'Marathon', desc: 'Endurance mode. Only the focused survive.', time: '300s' }] as mode}
+			{#each [{ name: 'Sprint', desc: 'Fast rounds. Instant action. No waiting.', duration: 30, time: '30s' }, { name: 'Standard', desc: 'Balanced gameplay. Steady pace. Pure fun.', duration: 90, time: '90s' }, { name: 'Marathon', desc: 'Endurance mode. Only the focused survive.', duration: 300, time: '300s' }] as mode, index (index)}
 				<button
 					class="flex cursor-pointer flex-row items-center justify-between rounded bg-(--fbg) px-4 py-4 transition-colors hover:brightness-110"
 					style="border: 1px solid rgba(192,192,192,0.1);"
+					onclick={() => {
+						gameState.mode = mode.duration;
+						goto(resolve('/play/ranked'));
+					}}
 				>
 					<div class="flex flex-col items-start gap-1">
 						<span class="text-base text-(--red)">{mode.name}</span>
@@ -82,6 +90,9 @@
 					<div class="flex justify-center pt-4">
 						<button
 							class="cursor-pointer text-4xl text-(--mer) transition-opacity hover:opacity-70"
+							onclick={() => {
+								goto(resolve('/play/me'));
+							}}
 						>
 							Start =>
 						</button>

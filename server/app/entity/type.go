@@ -5,14 +5,14 @@ type Language int
 const (
 	GO Language = iota
 	Java
-	Python
+	C
 	Typescript
-	Javascript
+	RUST
 	CPP
 )
 
 func (l Language) String() string {
-	return [...]string{"go", "java", "python", "typescript", "javascript", "cpp"}[l]
+	return [...]string{"go", "java", "c", "typescript", "rust", "cpp"}[l]
 }
 
 type TypeInfo struct {

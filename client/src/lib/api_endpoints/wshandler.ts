@@ -1,6 +1,6 @@
-import { BASE_URL, WS_BASE_URL } from './config';
+import { BASE_URL, WS_BASE_URL } from '$lib/config';
 
-type MessageHandler = (data: unknown) => void;
+type MessageHandler = (data: any) => void;
 
 let ws: WebSocket | null = null;
 let isConnecting = false;
@@ -24,6 +24,7 @@ export async function connect(useWs = true): Promise<void> {
 	}
 
 	if (isConnecting) return;
+
 	isConnecting = true;
 
 	return new Promise((resolve, reject) => {
@@ -36,28 +37,9 @@ export async function connect(useWs = true): Promise<void> {
 		};
 
 		ws.onmessage = (event) => {
-			const raw: string = event.data;
-
-			// "nil" control signal
-			if (raw === 'nil') {
-				handlers.forEach((fn) => fn('nil'));
-				return;
-			}
-
-			// Seed — base64 encoded, not valid JSON
-			// Decode it to get the numeric seed string
 			try {
-				JSON.parse(raw); // if this succeeds, it's a real JSON message
-			} catch {
-				// not JSON → must be the seed
-				const decoded = atob(raw); // "3306201462"
-				handlers.forEach((fn) => fn({ type: 'seed', value: decoded }));
-				return;
-			}
-
-			// JSON messages
-			try {
-				const data = JSON.parse(raw);
+				const data = JSON.parse(event.data);
+				console.log('Received:', data);
 				handlers.forEach((fn) => fn(data));
 			} catch (err) {
 				console.error('Failed to parse message:', err);
@@ -80,7 +62,7 @@ export async function connect(useWs = true): Promise<void> {
 
 /* -------------------- SEND -------------------- */
 
-export function send(data: unknown): void {
+export function send(data: any): void {
 	if (!ws || ws.readyState !== WebSocket.OPEN) {
 		console.error('WebSocket not connected');
 		return;

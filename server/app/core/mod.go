@@ -24,7 +24,7 @@ type CodeCore struct {
 
 func NewCodeCore(logger *zap.SugaredLogger, db *postgresql.Database) CodeCore {
 	games := game.NewActiveGames(logger)
-	session := usersession.NewActiveSessions()
+	session := usersession.NewActiveSessions(logger)
 	ml := controlledlobby.NewControlledLobby(logger, &games, &session)
 	sch, err := scheduler.NewScheduler(logger, db, &ml)
 	if err != nil {
@@ -41,7 +41,7 @@ func NewCodeCore(logger *zap.SugaredLogger, db *postgresql.Database) CodeCore {
 func (c *CodeCore) BootCodeCore() {
 	{ //Matchmaker stuff
 		c.Matchmaker.Initialize()
-		go c.Matchmaker.BackgroundMatchmaker()
+		go c.Matchmaker.Initialize()
 	}
 	{ //Scheduler stuff
 		go c.Scheduler.StartScheduler()

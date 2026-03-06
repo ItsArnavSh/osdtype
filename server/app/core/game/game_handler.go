@@ -22,17 +22,16 @@ type GameHandler struct {
 	seed      uint32
 	Codegen   *utils.CodeGen
 	snippet   string //Later use tokens, and live generation
-	wg        *sync.WaitGroup
 	signal    chan []entity.WPMRes
 }
 
 func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger *zap.SugaredLogger, duration time.Duration, sig chan []entity.WPMRes) GameHandler {
-	logger.Infof("In the game handler")
+	logger.Infoln("In the game handler")
 	var players []player.Player
-	wg := sync.WaitGroup{}
+	var wg sync.WaitGroup
 
 	seed := rand.Uint32()
-	lang_choice := entity.Language(seed % 10)
+	lang_choice := entity.Language(seed % 6)
 	snippet := cg.Generate(lang_choice.String(), seed, 1000)
 	common_out := make(chan player.OutGoing)
 	for _, item := range player_conns {
@@ -53,8 +52,7 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 		}
 
 		players = append(players, player)
-		go player.PlayerInRoutine()
-		go player.PlayerOutUpdate()
+		//go player.PlayerOutUpdate()
 	}
 	//Sending the seed over
 
@@ -71,12 +69,12 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 		CommonOut: common_out,
 		seed:      seed,
 		snippet:   snippet,
-		wg:        &wg,
 		signal:    sig,
 	}
 }
 
 func (g *GameHandler) GlobalBroadcaster() {
+	//If any message comes, loop through all the players and send this message
 	for update := range g.CommonOut {
 		for _, player := range g.Player {
 			select {
@@ -100,18 +98,19 @@ func (g *GameHandler) EndLiveStream() {
 	//The destructor routine
 	var leaderboard []entity.WPMRes
 	g.CommonOut <- player.OutGoing{PlayerID: 0, CurrentPoints: 0} //Means its done
-
 	for _, player := range g.Player {
 		leaderboard = append(leaderboard, player.CalculateScore())
 	}
-	//Wait before all websockets are resolved
-	g.Logger.Info("Waiting for processes to end")
-	g.wg.Wait()
+	g.Logger.Infoln("Leaderboard prepared: ", leaderboard)
 	//Send the scores to all the players
 	for _, player := range g.Player {
 		go func() {
-			player.WebSocOut <- leaderboard
-			player.WebSocOut <- nil //Unsub message
+			utils.SafeSend(player.WebSocOut, leaderboard, g.Logger)
+			g.Logger.Infoln("Sent out the leaderboard")
+			utils.SafeSend(player.WebSocOut, nil, g.Logger) //Unsub message
+			g.Logger.Infoln("Dropped the comm")
 		}()
 	}
+	g.signal <- leaderboard //Permanent
+	g.Logger.Info("Game Wrapped")
 }

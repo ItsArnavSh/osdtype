@@ -15,11 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Automatically scan redis for all the available people in ranked lobby
-// And pairs them, triggering the main game
-// For v1 using local memory
-// Migrate this functionality to redis later
-
 type Matchmaker struct {
 	rdb     *redis.RedisClient
 	logger  *zap.SugaredLogger
@@ -30,7 +25,13 @@ type Matchmaker struct {
 	db      *postgresql.Database
 }
 
-func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.ActiveGames, sessions *usersession.ActiveSessions, db *postgresql.Database) Matchmaker {
+func NewMatchMaker(
+	rdb *redis.RedisClient,
+	logger *zap.SugaredLogger,
+	ac *game.ActiveGames,
+	sessions *usersession.ActiveSessions,
+	db *postgresql.Database,
+) Matchmaker {
 	return Matchmaker{
 		rdb:     rdb,
 		logger:  logger,
@@ -39,114 +40,165 @@ func NewMatchMaker(rdb *redis.RedisClient, logger *zap.SugaredLogger, ac *game.A
 		session: sessions,
 		db:      db,
 	}
+}
 
-}
 func (m *Matchmaker) Initialize() {
-	// Initialize different lobbies
-	for _, duration := range []entity.LobbyType{entity.SPRINT, entity.STANDARD, entity.MARATHON} {
-		m.lobby[duration] = btree.New(2) // degree 2 BTree per duration
+	for _, typ := range []entity.LobbyType{
+		entity.SPRINT,
+		entity.STANDARD,
+		entity.MARATHON,
+	} {
+		m.lobby[typ] = btree.New(2)
 	}
+
+	go m.worker()
 }
-func (m *Matchmaker) AddToGlobalLobby(userid uint32, current_rank uint16, duration entity.LobbyType) error {
-	if m.session.Users[userid] == nil {
-		m.logger.Info("Total ", len(m.session.Users))
-		for k, v := range m.session.Users {
-			m.logger.Info("Finding ", userid)
-			m.logger.Debug("Member ", k, v)
-		}
-		return fmt.Errorf("Empty\n\n\n\n\n")
+
+func (m *Matchmaker) AddToGlobalLobby(userid uint32, rank uint16, typ entity.LobbyType) error {
+
+	user := m.session.Users[userid]
+	if user == nil {
+		return fmt.Errorf("user session not found")
 	}
-	in, out := m.session.Users[userid].Subscribe()
-	m.lobby[duration].ReplaceOrInsert(entity.PlayerItem{ID: userid, Rank: current_rank, JoinedAt: time.Now(), IN: in, OUT: out})
-	//m.rdb.JoinLobby(c.Request.Context(), 0, userid, current_rank)
+
+	in, out := user.Subscribe()
+
+	player := entity.PlayerItem{
+		ID:       userid,
+		Rank:     rank,
+		JoinedAt: time.Now(),
+		IN:       in,
+		OUT:      out,
+	}
+
+	m.mu.Lock()
+	m.lobby[typ].ReplaceOrInsert(player)
+	m.mu.Unlock()
+
 	return nil
 }
 
-// Todo: Build a more fair matchmaker
+func (m *Matchmaker) worker() {
 
-func (m *Matchmaker) BackgroundMatchmaker() {
-	for _, typ := range []entity.LobbyType{entity.SPRINT, entity.STANDARD, entity.MARATHON} {
-		go func(lobby_type entity.LobbyType) {
-			ticker := time.NewTicker(1 * time.Second)
-			defer ticker.Stop()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 
-			for range ticker.C {
-				m.mu.Lock()
-				if m.lobby[lobby_type].Len() < 2 {
-					m.mu.Unlock()
-					continue
-				}
+	for range ticker.C {
 
-				// get oldest player (based on join time)
-				oldestItem := m.lobby[lobby_type].Min()
-				if oldestItem == nil {
-					m.mu.Unlock()
-					continue
-				}
-				oldest := oldestItem.(entity.PlayerItem)
-				waitTime := time.Since(oldest.JoinedAt)
+		for _, typ := range []entity.LobbyType{
+			entity.SPRINT,
+			entity.STANDARD,
+			entity.MARATHON,
+		} {
 
-				// if the oldest player hasn't waited enough yet, skip
-				const minWait = 3 * time.Second
-				const maxWait = 8 * time.Second
-				if waitTime < minWait {
-					m.mu.Unlock()
-					continue
-				}
+			players := m.tryMatch(typ)
 
-				// find nearby players
-				var group []entity.PlayerItem
-				lowerBound := int(oldest.Rank) - 200
-				upperBound := int(oldest.Rank) + 200
+			if len(players) >= 2 {
 
-				m.lobby[lobby_type].Ascend(func(i btree.Item) bool {
-					player := i.(entity.PlayerItem)
-					if int(player.Rank) < lowerBound {
-						return true
-					}
-					if int(player.Rank) > upperBound {
-						return false
-					}
-					group = append(group, player)
-					return len(group) < 10 // max 10 players
-				})
-
-				// start match if conditions met
-				if len(group) >= 2 || waitTime >= maxWait {
-					for _, p := range group {
-						m.lobby[lobby_type].Delete(p)
-					}
-					m.startMatch(group, typ.Duration())
-				}
-
-				m.mu.Unlock()
+				go m.startMatch(players, typ.Duration())
 			}
-		}(typ)
+		}
 	}
 }
 
-func (m *Matchmaker) startMatch(players []entity.PlayerItem, duration time.Duration) {
-	m.logger.Infof("Starting new game")
-	sig := make(chan []entity.WPMRes)
-	m.ac.NewGame(players, duration, sig)
-	m.updateRanks(<-sig)
+func (m *Matchmaker) tryMatch(typ entity.LobbyType) []entity.PlayerItem {
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tree := m.lobby[typ]
+
+	if tree.Len() < 2 {
+		return nil
+	}
+
+	oldestItem := tree.Min()
+	if oldestItem == nil {
+		return nil
+	}
+
+	oldest := oldestItem.(entity.PlayerItem)
+
+	wait := time.Since(oldest.JoinedAt)
+
+	baseRange := 100
+	extra := int(wait.Seconds()) * 50
+
+	lower := int(oldest.Rank) - (baseRange + extra)
+	upper := int(oldest.Rank) + (baseRange + extra)
+
+	var group []entity.PlayerItem
+
+	tree.Ascend(func(i btree.Item) bool {
+
+		p := i.(entity.PlayerItem)
+
+		if int(p.Rank) < lower {
+			return true
+		}
+
+		if int(p.Rank) > upper {
+			return false
+		}
+
+		group = append(group, p)
+
+		return len(group) < 6
+	})
+
+	if len(group) < 2 {
+		return nil
+	}
+
+	for _, p := range group {
+		tree.Delete(p)
+	}
+
+	return group
 }
 
-// Post match rank changes
+func (m *Matchmaker) startMatch(players []entity.PlayerItem, duration time.Duration) {
+
+	m.logger.Infof("Starting match with %d players", len(players))
+
+	sig := make(chan []entity.WPMRes)
+
+	m.ac.NewGame(players, duration, sig)
+
+	go func() {
+
+		select {
+
+		case res := <-sig:
+			m.updateRanks(res)
+			m.logger.Infoln("Scores have been updated")
+		case <-time.After(2 * time.Minute):
+			m.logger.Error("game result timeout")
+		}
+
+	}()
+}
+
 func (m *Matchmaker) updateRanks(leaderboard []entity.WPMRes) {
+
 	var ranks []uint16
 	var pos []uint16
+
 	for i, entry := range leaderboard {
+
 		user, err := m.db.GetUser(entry.ID)
 		if err != nil {
 			return
 		}
+
 		ranks = append(ranks, user.CurrentRank)
 		pos = append(pos, uint16(i+1))
 	}
 
 	updated := utils.UpdateElo(ranks, pos)
+
 	for i, entry := range leaderboard {
+
 		err := m.db.ChangeRank(entry.ID, updated[i])
 		if err != nil {
 			return

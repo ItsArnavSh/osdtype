@@ -6,13 +6,15 @@ import (
 	"osdtyp/app/utils"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type ActiveSessions struct {
-	Users map[uint32]*UserSession
+	Users  map[uint32]*UserSession
+	logger *zap.SugaredLogger
 }
 
-func NewActiveSessions() ActiveSessions {
+func NewActiveSessions(logger *zap.SugaredLogger) ActiveSessions {
 	return ActiveSessions{
 		Users: make(map[uint32]*UserSession),
 	}
@@ -33,7 +35,7 @@ func (a *ActiveSessions) NewUserSession(g *gin.Context, id uint32) error {
 	if err != nil {
 		return err
 	}
-	a.Users[id] = NewUserSession(ws, a.RemoveSession, id)
+	a.Users[id] = NewUserSession(ws, a.RemoveSession, id, a.logger)
 	fmt.Println("New Session is here")
 	fmt.Print("Total ", len(a.Users))
 	for k, v := range a.Users {

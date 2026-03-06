@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"osdtyp/app/entity"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 type UserSession struct {
@@ -16,10 +18,13 @@ type UserSession struct {
 	OnDisconnect     func(uint32)
 	UserID           uint32
 	ChannelShareLock sync.Mutex //Only one process can have the channel at a time
-
+	Logger           *zap.SugaredLogger
+	PingLock         sync.Mutex //Only Ping message is allowed to be sent in between other messages
+	//Otherwise there is a single sender
+	offlineOnce sync.Once
 }
 
-func NewUserSession(ws *websocket.Conn, disc func(uint32), id uint32) *UserSession {
+func NewUserSession(ws *websocket.Conn, disc func(uint32), id uint32, logger *zap.SugaredLogger) *UserSession {
 
 	fmt.Println("Making new session for ", id)
 	user := UserSession{
@@ -33,7 +38,22 @@ func NewUserSession(ws *websocket.Conn, disc func(uint32), id uint32) *UserSessi
 	}
 	go user.sendData()
 	go user.receiveData()
+	go user.Ping()
 	return &user
+}
+
+// Will keep pinging the user
+func (u *UserSession) Ping() {
+	ticker := time.NewTicker(5 * time.Second)
+
+	for range ticker.C {
+		u.PingLock.Lock()
+		if err := u.WS.WriteMessage(websocket.PingMessage, nil); err != nil {
+
+			u.UserOffline()
+		}
+		u.PingLock.Unlock()
+	}
 }
 
 //Using this pattern to avoid concurrent write on
@@ -46,10 +66,12 @@ func (u *UserSession) sendData() { //A running goroutine
 			u.UnSubscribe()
 			continue
 		}
+		u.PingLock.Lock()
 		err := u.WS.WriteJSON(data)
 		if err != nil {
 			u.UserOffline()
 		}
+		u.PingLock.Unlock()
 	}
 }
 
@@ -64,16 +86,29 @@ func (u *UserSession) receiveData() { //Keeps filling the channel
 			u.UserOffline() //Disconnect in case of error from websocket
 			return
 		}
-		u.Incoming <- message
+		u.Logger.Debugln("Message Len received: ", len(message))
+		if len(message) > 0 {
+			u.Incoming <- message
+		}
 	}
 
 }
 func (u *UserSession) UserOffline() {
-	fmt.Println("Ending Session")
-	close(u.Incoming)
-	close(u.Outgoing)
-	u.OnDisconnect(u.UserID)
+	//To only run it once
+	u.offlineOnce.Do(func() {
+		fmt.Println("Ending Session")
+
+		close(u.Incoming)
+		close(u.Outgoing)
+
+		if u.OnDisconnect != nil {
+			u.OnDisconnect(u.UserID)
+		}
+	})
 }
+
+// Functions like GameHandler can subscribe to a UserSession, so at that time only they can send/recv messages
+// Done for 1) Not sending concurrent messages through WS which is not allowed aaand 2) To reduce bugs
 func (u *UserSession) Subscribe() (<-chan []byte, chan<- any) {
 	u.ChannelShareLock.Lock()
 	return u.Incoming, u.Outgoing
