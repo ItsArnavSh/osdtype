@@ -1,0 +1,23 @@
+export const TSGrammar = `
+  program: function^;
+  function: functionheader ' {\n' functioncontent '}';
+  functionheader: 'function ' identifier '(): ' returntype;
+  returntype: 'number' | 'string' | 'boolean' | 'void';
+  functioncontent: block+;
+  block: (statement+) | ifblock | whileblock | forblock;
+  ifblock: 'if (' conditionalexpression ') {\n' statement+ '}\n';
+  whileblock: 'while (' conditionalexpression ') {\n' statement+ '}\n';
+  forblock: 'for (let ' identifier ' = 0; ' identifier ' < ' operand '; ' identifier '++) {\n' statement+ '}\n';
+  conditionalexpression: conditionalexpone (conditionaljoin conditionalexpone)*;
+  conditionalexpone: identifier conditionaloperation operand;
+  conditionaloperation: ' < ' | ' > ' | ' === ' | ' !== ';
+  conditionaljoin: ' && ' | ' || ';
+  statement: constassignment | letassignment;
+  constassignment: 'const ' identifier ': ' datatype ' = ' expression ';\n';
+  letassignment: 'let ' identifier ': ' datatype ' = ' expression ';\n';
+  expression: operand (operator (operand | '(' expression ')'))*;
+  operand: identifier;
+  operator: ' + ' | ' - ' | ' * ' | ' / ';
+  datatype: 'number' | 'string' | 'boolean';
+  identifier: [a-z];
+`;

@@ -1,0 +1,22 @@
+export const CppGrammar = `
+  program: function^;
+  function: functionheader ' {\n' functioncontent '}';
+  functionheader: datatype ' ' identifier '()';
+  functioncontent: block+;
+  block: (statement+) | ifblock | whileblock | forblock;
+  ifblock: 'if (' conditionalexpression ') {\n' statement+ '}\n';
+  whileblock: 'while (' conditionalexpression ') {\n' statement+ '}\n';
+  forblock: 'for (int ' identifier ' = 0; ' identifier ' < ' operand '; ' identifier '++) {\n' statement+ '}\n';
+  conditionalexpression: conditionalexpone (conditionaljoin conditionalexpone)*;
+  conditionalexpone: identifier conditionaloperation operand;
+  conditionaloperation: ' < ' | ' > ' | ' == ' | ' != ';
+  conditionaljoin: ' && ' | ' || ';
+  statement: assignment | autassignment;
+  assignment: datatype ' ' identifier ' = ' expression ';\n';
+  autassignment: 'auto ' identifier ' = ' expression ';\n';
+  expression: operand (operator (operand | '(' expression ')'))*;
+  operand: identifier;
+  operator: ' + ' | ' - ' | ' * ' | ' / ';
+  datatype: 'int' | 'float' | 'double' | 'long';
+  identifier: [a-z];
+`;

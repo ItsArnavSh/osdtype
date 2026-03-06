@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+:root {
+	--bg: #0b0c0e;
+	--mer: #00a19c;
+	--silver: #c0c0c0;
+	--red: #d40000;
+	--fbg: #16181c;
+}
+* {
+	font-family: 'Fira Code', monospace;
+	font-optical-sizing: auto;
+	font-weight: 400;
+	font-style: normal;
+}
+
+.title-text {
+	font-family: 'Bebas Neue', sans-serif;
+	font-weight: 400;
+	font-style: normal;
+}
+
+.share-tech {
+	font-family: 'Share Tech', sans-serif;
+	font-weight: 400;
+	font-style: normal;
+}

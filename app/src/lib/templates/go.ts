@@ -1,0 +1,22 @@
+export const GoGrammar = `
+  program: function^;
+  function: functionheader '{\n' functioncontent '}';
+  functionheader: 'func ' identifier '() ' returntype ' ';
+  returntype: 'int' | 'float64' | 'string';
+  functioncontent: block+;
+  block: (statement+) | ifblock | forblock;
+  ifblock: 'if ' conditionalexpression ' {\n' statement+ '}\n';
+  forblock: 'for ' identifier ' := 0; ' identifier ' < ' operand '; ' identifier '++ {\n' statement+ '}\n';
+  conditionalexpression: conditionalexpone (conditionaljoin conditionalexpone)*;
+  conditionalexpone: identifier conditionaloperation operand;
+  conditionaloperation: ' < ' | ' > ' | ' == ' | ' != ';
+  conditionaljoin: ' && ' | ' || ';
+  statement: assignment | shortassignment;
+  assignment: 'var ' identifier ' ' datatype ' = ' expression '\n';
+  shortassignment: identifier ' := ' expression '\n';
+  expression: operand (operator (operand | '(' expression ')'))*;
+  operand: identifier;
+  operator: ' + ' | ' - ' | ' * ' | ' / ';
+  datatype: 'int' | 'float64' | 'string';
+  identifier: [a-z];
+`;
