@@ -6,6 +6,7 @@ type WPM struct {
 	DurationMS      int64
 }
 type WPMRes struct {
+	Name     string  `json:"name"`
 	ID       uint32  `json:"id"`
 	RAW      float32 `json:"raw"`
 	WPM      float32 `json:"wpm"`

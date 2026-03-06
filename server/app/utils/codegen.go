@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -31,11 +32,11 @@ func NewCodeGen(logger *zap.SugaredLogger) CodeGen {
 	return CodeGen{
 		logger: logger,
 		client: &http.Client{},
-		url:    viper.GetString("CodeGen.service_url"), // e.g. http://localhost:8081/generate
+		url:    viper.GetString("CodeGen.service_url"),
 	}
 }
-
 func (c *CodeGen) Generate(name string, seed uint32, tokens int) string {
+	c.logger.Infof("Generating code for %s", name)
 
 	reqBody := generateRequest{
 		Name:   name,
@@ -45,24 +46,28 @@ func (c *CodeGen) Generate(name string, seed uint32, tokens int) string {
 
 	data, err := json.Marshal(reqBody)
 	if err != nil {
-		c.logger.Error("Failed to marshal request:", err)
+		c.logger.Error("marshal failed:", err)
 		return ""
 	}
 
 	resp, err := c.client.Post(c.url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
-		c.logger.Error("Rust CodeGen service unavailable:", err)
+		c.logger.Error("Rust service unavailable:", err)
 		return ""
 	}
 	defer resp.Body.Close()
 
-	var result generateResponse
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		c.logger.Error("Failed to decode response:", err)
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Errorf("Rust service status: %d", resp.StatusCode)
 		return ""
 	}
 
-	// merge tokens
+	var result generateResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		c.logger.Error("decode failed:", err)
+		return ""
+	}
+	fmt.Print(result.Code)
 	return strings.Join(result.Code, "")
 }

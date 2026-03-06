@@ -8,6 +8,7 @@ import (
 
 type LobbyEntry struct {
 	ID       uint32
+	Name     string
 	Rank     uint16
 	JoinedAt time.Time
 	IN       <-chan []byte

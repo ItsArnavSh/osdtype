@@ -62,6 +62,7 @@ export interface LobbyInvitation {
 }
 
 export interface LeaderboardEntry {
+	name: string;
 	id: number;
 	raw: number;
 	wpm: number;

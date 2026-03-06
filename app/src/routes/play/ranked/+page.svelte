@@ -33,15 +33,10 @@
 	let intervalId: ReturnType<typeof setInterval> | null = null;
 
 	// ─── Final scores ────────────────────────────────────────────────────────
-	let finalWpm = $state(0);
-	let finalRawWpm = $state(0);
-	let finalAccuracy = $state(0);
-	let finalCorrect = $state(0);
-	let finalWrong = $state(0);
 	let serverLeaderboard = $state<Leaderboard>([]);
+	let waitingForLeaderboard = $state(false);
 
 	// ─── Opponents ───────────────────────────────────────────────────────────
-	// Map of player_id → { cursor position on the left-border (px), username }
 	interface Opponent {
 		playerId: number;
 		username: string;
@@ -74,7 +69,6 @@
 		},
 
 		onBroadcast: (frame: GameplayBroadcastFrame) => {
-			// Full state snapshot — rebuild opponents map from the whole array
 			const updated: typeof opponents = {};
 			for (const msg of frame) {
 				const span = spanRefs[msg.current_points];
@@ -84,7 +78,7 @@
 						: (opponents[msg.player_id]?.dotTop ?? 0);
 				updated[msg.player_id] = {
 					playerId: msg.player_id,
-					username: String(msg.player_id), // swap for real GitHub username when available
+					username: String(msg.player_id),
 					dotTop: top,
 					currentPoints: msg.current_points
 				};
@@ -93,8 +87,10 @@
 		},
 
 		onLeaderboard: (board) => {
-			serverLeaderboard = board;
-			endGame();
+			if (leaderboardTimeout) clearTimeout(leaderboardTimeout);
+			serverLeaderboard = [...board].sort((a, b) => b.wpm - a.wpm);
+			waitingForLeaderboard = false;
+			phase = 'done';
 		},
 
 		onControl: () => {
@@ -114,6 +110,10 @@
 			clearInterval(intervalId);
 			intervalId = null;
 		}
+		if (leaderboardTimeout) {
+			clearTimeout(leaderboardTimeout);
+			leaderboardTimeout = null;
+		}
 	}
 
 	// ─── Countdown ───────────────────────────────────────────────────────────
@@ -128,16 +128,14 @@
 		}, 1000);
 	}
 
-	// ─── Game logic (mirrors practice page) ──────────────────────────────────
+	// ─── Game logic ──────────────────────────────────────────────────────────
 	function calcStats() {
 		const elapsed = timer - timeLeft;
 		const entries = Object.entries(typed);
 		const correct = entries.filter(([i, ch]) => ch === display_chars[Number(i)]).length;
-		const wrong = entries.filter(([i, ch]) => ch !== display_chars[Number(i)]).length;
 		const raw = elapsed > 0 ? Math.round(entries.length / 5 / (elapsed / 60)) : 0;
 		const net = elapsed > 0 ? Math.round(correct / 5 / (elapsed / 60)) : 0;
-		const acc = entries.length > 0 ? Math.round((correct / entries.length) * 100) : 100;
-		return { correct, wrong, raw, net, acc };
+		return { net };
 	}
 
 	function startGame() {
@@ -156,14 +154,16 @@
 		}, 1000);
 	}
 
+	let leaderboardTimeout: ReturnType<typeof setTimeout> | null = null;
+
 	function endGame() {
-		const { correct, wrong, raw, net, acc } = calcStats();
-		finalWpm = net;
-		finalRawWpm = raw;
-		finalAccuracy = acc;
-		finalCorrect = correct;
-		finalWrong = wrong;
+		waitingForLeaderboard = true;
 		phase = 'done';
+		// Fallback: if server never sends leaderboard (e.g. last/only player),
+		// stop waiting after 10s and just show whatever we have
+		leaderboardTimeout = setTimeout(() => {
+			waitingForLeaderboard = false;
+		}, 10000);
 	}
 
 	function isSpecial(char: string) {
@@ -227,6 +227,7 @@
 			session.sendKeypress({ value: e.key, action: KeypressAction.KEYPRESS, time_ms: Date.now() });
 		}
 	}
+
 	// ─── Lifecycle ───────────────────────────────────────────────────────────
 	onMount(async () => {
 		await joinRankedLobby(gameState.mode);
@@ -326,65 +327,43 @@
 			<!-- DONE -->
 		{:else if phase === 'done'}
 			<div class="flex h-full flex-col items-center justify-center gap-10 overflow-y-auto px-16">
-				<!-- Your stats -->
-				<div class="flex flex-col items-center">
-					<div class="font-mono text-8xl text-(--mer)">{finalWpm}</div>
-					<div class="mt-1 font-mono text-sm tracking-widest text-(--silver)/40 uppercase">wpm</div>
-				</div>
-				<div class="flex flex-row gap-16">
-					<div class="flex flex-col items-center">
-						<div class="font-mono text-4xl text-(--silver)">{finalRawWpm}</div>
-						<div class="mt-1 font-mono text-xs tracking-widest text-(--silver)/40 uppercase">
-							raw
+				{#if waitingForLeaderboard}
+					<!-- Waiting for other players -->
+					<div class="flex flex-col items-center gap-6">
+						<div class="searching-rings">
+							<div class="ring"></div>
+							<div class="delay ring"></div>
+							<span class="ring-icon">🏁</span>
+						</div>
+						<div class="font-mono text-xl tracking-widest text-(--silver)/60">
+							waiting for other players…
 						</div>
 					</div>
-					<div class="flex flex-col items-center">
-						<div class="font-mono text-4xl text-(--silver)">{finalAccuracy}%</div>
-						<div class="mt-1 font-mono text-xs tracking-widest text-(--silver)/40 uppercase">
-							acc
+				{:else}
+					<!-- Server leaderboard -->
+					{#if serverLeaderboard.length > 0}
+						<div class="w-full max-w-2xl">
+							<div class="mb-4 font-mono text-sm tracking-widest text-(--silver)/30 uppercase">
+								leaderboard
+							</div>
+							<div class="flex flex-col gap-3">
+								{#each serverLeaderboard as entry, i}
+									<div
+										class="flex flex-row items-center gap-6 border border-(--silver)/10 px-6 py-4 font-mono"
+										class:border-mer={i === 0}
+									>
+										<span class="w-8 text-lg text-(--silver)/30">#{i + 1}</span>
+										<span class="flex-1 text-lg text-(--silver)">{entry.name}</span>
+										<span class="text-2xl text-(--mer)">{entry.wpm.toFixed(1)} wpm</span>
+										<span class="text-lg text-(--silver)/50"
+											>{(entry.accuracy * 100).toFixed(0)}%</span
+										>
+										<span class="text-lg text-(--red)">{entry.wrong} err</span>
+									</div>
+								{/each}
+							</div>
 						</div>
-					</div>
-					<div class="flex flex-col items-center">
-						<div class="font-mono text-4xl text-green-400">{finalCorrect}</div>
-						<div class="mt-1 font-mono text-xs tracking-widest text-(--silver)/40 uppercase">
-							correct
-						</div>
-					</div>
-					<div class="flex flex-col items-center">
-						<div class="font-mono text-4xl text-(--red)">{finalWrong}</div>
-						<div class="mt-1 font-mono text-xs tracking-widest text-(--silver)/40 uppercase">
-							wrong
-						</div>
-					</div>
-					<div class="flex flex-col items-center">
-						<div class="font-mono text-4xl text-(--silver)">{timer}s</div>
-						<div class="mt-1 font-mono text-xs tracking-widest text-(--silver)/40 uppercase">
-							time
-						</div>
-					</div>
-				</div>
-
-				<!-- Server leaderboard -->
-				{#if serverLeaderboard.length > 0}
-					<div class="w-full max-w-lg">
-						<div class="mb-3 font-mono text-xs tracking-widest text-(--silver)/30 uppercase">
-							leaderboard
-						</div>
-						<div class="flex flex-col gap-2">
-							{#each serverLeaderboard as entry, i}
-								<div
-									class="flex flex-row items-center gap-4 border border-(--silver)/10 px-4 py-2 font-mono text-sm"
-									class:border-mer={i === 0}
-								>
-									<span class="w-6 text-(--silver)/30">#{i + 1}</span>
-									<span class="flex-1 text-(--silver)">{entry.id}</span>
-									<span class="text-(--mer)">{entry.wpm.toFixed(1)} wpm</span>
-									<span class="text-(--silver)/50">{(entry.accuracy * 100).toFixed(0)}%</span>
-									<span class="text-(--red)">{entry.wrong} err</span>
-								</div>
-							{/each}
-						</div>
-					</div>
+					{/if}
 				{/if}
 			</div>
 

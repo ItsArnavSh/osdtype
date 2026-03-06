@@ -34,7 +34,9 @@ func (a *ActiveGames) NewGame(players []entity.PlayerItem, duration time.Duratio
 	//Dont really wait for it here
 	go gh.GlobalBroadcaster()
 	//Added a delay just in case one of the ws is slower
+	a.logger.Infoln("Waiting for processes to end")
 	wg.Wait()
+	a.logger.Infoln("Concluding the match")
 	gh.EndLiveStream()
 
 }

@@ -2,6 +2,7 @@ package player
 
 import (
 	"encoding/json"
+	"fmt"
 	"osdtyp/app/entity"
 	"osdtyp/app/utils"
 	"strings"
@@ -21,6 +22,7 @@ type OutGoing struct { //Common comms channel for the GameHandler
 // Will receive messages from the player, and handle them
 type Player struct {
 	State     strings.Builder
+	Name      string
 	ID        uint32
 	Rank      uint16
 	In        chan entity.Keypress
@@ -34,7 +36,6 @@ type Player struct {
 	Snippet   string
 	CloseTime time.Time
 	Duration  time.Duration
-	WG        *sync.WaitGroup
 }
 
 func (p *Player) PlayerOutUpdate() {
@@ -136,6 +137,7 @@ func (p *Player) HandlePress(keypress entity.Keypress) {
 
 	case entity.KEYPRESS:
 		p.State.WriteString(keypress.Value)
+		p.Logger.Debugln("Len of string is", p.State.Len())
 
 	case entity.BACKSPACE:
 		current := p.State.String()
@@ -145,7 +147,7 @@ func (p *Player) HandlePress(keypress entity.Keypress) {
 		}
 	}
 
-	p.Send(keypress)
+	//p.Send(keypress)
 }
 
 func (p *Player) Send(keypress entity.Keypress) {
@@ -161,9 +163,9 @@ func (p *Player) Send(keypress entity.Keypress) {
 	}
 }
 func (p *Player) CalculateScore() entity.WPMRes {
-
+	fmt.Println("snippet: ", p.State.String())
 	input := entity.WPM{
-		OriginalSnippet: p.Snippet,
+		OriginalSnippet: p.Snippet[:p.State.Len()],
 		UserSnippet:     p.State.String(),
 		DurationMS:      p.Duration.Milliseconds(),
 	}
@@ -174,7 +176,7 @@ func (p *Player) CalculateScore() entity.WPMRes {
 	)
 
 	wpm_res := utils.Calculate_WPM(input)
-	wpm_res.ID = p.ID
+	wpm_res.Name = p.Name
 
 	p.Logger.Infow("score calculated",
 		"player_id", p.ID,

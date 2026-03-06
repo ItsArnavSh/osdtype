@@ -3,16 +3,16 @@ package entity
 type Language int
 
 const (
-	GO Language = iota
-	Java
-	C
-	Typescript
-	RUST
-	CPP
+	C          Language = iota
+	GO                  = 1
+	CPP                 = 2
+	JAVA                = 3
+	RUST                = 4
+	TYPESCRIPT          = 5
 )
 
 func (l Language) String() string {
-	return [...]string{"go", "java", "c", "typescript", "rust", "cpp"}[l]
+	return [...]string{"c", "go", "cpp", "java", "rs", "ts"}[l]
 }
 
 type TypeInfo struct {

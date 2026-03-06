@@ -1,17 +1,33 @@
 package utils
 
-import "osdtyp/app/entity"
+import (
+	"fmt"
+	"osdtyp/app/entity"
+)
+
+func cleanSnippet(s string) []rune {
+	var res []rune
+	for _, r := range s {
+		if r == ' ' || r == '\n' {
+			continue
+		}
+		res = append(res, r)
+	}
+	return res
+}
 
 func Calculate_WPM(wpm entity.WPM) entity.WPMRes {
-	originalRunes := []rune(wpm.OriginalSnippet)
-	userRunes := []rune(wpm.UserSnippet)
+	fmt.Println("Original: ", wpm.OriginalSnippet)
+	fmt.Println("User: ", wpm.UserSnippet)
+	originalRunes := cleanSnippet(wpm.OriginalSnippet)
+	userRunes := cleanSnippet(wpm.UserSnippet)
 
 	var correct, wrong int32 = 0, 0
 
 	minLen := min(len(userRunes), len(originalRunes))
 
-	// Count correct and wrong characters by comparing positions
-	for i := range minLen {
+	// Count correct and wrong characters
+	for i := 0; i < minLen; i++ {
 		if userRunes[i] == originalRunes[i] {
 			correct++
 		} else {
@@ -19,7 +35,7 @@ func Calculate_WPM(wpm entity.WPM) entity.WPMRes {
 		}
 	}
 
-	// If user typed extra characters beyond original snippet, consider all extra as wrong
+	// Extra characters typed
 	extra := len(userRunes) - len(originalRunes)
 	if extra > 0 {
 		wrong += int32(extra)
@@ -27,19 +43,15 @@ func Calculate_WPM(wpm entity.WPM) entity.WPMRes {
 
 	totalTyped := int32(len(userRunes))
 	if totalTyped == 0 || wpm.DurationMS == 0 {
-		// Avoid division by zero
 		return entity.WPMRes{}
 	}
 
 	durationMinutes := float32(wpm.DurationMS) / 60000.0
 
 	rawWPM := (float32(totalTyped) / 5.0) / durationMinutes
-
 	accuracy := float32(correct) / float32(totalTyped)
-
 	netWPM := rawWPM * accuracy
 
-	// Clamp accuracy and WPM minimum to 0
 	if accuracy < 0 {
 		accuracy = 0
 	}

@@ -62,8 +62,9 @@ func (m *Matchmaker) AddToGlobalLobby(userid uint32, rank uint16, typ entity.Lob
 	}
 
 	in, out := user.Subscribe()
-
+	username, _ := m.db.GetUser(userid)
 	player := entity.PlayerItem{
+		Name:     username.Username,
 		ID:       userid,
 		Rank:     rank,
 		JoinedAt: time.Now(),

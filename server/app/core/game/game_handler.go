@@ -8,7 +8,6 @@ import (
 	"osdtyp/app/entity"
 	"osdtyp/app/utils"
 	"strings"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,7 +15,7 @@ import (
 
 type GameHandler struct {
 	Duration  uint32 //Duration of game in seconds
-	Player    []player.Player
+	Player    []*player.Player
 	Logger    *zap.SugaredLogger
 	CommonOut chan player.OutGoing
 	seed      uint32
@@ -27,15 +26,13 @@ type GameHandler struct {
 
 func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger *zap.SugaredLogger, duration time.Duration, sig chan []entity.WPMRes) GameHandler {
 	logger.Infoln("In the game handler")
-	var players []player.Player
-	var wg sync.WaitGroup
+	var players []*player.Player
 
 	seed := rand.Uint32()
 	lang_choice := entity.Language(seed % 6)
 	snippet := cg.Generate(lang_choice.String(), seed, 1000)
 	common_out := make(chan player.OutGoing)
 	for _, item := range player_conns {
-		wg.Add(1)
 		player := player.Player{
 			State:     strings.Builder{},
 			WebSocIn:  item.IN,
@@ -48,10 +45,10 @@ func NewGameHandler(cg *utils.CodeGen, player_conns []entity.PlayerItem, logger 
 			Logger:    logger,
 			Duration:  duration,
 			Snippet:   snippet,
-			WG:        &wg,
+			Name:      item.Name,
 		}
 
-		players = append(players, player)
+		players = append(players, &player)
 		//go player.PlayerOutUpdate()
 	}
 	//Sending the seed over
@@ -78,10 +75,8 @@ func (g *GameHandler) GlobalBroadcaster() {
 	for update := range g.CommonOut {
 		for _, player := range g.Player {
 			player.LocalOut <- update
-
 		}
 		if update.PlayerID == 0 {
-			close(g.CommonOut)
 			return
 		}
 
@@ -91,7 +86,7 @@ func (g *GameHandler) GlobalBroadcaster() {
 func (g *GameHandler) EndLiveStream() {
 	//The destructor routine
 	var leaderboard []entity.WPMRes
-	g.CommonOut <- player.OutGoing{PlayerID: 0, CurrentPoints: 0} //Means its done
+	close(g.CommonOut)
 	for _, player := range g.Player {
 		leaderboard = append(leaderboard, player.CalculateScore())
 	}
