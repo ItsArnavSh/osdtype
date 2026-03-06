@@ -7,6 +7,7 @@
 	import { GetGrammar, LANGUAGES } from '$lib/core/entity/languages';
 	import type { Language } from '$lib/core/entity/languages';
 	import type { Leaderboard, GameplayBroadcastFrame } from '$lib/core/api/types';
+	import { KeypressAction } from '$lib/core/api/types';
 
 	// ─── Phase ───────────────────────────────────────────────────────────────
 	type Phase = 'searching' | 'countdown' | 'idle' | 'typing' | 'done';
@@ -215,7 +216,7 @@
 			const prev = prevReal(cursor);
 			delete typed[prev];
 			cursor = prev;
-			return;
+			session.sendKeypress({ value: '', action: KeypressAction.BACKSPACE, time_ms: Date.now() });
 		}
 		if (e.key.length === 1) {
 			e.preventDefault();
@@ -223,9 +224,9 @@
 			const pos = nextReal(cursor);
 			typed[pos] = e.key;
 			cursor = nextReal(pos + 1);
+			session.sendKeypress({ value: e.key, action: KeypressAction.KEYPRESS, time_ms: Date.now() });
 		}
 	}
-
 	// ─── Lifecycle ───────────────────────────────────────────────────────────
 	onMount(async () => {
 		await joinRankedLobby(gameState.mode);

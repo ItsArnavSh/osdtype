@@ -16,7 +16,8 @@ type ActiveSessions struct {
 
 func NewActiveSessions(logger *zap.SugaredLogger) ActiveSessions {
 	return ActiveSessions{
-		Users: make(map[uint32]*UserSession),
+		Users:  make(map[uint32]*UserSession),
+		logger: logger,
 	}
 }
 func (a *ActiveSessions) GetStatus(id uint32) entity.UserStatus {

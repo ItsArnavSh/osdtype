@@ -13,6 +13,7 @@ addr="localhost:6379"
 [CodeGen]
 max_wait_queue=1000
 starting_id="program"
+service_url="localhost:8081/generate"
 
 [Bots.LEWIS]
 accuracy = 95

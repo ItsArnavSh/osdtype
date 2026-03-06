@@ -35,6 +35,7 @@ func NewUserSession(ws *websocket.Conn, disc func(uint32), id uint32, logger *za
 		OnDisconnect:     disc,
 		UserID:           id,
 		ChannelShareLock: sync.Mutex{},
+		Logger:           logger,
 	}
 	go user.sendData()
 	go user.receiveData()

@@ -1,34 +1,68 @@
 package utils
 
 import (
-	"github.com/osdc/resrap"
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"strings"
+
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
-// Upgrade to ResrapMT
 type CodeGen struct {
-	r      *resrap.Resrap
 	logger *zap.SugaredLogger
-	idgen  IDGenerator
+	client *http.Client
+	url    string
+}
+
+type generateRequest struct {
+	Name   string `json:"name"`
+	Seed   uint32 `json:"seed"`
+	Tokens int    `json:"tokens"`
+}
+
+type generateResponse struct {
+	Code []string `json:"code"`
 }
 
 func NewCodeGen(logger *zap.SugaredLogger) CodeGen {
-	//No of threads in pool same as the CPU/Core number
-	gen := CodeGen{}
-	gen.r = resrap.NewResrap()
-	gen.logger = logger
-	gen.idgen = IDGenerator{0, ""}
-	gen.r.ParseGrammarFile("c", "grammar/c.g4")
-	gen.r.ParseGrammarFile("go", "grammar/go.g4")
-	gen.r.ParseGrammarFile("java", "grammar/java.g4")
-	gen.r.ParseGrammarFile("typescript", "grammar/ts.g4")
-	gen.r.ParseGrammarFile("cpp", "grammar/cpp.g4")
-	gen.r.ParseGrammarFile("rust", "grammar/rs.g4")
-	logger.Info("Resrap Server has Started")
-	return gen
+
+	return CodeGen{
+		logger: logger,
+		client: &http.Client{},
+		url:    viper.GetString("CodeGen.service_url"), // e.g. http://localhost:8081/generate
+	}
 }
 
 func (c *CodeGen) Generate(name string, seed uint32, tokens int) string {
-	return c.r.GenerateWithSeeded(name, viper.GetString("CodeGen.starting_id"), uint64(seed), tokens)
+
+	reqBody := generateRequest{
+		Name:   name,
+		Seed:   seed,
+		Tokens: tokens,
+	}
+
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		c.logger.Error("Failed to marshal request:", err)
+		return ""
+	}
+
+	resp, err := c.client.Post(c.url, "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		c.logger.Error("Rust CodeGen service unavailable:", err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	var result generateResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		c.logger.Error("Failed to decode response:", err)
+		return ""
+	}
+
+	// merge tokens
+	return strings.Join(result.Code, "")
 }

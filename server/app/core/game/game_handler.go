@@ -77,13 +77,7 @@ func (g *GameHandler) GlobalBroadcaster() {
 	//If any message comes, loop through all the players and send this message
 	for update := range g.CommonOut {
 		for _, player := range g.Player {
-			select {
-			case player.LocalOut <- update:
-
-			default:
-				// player’s queue is full; skip to avoid blocking
-				g.Logger.Warnf("Dropping update: slow or disconnected")
-			}
+			player.LocalOut <- update
 
 		}
 		if update.PlayerID == 0 {
