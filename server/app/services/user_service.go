@@ -32,7 +32,7 @@ func (s *ServiceLayer) LoginUser(g *gin.Context, user entity.User) (uint32, erro
 }
 func (s *ServiceLayer) GetUser(ctx context.Context, userid uint32) (entity.User, error) {
 	s.logger.Debug(userid)
-	return s.db.GetUser(userid)
+	return s.db.GetUser(ctx, userid)
 }
 
 func (s *ServiceLayer) GetUserFromName(ctx context.Context, username string) (entity.User, error) {

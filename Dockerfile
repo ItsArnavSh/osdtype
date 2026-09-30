@@ -16,7 +16,6 @@ FROM alpine:latest
 WORKDIR /root/
 COPY --from=builder /app/app .
 COPY server/boot ./boot
-COPY server/grammar ./grammar
 EXPOSE 8080
 
 CMD ["./app"]

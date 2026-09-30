@@ -14,7 +14,7 @@ import (
 	"osdtyp/app/internal/testconfig"
 )
 
-func newScheduler(t *testing.T) (Scheduler, postgresql.Database) {
+func newScheduler(t *testing.T) (*Scheduler, postgresql.Database) {
 	t.Helper()
 	testconfig.Configure(t)
 

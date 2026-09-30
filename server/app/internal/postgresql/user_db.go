@@ -9,9 +9,18 @@ import (
 func (d *Database) AddUser(ctx context.Context, user entity.User) error {
 	return d.db.WithContext(ctx).Create(&user).Error
 }
-func (d *Database) GetUser(userid uint32) (entity.User, error) {
+
+// GetUser reads one account by id.
+//
+// It takes a context, unlike the original, so the query is cancellable and so
+// callers have somewhere to put the one they already have. A context-free read
+// of the user table means a request whose client disconnected still runs to
+// completion and holds a connection while it does; this is the hottest single-row
+// read in the process, called on every authenticated request through the session
+// registry and the lobby.
+func (d *Database) GetUser(ctx context.Context, userid uint32) (entity.User, error) {
 	var userData entity.User
-	result := d.db.Where("id = ?", userid).First(&userData)
+	result := d.db.WithContext(ctx).Where("id = ?", userid).First(&userData)
 	if result.Error != nil {
 		return entity.User{}, result.Error
 	}
@@ -44,19 +53,3 @@ func (d *Database) UserExists(ctx context.Context, username string) (bool, error
 // The column is current_rank, matching the CurrentRank field: the update
 // previously named a "rank" column that does not exist, so every ranked match
 // result was discarded.
-func (d *Database) ChangeRank(userid uint32, rank uint16) error {
-	result := d.db.
-		Model(&entity.User{}).
-		Where("id = ?", userid).
-		Update("current_rank", rank)
-	return result.Error
-}
-
-func (d *Database) GetRank(ctx context.Context, userid uint32) (uint16, error) {
-	var user entity.User
-	err := d.db.WithContext(ctx).Where("id= ?", userid).First(&user).Error
-	if err != nil {
-		return 0, err
-	}
-	return user.CurrentRank, nil
-}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"osdtyp/app/entity"
+	"osdtyp/app/utils"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -12,8 +13,13 @@ import (
 	"gorm.io/gorm"
 )
 
+// Database is the persistence layer.
 type Database struct {
 	db *gorm.DB
+	// codes mints room share codes. It is a field rather than a package global
+	// so two databases in one process, as the integration tests create, cannot
+	// interfere with each other's codes.
+	codes *utils.ShareCoder
 }
 
 // ConnectDatabase opens the pool and runs the migrations.
@@ -57,6 +63,9 @@ func ConnectDatabase(logger *zap.SugaredLogger) (Database, error) {
 		&entity.Friends{},
 		&entity.Task{},
 		&entity.Contest{},
+		&entity.Notification{},
+		&entity.Run{},
+		&entity.Settings{},
 	)
 	if err != nil {
 		logger.Errorf("Failed to run migrations: %s", err)
@@ -65,7 +74,7 @@ func ConnectDatabase(logger *zap.SugaredLogger) (Database, error) {
 
 	logger.Info("Database migrations completed successfully")
 
-	return Database{db}, nil
+	return Database{db: db, codes: utils.NewShareCoder()}, nil
 }
 
 func buildDSN(host, user, password, dbname string, port int, searchPath string) string {

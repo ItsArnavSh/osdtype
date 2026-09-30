@@ -12,7 +12,7 @@ import (
 
 func (s *ServiceLayer) CreateRoom(ctx context.Context, room entity.Room, requester_id uint32) error {
 	room.ID = s.int_gen.GenerateID()
-	err := s.db.CreateRoom(ctx, room)
+	err := s.db.CreateRoom(ctx, &room)
 	if err != nil {
 		return err
 	}

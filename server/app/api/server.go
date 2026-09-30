@@ -74,36 +74,94 @@ func newEngine(logger *zap.SugaredLogger) *gin.Engine {
 func (s *Server) Engine() *gin.Engine {
 	return s.gin_engine
 }
-func (s *Server) SetupRoutes() {
-	// Setting up general routes
-	root_group := s.gin_engine.Group("/")
-	{
-		root_group.GET("/ping", s.ping)
-		root_group.GET("get-user", s.getuser)
-	}
-	user_group := s.gin_engine.Group("/user")
-	user_group.Use(auth.AuthMiddleware())
-	{
-		user_group.GET("/whoami", s.whoami)
-		// whoami
-		user_group.GET("/join-lobby", s.joinLobby)
-		// join-lobby?duration=30
-		user_group.GET("/imonline", s.joinsession)
-		// imonline
-		user_group.POST("/follow", s.follow)
-		// follow?user=name
-		user_group.POST("/unfollow", s.unfollow)
-		// unfollow?user=name
-		user_group.GET("/join-clobby", s.joinControlledLobby)
-		// join-clobby?lobbyid=id
-		user_group.GET("invite-to-lobby", s.invitePlayerToLobby)
-		// invite-to-lobby?invitee=name
-	}
-	room_group := s.gin_engine.Group("/room")
 
+// SetupRoutes mounts every endpoint.
+//
+// The table is grouped by the resource a person is thinking about rather than
+// by handler, and each group carries the auth its members actually need. Two
+// things about the old table were bugs rather than style: `/user/imonline` was
+// the WebSocket upgrade, so the name said one thing and the handler did
+// another, and `invite-to-lobby` was registered without a leading slash, which
+// gin silently mounted somewhere nobody looked.
+func (s *Server) SetupRoutes() {
+	{ // General routes, no auth.
+		s.gin_engine.GET("/ping", s.ping)
+		s.gin_engine.GET("/get-user", s.getuser)
+		// The leaderboard is readable without signing in: a ladder is the one
+		// page a stranger should be able to see.
+		s.gin_engine.GET("/leaderboard", s.leaderboard)
+		// The game's vocabulary, so no client hardcodes the mode, language or
+		// tier lists.
+		s.gin_engine.GET("/options", s.getOptions)
+	}
+
+	{ // The caller's own account and connection.
+		user := s.gin_engine.Group("/user")
+		user.Use(auth.AuthMiddleware())
+		user.GET("/whoami", s.whoami)
+		// The WebSocket. The name says what it is now.
+		user.GET("/session", s.joinsession)
+		user.GET("/status", s.sessionStatus)
+	}
+
+	{ // Finding people and inviting them.
+		social := s.gin_engine.Group("/user")
+		social.Use(auth.AuthMiddleware())
+		social.GET("/friends", s.friends)
+		social.GET("/search", s.searchPlayers)
+		social.POST("/follow", s.follow)
+		social.POST("/unfollow", s.unfollow)
+		social.GET("/online", s.isOnline)
+		// The invite is a POST: it changes the invitee's state, and its target
+		// belongs in a body rather than a query.
+		social.POST("/invite/:id", s.invitePlayerToLobby)
+		social.POST("/invite", s.invitePlayerToLobby)
+		// Kept so a bookmark from before the route was named still invites.
+		social.GET("/invite-to-lobby", s.invitePlayerToLobby)
+	}
+
+	{ // The inbox.
+		inbox := s.gin_engine.Group("/user")
+		inbox.Use(auth.AuthMiddleware())
+		inbox.GET("/notifications", s.getNotifications)
+		inbox.GET("/notifications/count", s.getNotificationCount)
+		inbox.POST("/notifications/read", s.markNotificationsRead)
+	}
+
+	{ // Ranked play and the solo run behind it.
+		ranked := s.gin_engine.Group("/user")
+		ranked.Use(auth.AuthMiddleware())
+		ranked.POST("/queue", s.queueRanked)
+		ranked.DELETE("/queue", s.unqueueRanked)
+		ranked.GET("/queue", s.queueStatus)
+		// The old path and spelling still work.
+		ranked.GET("/join-lobby", s.queueRanked)
+		ranked.GET("/leave-lobby", s.unqueueRanked)
+		ranked.POST("/run", s.submitRun)
+		ranked.GET("/runs", s.getRuns)
+		ranked.GET("/rank", s.getRankHistory)
+	}
+
+	{ // Private game lobbies, by share code.
+		lobby := s.gin_engine.Group("/lobby")
+		lobby.Use(auth.AuthMiddleware())
+		lobby.POST("/create", s.createLobby)
+		// A POST because it takes a password, which must not end up in a
+		// referrer header.
+		lobby.POST("/join", s.joinLobby)
+		lobby.POST("/leave", s.leaveLobby)
+		lobby.POST("/:id/start", s.startLobby)
+		lobby.GET("/:id", s.getLobby)
+		// The invitation link's target. It is a second segment so it does not
+		// collide with /:id: gin refuses to mount a static route beside a
+		// wildcard at the same level, and a six character code and a numeric id
+		// in one slot would be a guess either way.
+		lobby.GET("/code/:code", s.getLobbyByCode)
+	}
+
+	room_group := s.gin_engine.Group("/room")
 	room_group.Use(auth.AuthMiddleware())
-	// Room-related endpoints
-	{
+	{ // Room-related endpoints
 		room_group.POST("/create", s.CreateRoom)     // POST /room/create
 		room_group.POST("/add-member", s.AddMember)  // POST /room/add-member
 		room_group.POST("/promote", s.PromoteToMod)  // POST /room/promote
@@ -120,6 +178,7 @@ func (s *Server) SetupRoutes() {
 		room_group.GET("/contest/list", s.GetContests)       // GET /room/contest/list?room_id=123&index=0
 		room_group.GET("/contest/:job_id", s.GetContestData) // GET /room/contest/456
 	}
+
 	// Auth Route
 	s.GitHubAuth()
 	s.FakeGitHubAuth()

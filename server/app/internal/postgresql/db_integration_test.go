@@ -56,7 +56,7 @@ func TestAddAndGetUser(t *testing.T) {
 		t.Fatalf("could not add the user: %v", err)
 	}
 
-	got, err := db.GetUser(1001)
+	got, err := db.GetUser(ctx, 1001)
 	if err != nil {
 		t.Fatalf("could not read the user back: %v", err)
 	}
@@ -172,8 +172,11 @@ func TestCreateRoomAndMembership(t *testing.T) {
 	ctx := context.Background()
 
 	room := entity.Room{ID: 3001, Name: "devs", Desc: "the good room", Public: entity.PUBLIC}
-	if err := db.CreateRoom(ctx, room); err != nil {
+	if err := db.CreateRoom(ctx, &room); err != nil {
 		t.Fatalf("could not create the room: %v", err)
+	}
+	if room.Code == "" {
+		t.Fatal("CreateRoom returned without minting a share code")
 	}
 
 	member := entity.Room_User{RoomID: 3001, UserID: 1001, Perm: entity.MOD}
@@ -194,7 +197,7 @@ func TestUpdateMembership(t *testing.T) {
 	db := newDB(t)
 	ctx := context.Background()
 
-	if err := db.CreateRoom(ctx, entity.Room{ID: 3002, Name: "r"}); err != nil {
+	if err := db.CreateRoom(ctx, &entity.Room{ID: 3002, Name: "r"}); err != nil {
 		t.Fatalf("could not create the room: %v", err)
 	}
 	if err := db.AddMember(ctx, entity.Room_User{RoomID: 3002, UserID: 1001, Perm: entity.MEMBER}); err != nil {
@@ -230,10 +233,10 @@ func TestPageListReturnsRoomsForTheUser(t *testing.T) {
 	db := newDB(t)
 	ctx := context.Background()
 
-	if err := db.CreateRoom(ctx, entity.Room{ID: 3010, Name: "alpha"}); err != nil {
+	if err := db.CreateRoom(ctx, &entity.Room{ID: 3010, Name: "alpha"}); err != nil {
 		t.Fatalf("could not create the room: %v", err)
 	}
-	if err := db.CreateRoom(ctx, entity.Room{ID: 3011, Name: "beta"}); err != nil {
+	if err := db.CreateRoom(ctx, &entity.Room{ID: 3011, Name: "beta"}); err != nil {
 		t.Fatalf("could not create the room: %v", err)
 	}
 	for _, m := range []entity.Room_User{
@@ -270,7 +273,7 @@ func TestPageListPaginates(t *testing.T) {
 
 	for i := 1; i <= 5; i++ {
 		id := uint32(4000 + i)
-		if err := db.CreateRoom(ctx, entity.Room{ID: id}); err != nil {
+		if err := db.CreateRoom(ctx, &entity.Room{ID: id}); err != nil {
 			t.Fatalf("could not create room %d: %v", id, err)
 		}
 		if err := db.AddMember(ctx, entity.Room_User{RoomID: id, UserID: 6001, Perm: entity.MEMBER}); err != nil {
@@ -522,17 +525,45 @@ func TestPopRecentTaskWithEmptyTable(t *testing.T) {
 
 // ------------------------------------------------------------------- friends
 
+// seedFriends creates the two accounts the friend tests follow, and returns
+// their ids.
+//
+// FollowUser refuses to create an edge to an account that does not exist, so
+// these tests have to put the users in the table. They did not, and newDB
+// truncates users, so every one of them failed on "record not found" from
+// inside the follow itself — which reads like a database problem and is really a
+// missing fixture.
+func seedFriends(t *testing.T, db Database) (uint32, uint32) {
+	t.Helper()
+	ctx := context.Background()
+
+	const (
+		ada   uint32 = 1
+		grace uint32 = 2
+	)
+	for _, u := range []entity.User{
+		{ID: ada, Username: "ada", CurrentRank: 1200},
+		{ID: grace, Username: "grace", CurrentRank: 1300},
+	} {
+		if err := db.AddUser(ctx, u); err != nil {
+			t.Fatalf("could not seed %s: %v", u.Username, err)
+		}
+	}
+	return ada, grace
+}
+
 func TestFollowThenBecomeFriends(t *testing.T) {
 	db := newDB(t)
 	ctx := context.Background()
+	ada, grace := seedFriends(t, db)
 
 	// ada follows grace: one-way, so a single FOLLOWS row.
-	if err := db.FollowUser(ctx, 1, 2); err != nil {
+	if err := db.FollowUser(ctx, ada, grace); err != nil {
 		t.Fatalf("could not follow: %v", err)
 	}
 
 	var rel entity.Friends
-	if err := db.db.Where("A = ? AND B = ?", 1, 2).First(&rel).Error; err != nil {
+	if err := db.db.Where("A = ? AND B = ?", ada, grace).First(&rel).Error; err != nil {
 		t.Fatalf("could not read the relation: %v", err)
 	}
 	if rel.Relation != entity.FOLLOWS {
@@ -540,32 +571,92 @@ func TestFollowThenBecomeFriends(t *testing.T) {
 	}
 
 	// grace follows ada back: that should upgrade the pair to FRIENDS.
-	if err := db.FollowUser(ctx, 2, 1); err != nil {
+	if err := db.FollowUser(ctx, grace, ada); err != nil {
 		t.Fatalf("could not follow back: %v", err)
 	}
 
-	friends, err := db.GetFriends(ctx, 1)
+	// Both directions have to be mutual, not just the one that was written
+	// second. The first direction's row is the one the earlier follow created,
+	// so leaving it at FOLLOWS is the bug this catches.
+	for _, edge := range []entity.Friends{{A: ada, B: grace}, {A: grace, B: ada}} {
+		var got entity.Friends
+		if err := db.db.Where("A = ? AND B = ?", edge.A, edge.B).First(&got).Error; err != nil {
+			t.Fatalf("could not read the relation: %v", err)
+		}
+		if got.Relation != entity.FRIENDS {
+			t.Errorf("edge %d->%d is %v, want FRIENDS", edge.A, edge.B, got.Relation)
+		}
+	}
+
+	friends, err := db.GetFriends(ctx, ada)
 	if err != nil {
 		t.Fatalf("GetFriends failed: %v", err)
 	}
-	if len(friends) != 1 || friends[0] != 2 {
-		t.Errorf("expected 1 friend (2), got %v", friends)
+	if len(friends) != 1 || friends[0] != grace {
+		t.Errorf("expected 1 friend (%d), got %v", grace, friends)
+	}
+}
+
+// TestFollowIsIdempotent covers the double click: the composite primary key
+// makes a second follow of the same person a duplicate key violation, which
+// surfaced to the player as a 500.
+func TestFollowIsIdempotent(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	ada, grace := seedFriends(t, db)
+
+	for i := range 3 {
+		if err := db.FollowUser(ctx, ada, grace); err != nil {
+			t.Fatalf("follow %d failed: %v", i+1, err)
+		}
+	}
+
+	var count int64
+	if err := db.db.Model(&entity.Friends{}).
+		Where("a = ? AND b = ?", ada, grace).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("three follows produced %d rows, want 1", count)
+	}
+}
+
+// TestFollowSelfIsRefused: a self edge is not a friend, and the model has no way
+// to represent it.
+func TestFollowSelfIsRefused(t *testing.T) {
+	db := newDB(t)
+	ada, _ := seedFriends(t, db)
+
+	if err := db.FollowUser(context.Background(), ada, ada); err == nil {
+		t.Error("following yourself was allowed")
+	}
+}
+
+// TestFollowSomeoneWhoDoesNotExist: a follow is a pointer at an account, and
+// creating one for a deleted account leaves a row nothing can ever resolve.
+func TestFollowSomeoneWhoDoesNotExist(t *testing.T) {
+	db := newDB(t)
+	ada, _ := seedFriends(t, db)
+
+	if err := db.FollowUser(context.Background(), ada, 9999); err == nil {
+		t.Error("following a nonexistent account was allowed")
 	}
 }
 
 func TestUnfollowOneWay(t *testing.T) {
 	db := newDB(t)
 	ctx := context.Background()
+	ada, grace := seedFriends(t, db)
 
-	if err := db.FollowUser(ctx, 1, 2); err != nil {
+	if err := db.FollowUser(ctx, ada, grace); err != nil {
 		t.Fatalf("could not follow: %v", err)
 	}
-	if err := db.UnfollowUser(ctx, 1, 2); err != nil {
+	if err := db.UnfollowUser(ctx, ada, grace); err != nil {
 		t.Fatalf("could not unfollow: %v", err)
 	}
 
 	var count int64
-	if err := db.db.Model(&entity.Friends{}).Where("A = ? AND B = ?", 1, 2).Count(&count).Error; err != nil {
+	if err := db.db.Model(&entity.Friends{}).Where("A = ? AND B = ?", ada, grace).Count(&count).Error; err != nil {
 		t.Fatalf("could not count: %v", err)
 	}
 	if count != 0 {
@@ -580,18 +671,46 @@ func TestUnfollowWithNoRelationIsNoop(t *testing.T) {
 	}
 }
 
+// TestUnfollowKeepsTheOtherDirection: someone who did nothing wrong should not
+// silently stop following you because you pressed unfollow.
+func TestUnfollowKeepsTheOtherDirection(t *testing.T) {
+	db := newDB(t)
+	ctx := context.Background()
+	ada, grace := seedFriends(t, db)
+
+	if err := db.FollowUser(ctx, ada, grace); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.FollowUser(ctx, grace, ada); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UnfollowUser(ctx, ada, grace); err != nil {
+		t.Fatal(err)
+	}
+
+	var count int64
+	if err := db.db.Model(&entity.Friends{}).
+		Where("a = ? AND b = ?", grace, ada).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("grace's follow of ada was removed too: %d rows remain", count)
+	}
+}
+
 func TestGetFriendsIsSymmetric(t *testing.T) {
 	db := newDB(t)
 	ctx := context.Background()
+	ada, grace := seedFriends(t, db)
 
-	if err := db.FollowUser(ctx, 1, 2); err != nil {
+	if err := db.FollowUser(ctx, ada, grace); err != nil {
 		t.Fatalf("could not follow: %v", err)
 	}
-	if err := db.FollowUser(ctx, 2, 1); err != nil {
+	if err := db.FollowUser(ctx, grace, ada); err != nil {
 		t.Fatalf("could not follow back: %v", err)
 	}
 
-	for _, id := range []uint32{1, 2} {
+	for _, id := range []uint32{ada, grace} {
 		friends, err := db.GetFriends(ctx, id)
 		if err != nil {
 			t.Fatalf("GetFriends(%d) failed: %v", id, err)

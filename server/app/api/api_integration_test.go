@@ -257,7 +257,7 @@ func TestRoomListReturnsJSONArray(t *testing.T) {
 		t.Fatalf("could not seed the user: %v", err)
 	}
 	room := entity.Room{ID: 82001, Name: "listed-room"}
-	if err := db.CreateRoom(ctx, room); err != nil {
+	if err := db.CreateRoom(ctx, &room); err != nil {
 		t.Fatalf("could not seed the room: %v", err)
 	}
 	if err := db.AddMember(ctx, entity.Room_User{RoomID: 82001, UserID: owner, Perm: entity.MOD}); err != nil {
@@ -322,7 +322,7 @@ func TestRoomMembershipPermissions(t *testing.T) {
 			t.Fatalf("could not seed user %d: %v", u.ID, err)
 		}
 	}
-	if err := db.CreateRoom(ctx, entity.Room{ID: 84010, Name: "perm-room"}); err != nil {
+	if err := db.CreateRoom(ctx, &entity.Room{ID: 84010, Name: "perm-room"}); err != nil {
 		t.Fatalf("could not seed the room: %v", err)
 	}
 	for _, m := range []entity.Room_User{
@@ -398,7 +398,7 @@ func TestNonModeratorCannotPromote(t *testing.T) {
 			t.Fatalf("could not seed user %d: %v", u.ID, err)
 		}
 	}
-	if err := db.CreateRoom(ctx, entity.Room{ID: 85010}); err != nil {
+	if err := db.CreateRoom(ctx, &entity.Room{ID: 85010}); err != nil {
 		t.Fatalf("could not seed the room: %v", err)
 	}
 	for _, m := range []entity.Room_User{
@@ -441,7 +441,7 @@ func TestUserCanRemoveThemselves(t *testing.T) {
 			t.Fatalf("could not seed user %d: %v", u.ID, err)
 		}
 	}
-	if err := db.CreateRoom(ctx, entity.Room{ID: 86010}); err != nil {
+	if err := db.CreateRoom(ctx, &entity.Room{ID: 86010}); err != nil {
 		t.Fatalf("could not seed the room: %v", err)
 	}
 	for _, m := range []entity.Room_User{
