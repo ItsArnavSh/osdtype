@@ -3,7 +3,9 @@
 	import { LANGUAGES, TIMES } from '$lib/core/entity/languages';
 
 	let {
-		lang = $bindable<Language>('Golang'),
+		// "Golang" was not a member of the Language union, so the default
+		// disagreed with the type and the modal failed to compile.
+		lang = $bindable<Language>('Go'),
 		timer = $bindable<Time>(300),
 		open = $bindable(false),
 		onchange
@@ -26,7 +28,7 @@
 		class="fixed inset-0 z-40 cursor-default bg-black/60"
 		onclick={() => (open = false)}
 		aria-label="Close modal"
-	/>
+	></button>
 
 	<!-- Modal box -->
 	<div
@@ -36,7 +38,7 @@
 		<div class="flex flex-col gap-2">
 			<div class="text-sm tracking-widest text-(--silver) uppercase">Language</div>
 			<div class="flex flex-row gap-2">
-				{#each LANGUAGES as l}
+				{#each LANGUAGES as l (l)}
 					<button
 						onclick={() => (lang = l)}
 						class="flex-1 cursor-pointer border px-4 py-2 text-sm transition-colors
@@ -54,7 +56,7 @@
 		<div class="flex flex-col gap-2">
 			<div class="text-sm tracking-widest text-(--silver) uppercase">Timer</div>
 			<div class="flex flex-row gap-2">
-				{#each TIMES as t}
+				{#each TIMES as t (t)}
 					<button
 						onclick={() => (timer = t)}
 						class="flex-1 cursor-pointer border px-4 py-2 text-sm transition-colors

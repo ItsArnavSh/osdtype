@@ -3,10 +3,13 @@
 	import { CGrammar } from '$lib/templates/c';
 	import { onMount } from 'svelte';
 	import { generate } from '../../../rust-core/pkg/rust_core';
-	import { GetGrammar, type Language } from '$lib/core/entity/languages';
+	import { GetGrammar, type Language, type Time } from '$lib/core/entity/languages';
 
 	let lang: Language = $state('Go');
-	let timer = $state(30);
+	// SettingsModal binds a Time, which is the 30 | 90 | 300 union. The literal
+	// 30 widened the state to number, so binding it back to the modal failed the
+	// type check and changed the duration to an untyped value.
+	let timer = $state<Time>(30);
 	let modalOpen = $state(false);
 
 	let seed = $derived(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
@@ -22,7 +25,7 @@
 	// --- Game state ---
 	type Phase = 'idle' | 'typing' | 'done';
 	let phase = $state<Phase>('idle');
-	let timeLeft = $state(timer);
+	let timeLeft = $state<number>(0);
 	let wpm = $state(0);
 	let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -111,8 +114,17 @@
 	// Dot
 	let dotTop = $state(0);
 
+	// --- Autoscroll ---
+	// $state so that binding the element reference itself re-runs the effect
+	// below; a plain `let` never notifies, so the first layout pass would run
+	// against an undefined element and silently skip the scroll.
+	let codeContainer: HTMLDivElement | undefined = $state();
+	let spanRefs: HTMLSpanElement[] = $state([]);
+
+	// Reading cursor here (via spanRefs[cursor]) is what re-runs this effect on
+	// every keystroke; it keeps the active character centred and moves the
+	// position dot with it.
 	$effect(() => {
-		const _ = cursor;
 		const span = spanRefs[cursor];
 		if (!span || !codeContainer) return;
 
@@ -122,18 +134,6 @@
 
 		// Dot: position relative to the border container, accounting for scroll
 		dotTop = spanOffsetTop - codeContainer.scrollTop + span.offsetHeight / 2;
-	});
-	// --- Autoscroll ---
-	let codeContainer: HTMLDivElement;
-	let spanRefs: HTMLSpanElement[] = [];
-
-	$effect(() => {
-		const _ = cursor;
-		const span = spanRefs[cursor];
-		if (!span || !codeContainer) return;
-		const spanOffsetTop = span.offsetTop;
-		const targetScrollTop = spanOffsetTop - codeContainer.clientHeight / 2 + span.offsetHeight / 2;
-		codeContainer.scrollTop = Math.max(0, targetScrollTop);
 	});
 
 	// --- Input handling ---
@@ -172,6 +172,9 @@
 	}
 
 	onMount(() => {
+		// The countdown reads timeLeft from the first frame, so seed it from the
+		// configured duration rather than showing zero until the first reset.
+		timeLeft = timer;
 		cursor = nextReal(0);
 		window.addEventListener('keydown', handleKeydown);
 		return () => window.removeEventListener('keydown', handleKeydown);
@@ -209,10 +212,9 @@
 		bind:this={inputRef}
 		class="pointer-events-none absolute resize-none opacity-0"
 		autocomplete="off"
-		autocorrect="off"
 		spellcheck="false"
 		rows="1"
-	/>
+	></textarea>
 
 	<!-- Code display / results -->
 	<div

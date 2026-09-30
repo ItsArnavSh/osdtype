@@ -23,14 +23,43 @@ export interface Room_User {
 	user_id: number;
 	role: RoomRole;
 }
-
+export enum ContestStatus {
+	UPCOMING = 0,
+	LOBBY = 1,
+	STARTED = 2,
+	ENDED = 3
+}
+export interface WPMRes {
+	name: string;
+	id: number;
+	raw: number;
+	wpm: number;
+	accuracy: number;
+	correct: number;
+	wrong: number;
+}
 export interface Contest {
-	[key: string]: unknown;
+	id: string;
+	jobID: number;
+	roomID: number;
+	time: Date;
+	data: string; // title, writeup etc
+	lang: number;
+	duration: LobbyDuration;
+	lobbyID: number; // allotted by scheduler
+	status: ContestStatus;
+	leaderboard: LeaderboardEntry[];
 }
 
 // ─── Lobby ───────────────────────────────────────────────────────────────────
 
-export type LobbyDuration = 30 | 90 | 300;
+export const LobbyDuration = {
+	SHORT: 30,
+	MEDIUM: 90,
+	LONG: 300
+} as const;
+
+export type LobbyDuration = (typeof LobbyDuration)[keyof typeof LobbyDuration];
 
 // ─── WebSocket Message Types (Client → Server) ────────────────────────────────
 

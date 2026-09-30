@@ -11,10 +11,14 @@
 		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler"
-	}
+	},
+	// The wasm-pack bindings under rust-core/pkg are generated. They are plain
+	// JavaScript with no .d.ts, so checkJs flags every untyped local in them and
+	// buries real errors in the application code.
+	"exclude": ["src/rust-core/pkg"]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
 	//
-	// To make changes to top-level options such as include and exclude, we recommend extending
+	// To make changes to top-level options such as include or exclude, we recommend extending
 	// the generated config; see https://svelte.dev/docs/kit/configuration#typescript
 }
