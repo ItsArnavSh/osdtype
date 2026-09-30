@@ -1,2 +1,5 @@
 docker_data
 .env
+
+# Build and coverage artifacts
+server/tmp/

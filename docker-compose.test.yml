@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: osdtype_test_postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: typedata
+    ports:
+      # Deliberately a different port than the dev database (5432) so a running
+      # dev stack does not clash with the throwaway test database.
+      - "5433:5432"
+    tmpfs:
+      # Keep the database entirely in memory so nothing survives the run.
+      - /var/lib/postgresql/data
+    command: postgres -c listen_addresses='*'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d typedata"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

@@ -1,0 +1,91 @@
+# golangci-lint configuration.
+#
+# Version 2 layout: linter selection lives under `linters`, exclusions under
+# `linters.exclusions`, and the formatter set is declared separately under
+# `formatters`. Run with:
+#
+#   golangci-lint run --config .golangci.yml ./...
+version: "2"
+
+run:
+  timeout: 5m
+  # Lint tests too. A bug in a test is still a bug: the suite is the only
+  # thing standing between the next change and a broken build.
+  tests: true
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose    # http response bodies that are never closed
+    - errorlint    # %w wrapping and error comparisons
+    - gocritic     # bug-prone patterns: sloppyReassign, appendAssign, ...
+    - misspell
+    - nilerr       # "if err != nil { return nil }" hides real failures
+    - noctx        # http calls without a context
+    - perfsprint   # fmt.Sprintf that strconv would do
+    - prealloc
+    - revive
+    - sqlclosecheck
+    - unconvert
+    - unparam
+    - wastedassign
+    - whitespace
+  settings:
+    gocritic:
+      disabled-checks:
+        - ifElseChain   # the codebase uses switch where a chain reads better
+    govet:
+      enable:
+        - shadow
+    misspell:
+      locale: US
+    perfsprint:
+      # Only the cases where the conversion is a clear win; leaving the rest to
+      # fmt keeps the code readable.
+      int-conversion: false
+      strconcat: false
+    revive:
+      rules:
+        # var-naming is deliberately off. The codebase has settled on
+        # snake_case for locals and parameters (lobby_id, room_user,
+        # Calculate_WPM) and renaming 50-odd identifiers, several of them
+        # exported, is a mechanical change best made on its own.
+        - name: var-naming
+          disabled: true
+        # Likewise the stutter check would force GameHandler -> Handler and
+        # RedisClient -> Client across package boundaries.
+        - name: exported
+          disabled: true
+  exclusions:
+    generated: lax
+    presets:
+      # The default error-handling and stdlib false positives come with the
+      # standard set; these two are the ones this codebase would hit.
+      - comments
+    paths:
+      - node_modules
+      - .svelte-kit
+      - '.*_gen\.go$'
+    rules:
+      # Handlers and loops legitimately have early returns.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - unparam
+      - path: _test\.go
+        text: 'shadow: declaration of'
+        linters:
+          - govet
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - osdtyp
+  exclusions:
+    paths:
+      - node_modules
+      - .svelte-kit

@@ -1,0 +1,192 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned rather than floating. golangci-lint bundles its own copy of go/types
+  # and refuses to load source that needs a newer language version than the Go
+  # it was built with, so the two have to be kept in step. Bump both together.
+  GO_VERSION: "1.26"
+  GOLANGCI_LINT_VERSION: "v2.10.1"
+
+jobs:
+  # ---------------------------------------------------------------- build
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: Verify modules are tidy
+        run: |
+          go mod tidy
+          if ! git diff --quiet -- go.mod go.sum; then
+            echo "::error::go.mod / go.sum are not tidy. Run 'just tidy' and commit."
+            git diff -- go.mod go.sum
+            exit 1
+          fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Build with every test tag
+        # Catches a file that only compiles under a build tag nobody exercises
+        # on a normal build.
+        run: go build -tags="unit integration" ./...
+
+  # ---------------------------------------------------------------- lint
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: go vet
+        run: go vet -tags="unit integration" ./...
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: server
+          args: --config=../.golangci.yml --build-tags="unit integration"
+
+  # ------------------------------------------------------------ unit tests
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: Unit tests
+        run: |
+          mkdir -p tmp
+          go test -short -tags=unit -race -count=1 -timeout=5m -coverprofile=tmp/coverage-unit.out -covermode=atomic ./...
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-coverage
+          path: server/tmp/coverage-unit.out
+          if-no-files-found: ignore
+
+  # ----------------------------------------------------- integration tests
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: typedata
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U user -d typedata"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: server
+    env:
+      # The integration suite reads these to reach the throwaway database.
+      TEST_DB_HOST: localhost
+      TEST_DB_PORT: "5433"
+      TEST_DB_USER: user
+      TEST_DB_PASSWORD: password
+      TEST_DB_NAME: typedata
+      JWTKEY: ci_test_secret
+      GIN_MODE: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: server/go.sum
+
+      - name: Integration tests
+        run: |
+          mkdir -p tmp
+          go test -tags=integration -count=1 -timeout=10m -coverprofile=tmp/coverage-integration.out -covermode=atomic ./...
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-coverage
+          path: server/tmp/coverage-integration.out
+          if-no-files-found: ignore
+
+  # ------------------------------------------------------------- frontend
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Type check
+        run: bun run check
+
+      - name: Build
+        run: bun run build
