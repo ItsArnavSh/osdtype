@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+
 	"osdtyp/app/entity"
 )
 
@@ -29,22 +30,34 @@ func (d *Database) SeePerms(ctx context.Context, room_user entity.Room_User) (en
 	return room_user, nil
 }
 
-func (d *Database) PageList(ctx context.Context, user_id uint32, index, limit uint8) ([]entity.Room, error) {
+// PageList returns one page of the rooms a user belongs to.
+//
+// The membership lives in room_users, not on the rooms row: the previous
+// version filtered the rooms table on a "user_id" column that does not exist,
+// so the query always failed and the room list could never return anything.
+func (d *Database) PageList(ctx context.Context, userID uint32, index, limit int) ([]entity.Room, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if index < 0 {
+		index = 0
+	}
 
-	var rooms []entity.Room
-
-	offset := int(index) * int(limit)
+	rooms := make([]entity.Room, 0)
 
 	err := d.db.WithContext(ctx).
-		Where("user_id = ?", user_id).
-		Order("id DESC").
-		Offset(offset).
-		Limit(int(limit)).
+		Model(&entity.Room{}).
+		Joins("JOIN room_users ON room_users.room_id = rooms.id").
+		Where("room_users.user_id = ?", userID).
+		// A blocked or left membership is not an active membership.
+		Where("room_users.perm NOT IN ?", []entity.RoomPerm{entity.BLOCKED, entity.LEFT}).
+		Order("rooms.id DESC").
+		Offset(index * limit).
+		Limit(limit).
 		Find(&rooms).Error
 
 	if err != nil {
 		return nil, err
 	}
-
 	return rooms, nil
 }

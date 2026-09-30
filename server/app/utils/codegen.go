@@ -2,8 +2,8 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -28,14 +28,19 @@ type generateResponse struct {
 }
 
 func NewCodeGen(logger *zap.SugaredLogger) CodeGen {
-
 	return CodeGen{
 		logger: logger,
 		client: &http.Client{},
 		url:    viper.GetString("CodeGen.service_url"),
 	}
 }
-func (c *CodeGen) Generate(name string, seed uint32, tokens int) string {
+
+// Generate asks the snippet service for code in the named language.
+//
+// The service is a separate Rust process, so a failure here means a player gets
+// an empty snippet rather than a crash. Every failure path is logged and turned
+// into an empty string.
+func (c *CodeGen) Generate(ctx context.Context, name string, seed uint32, tokens int) string {
 	c.logger.Infof("Generating code for %s", name)
 
 	reqBody := generateRequest{
@@ -46,28 +51,37 @@ func (c *CodeGen) Generate(name string, seed uint32, tokens int) string {
 
 	data, err := json.Marshal(reqBody)
 	if err != nil {
-		c.logger.Error("marshal failed:", err)
+		c.logger.Error("marshal failed: ", err)
 		return ""
 	}
 
-	resp, err := c.client.Post(c.url, "application/json", bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(data))
 	if err != nil {
-		c.logger.Error("Rust service unavailable:", err)
+		c.logger.Error("could not build the codegen request: ", err)
 		return ""
 	}
-	defer resp.Body.Close()
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		c.logger.Error("snippet service unavailable: ", err)
+		return ""
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Warnw("could not close the codegen response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
-		c.logger.Errorf("Rust service status: %d", resp.StatusCode)
+		c.logger.Errorf("snippet service status: %d", resp.StatusCode)
 		return ""
 	}
 
 	var result generateResponse
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		c.logger.Error("decode failed:", err)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.logger.Error("decode failed: ", err)
 		return ""
 	}
-	fmt.Print(result.Code)
 	return strings.Join(result.Code, "")
 }

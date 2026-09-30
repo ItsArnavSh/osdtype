@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+
 	"osdtyp/app/entity"
 )
 
@@ -109,12 +110,14 @@ func (d *Database) SearchPeople(
 	txt string,
 	limit uint8,
 ) ([]entity.User, error) {
-
 	var users []entity.User
 
+	// The column is username, matching the Username field on User: the query
+	// previously used "user_name", which does not exist, so every user search
+	// failed outright.
 	err := d.db.WithContext(ctx).
-		Where("user_name LIKE ?", "%"+txt+"%").
-		Order("user_name ASC").
+		Where("username LIKE ?", "%"+txt+"%").
+		Order("username ASC").
 		Limit(int(limit)).
 		Find(&users).
 		Error

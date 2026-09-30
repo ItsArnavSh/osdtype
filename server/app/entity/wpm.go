@@ -11,6 +11,6 @@ type WPMRes struct {
 	RAW      float32 `json:"raw"`
 	WPM      float32 `json:"wpm"`
 	Accuracy float32 `json:"accuracy"`
-	Correct  int32   `correct:"correct"`
+	Correct  int32   `json:"correct"`
 	Wrong    int32   `json:"wrong"`
 }

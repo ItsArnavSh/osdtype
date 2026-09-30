@@ -1,10 +1,11 @@
 package game
 
 import (
-	"osdtyp/app/entity"
-	"osdtyp/app/utils"
 	"sync"
 	"time"
+
+	"osdtyp/app/entity"
+	"osdtyp/app/utils"
 
 	"go.uber.org/zap"
 )
@@ -21,7 +22,6 @@ func NewActiveGames(logger *zap.SugaredLogger) ActiveGames {
 		running:  nil,
 		code_gen: utils.NewCodeGen(logger),
 	}
-
 }
 func (a *ActiveGames) NewGame(players []entity.PlayerItem, duration time.Duration, sig chan []entity.WPMRes) {
 	a.logger.Debug("Duration is ", duration)
@@ -31,12 +31,11 @@ func (a *ActiveGames) NewGame(players []entity.PlayerItem, duration time.Duratio
 		wg.Add(1)
 		go player.PlayerInRoutine(&wg)
 	}
-	//Dont really wait for it here
+	// Dont really wait for it here
 	go gh.GlobalBroadcaster()
-	//Added a delay just in case one of the ws is slower
+	// Added a delay just in case one of the ws is slower
 	a.logger.Infoln("Waiting for processes to end")
 	wg.Wait()
 	a.logger.Infoln("Concluding the match")
 	gh.EndLiveStream()
-
 }

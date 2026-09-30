@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+
 	"osdtyp/app/entity"
 )
 
@@ -38,11 +39,16 @@ func (d *Database) UserExists(ctx context.Context, username string) (bool, error
 	return count > 0, nil
 }
 
+// ChangeRank updates a user's rank.
+//
+// The column is current_rank, matching the CurrentRank field: the update
+// previously named a "rank" column that does not exist, so every ranked match
+// result was discarded.
 func (d *Database) ChangeRank(userid uint32, rank uint16) error {
 	result := d.db.
 		Model(&entity.User{}).
 		Where("id = ?", userid).
-		Update("rank", rank)
+		Update("current_rank", rank)
 	return result.Error
 }
 

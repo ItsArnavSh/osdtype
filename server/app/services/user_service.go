@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
+
 	"osdtyp/app/api/auth"
 	"osdtyp/app/entity"
-	"osdtyp/app/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,10 +16,10 @@ func (s *ServiceLayer) LoginUser(g *gin.Context, user entity.User) (uint32, erro
 		user, _ = s.db.GetUserFromName(g.Request.Context(), user.Username)
 		return user.ID, nil
 	}
-	//Register User
+	// Register User
 	user.ID = s.int_gen.GenerateID()
 	user.CurrentRank = 0
-	user.AvatarURL, err = utils.GetGitHubAvatar(g.Request.Context(), user.Username)
+	user.AvatarURL = ""
 	if err != nil {
 		return 0, err
 	}

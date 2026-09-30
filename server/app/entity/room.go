@@ -1,29 +1,31 @@
 package entity
 
-type room_perm int
+// RoomPerm is a user's standing in a room. It was unexported, which meant
+// other packages could read Room_User.Perm but never write a meaningful value.
+type RoomPerm int
 
 const (
-	MOD room_perm = iota
+	MOD RoomPerm = iota
 	MEMBER
 	BLOCKED
 	LEFT
 )
 
-type room_type int
+type roomType int
 
 const (
-	PRIVATE room_type = iota //Invite-only
-	PUBLIC                   //Can be joined simply
+	PRIVATE roomType = iota // Invite-only
+	PUBLIC                  // Can be joined simply
 )
 
 type Room struct {
 	ID     uint32
 	Name   string
 	Desc   string
-	Public room_type
+	Public roomType
 }
 type Room_User struct {
 	RoomID uint32
 	UserID uint32
-	Perm   room_perm
+	Perm   RoomPerm
 }

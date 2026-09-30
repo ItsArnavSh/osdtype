@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,7 +13,6 @@ import (
 // It is "optional" - if a token is present and valid, it sets the userID in the context.
 // If not, it proceeds without setting a user, allowing for guest access.
 func AuthMiddleware() gin.HandlerFunc {
-
 	return func(c *gin.Context) {
 		var tokenString string
 
@@ -47,15 +47,39 @@ func IsAuth(c *gin.Context) bool {
 	_, exists := c.Get("userID")
 	return exists
 }
-func GetUserID(c *gin.Context) (uint32, error) {
-	userid := c.GetString("userID")
-	if userid == "" {
-		return 0, fmt.Errorf("No Active User Logged in")
-	}
-	uid, _ := strconv.ParseUint(userid, 10, 32)
 
-	return uint32(uid), nil
+// GetUserID reads the user id that AuthMiddleware or SetUserID stored.
+//
+// The middleware puts the token subject in as a string, and SetUserID used to
+// put a uint32 in. Reading with c.GetString only works for the string shape, so
+// the two could never round-trip; the value is normalised to a string on the
+// way in so there is exactly one representation.
+func GetUserID(c *gin.Context) (uint32, error) {
+	raw, exists := c.Get("userID")
+	if !exists {
+		return 0, errors.New("no active user logged in")
+	}
+	switch v := raw.(type) {
+	case string:
+		if v == "" {
+			return 0, errors.New("no active user logged in")
+		}
+		uid, err := strconv.ParseUint(v, 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("malformed user id %q: %w", v, err)
+		}
+		return uint32(uid), nil
+	case uint32:
+		return v, nil
+	case int:
+		return uint32(v), nil
+	case uint64:
+		return uint32(v), nil
+	default:
+		return 0, errors.New("no active user logged in")
+	}
 }
+
 func SetUserID(c *gin.Context, uid uint32) {
-	c.Set("userID", uid)
+	c.Set("userID", strconv.FormatUint(uint64(uid), 10))
 }

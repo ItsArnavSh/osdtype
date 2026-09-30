@@ -16,7 +16,6 @@ type ServiceLayer struct {
 }
 
 func NewServiceLayer(logger *zap.SugaredLogger, core *core.CodeCore, db *postgresql.Database) (ServiceLayer, error) {
-
 	gen := utils.NewGenerator()
 	return ServiceLayer{logger: logger, db: db, int_gen: gen, core: core}, nil
 }

@@ -8,6 +8,14 @@ func UpdateElo(current []uint16, scores []uint16) []uint16 {
 		return current
 	}
 
+	// With a single player there is nobody to compare against, so the K
+	// factor of 32/(n-1) divides by zero. The old code computed +Inf here and
+	// every subsequent delta became NaN, which uint16() truncated to 0 and so
+	// wiped the player's rank. Return the ranking untouched instead.
+	if n == 1 {
+		return append([]uint16(nil), current...)
+	}
+
 	// Work in float internally
 	newElo := make([]float32, n)
 	for i := range n {

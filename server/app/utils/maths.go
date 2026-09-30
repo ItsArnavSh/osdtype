@@ -33,7 +33,7 @@ func StandardDeviation(arr []int32) float64 {
 	for _, v := range arr {
 		variance += math.Pow(float64(v)-mean, 2)
 	}
-	variance = variance / float64(n)
+	variance /= float64(n)
 
 	return math.Sqrt(variance)
 }

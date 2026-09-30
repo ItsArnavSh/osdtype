@@ -2,13 +2,14 @@ package api
 
 import (
 	"os"
+	"strings"
+	"time"
+
 	"osdtyp/app/api/auth"
 	"osdtyp/app/core"
 	"osdtyp/app/internal/postgresql"
 	"osdtyp/app/services"
 	"osdtyp/app/utils"
-	"strings"
-	"time"
 
 	"github.com/gin-contrib/cors"
 	ginzap "github.com/gin-contrib/zap"
@@ -24,9 +25,34 @@ type Server struct {
 	core       *core.CodeCore
 }
 
-func NewServer(logger *zap.SugaredLogger) Server {
+func NewServer(logger *zap.SugaredLogger) (Server, error) {
+	db, err := postgresql.ConnectDatabase(logger)
+	if err != nil {
+		return Server{}, err
+	}
+	return NewServerWithDB(logger, db)
+}
+
+// NewServerWithDB builds a Server around an already-connected database.
+// Splitting this out of NewServer keeps the wiring in one place and lets tests
+// supply their own database instead of dialing one from configuration.
+func NewServerWithDB(logger *zap.SugaredLogger, db postgresql.Database) (Server, error) {
+	r := newEngine(logger)
+	codeCore, err := core.NewCodeCore(logger, &db)
+	if err != nil {
+		return Server{}, err
+	}
+	service, err := services.NewServiceLayer(logger, &codeCore, &db)
+	if err != nil {
+		return Server{}, err
+	}
+	return Server{logger: logger, gin_engine: r, services: service, core: &codeCore}, nil
+}
+
+// newEngine builds the gin engine with logging, recovery and CORS attached.
+func newEngine(logger *zap.SugaredLogger) *gin.Engine {
 	r := gin.New()
-	{ //Configuring the Gin Logger to use the zap instead of its own logger
+	{ // Configuring the Gin Logger to use the zap instead of its own logger
 		r.Use(ginzap.Ginzap(logger.Desugar(), time.RFC3339, true))
 		r.Use(ginzap.RecoveryWithZap(logger.Desugar(), true))
 		gin.DefaultWriter = utils.ZapWriter{Logger: logger}
@@ -40,19 +66,16 @@ func NewServer(logger *zap.SugaredLogger) Server {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))
-	db, err := postgresql.ConnectDatabase(logger)
-	if err != nil {
-		return Server{}
-	}
-	core := core.NewCodeCore(logger, &db)
-	service, err := services.NewServiceLayer(logger, &core, &db)
-	if err != nil {
-		return Server{}
-	}
-	return Server{logger: logger, gin_engine: r, services: service, core: &core}
+	return r
+}
+
+// Engine exposes the underlying gin engine. Used by tests and by any caller
+// that wants to mount the routes on its own server.
+func (s *Server) Engine() *gin.Engine {
+	return s.gin_engine
 }
 func (s *Server) SetupRoutes() {
-	//Setting up general routes
+	// Setting up general routes
 	root_group := s.gin_engine.Group("/")
 	{
 		root_group.GET("/ping", s.ping)
@@ -62,19 +85,19 @@ func (s *Server) SetupRoutes() {
 	user_group.Use(auth.AuthMiddleware())
 	{
 		user_group.GET("/whoami", s.whoami)
-		//whoami
+		// whoami
 		user_group.GET("/join-lobby", s.joinLobby)
-		//join-lobby?duration=30
+		// join-lobby?duration=30
 		user_group.GET("/imonline", s.joinsession)
-		//imonline
+		// imonline
 		user_group.POST("/follow", s.follow)
-		//follow?user=name
+		// follow?user=name
 		user_group.POST("/unfollow", s.unfollow)
-		//unfollow?user=name
+		// unfollow?user=name
 		user_group.GET("/join-clobby", s.joinControlledLobby)
-		//join-clobby?lobbyid=id
+		// join-clobby?lobbyid=id
 		user_group.GET("invite-to-lobby", s.invitePlayerToLobby)
-		//invite-to-lobby?invitee=name
+		// invite-to-lobby?invitee=name
 	}
 	room_group := s.gin_engine.Group("/room")
 
@@ -97,7 +120,7 @@ func (s *Server) SetupRoutes() {
 		room_group.GET("/contest/list", s.GetContests)       // GET /room/contest/list?room_id=123&index=0
 		room_group.GET("/contest/:job_id", s.GetContestData) // GET /room/contest/456
 	}
-	//Auth Route
+	// Auth Route
 	s.GitHubAuth()
 	s.FakeGitHubAuth()
 }
@@ -113,9 +136,9 @@ func (s *Server) StartServer() {
 		port = ":" + port
 	}
 
-	//Booting all the internal services
+	// Booting all the internal services
 	s.logger.Debug("Booting Core")
-	s.core.BootCodeCore()
+	go s.core.BootCodeCore()
 
 	if port == "" {
 		s.logger.Errorf("Port not found in config or environment")
@@ -123,11 +146,7 @@ func (s *Server) StartServer() {
 	}
 
 	s.logger.Infof("Server is running on %s", port)
-	s.gin_engine.Run(port)
-}
-func SetRouter() *gin.Engine { //For running tests
-	logger, _ := zap.NewDevelopment()
-	serv := NewServer(logger.Sugar())
-	serv.SetupRoutes()
-	return serv.gin_engine
+	if err := s.gin_engine.Run(port); err != nil {
+		s.logger.Errorf("server stopped: %v", err)
+	}
 }

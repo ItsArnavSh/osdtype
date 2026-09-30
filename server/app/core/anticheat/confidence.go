@@ -15,7 +15,7 @@ func (a *AntiCheat) StandardDeviationTest(time_diff []int32) int {
 }
 func (a *AntiCheat) ShortestInterval(time_diff []int32) int {
 	shortest_span := utils.FindMinIgnoringFirst(time_diff)
-	if shortest_span < 40 { //Under 40 milliseconds is probably automated
+	if shortest_span < 40 { // Under 40 milliseconds is probably automated
 		return -shortest_interval_confidence
 	}
 	return shortest_interval_confidence

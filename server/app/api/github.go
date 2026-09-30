@@ -1,14 +1,14 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
+
 	"osdtyp/app/api/auth"
 	"osdtyp/app/entity"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
@@ -38,45 +38,71 @@ func (s *Server) GitHubAuth() {
 
 	s.gin_engine.GET("/auth/github/callback", func(c *gin.Context) {
 		code := c.Query("code")
-		token, err := githubOauthConfig.Exchange(context.Background(), code)
+		token, err := githubOauthConfig.Exchange(c.Request.Context(), code)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Token exchange failed"})
 			return
 		}
 
 		// Get user info from GitHub
-		client := githubOauthConfig.Client(context.Background(), token)
-		resp, err := client.Get("https://api.github.com/user")
+		client := githubOauthConfig.Client(c.Request.Context(), token)
+		req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet,
+			"https://api.github.com/user", nil)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to build user info request"})
+			return
+		}
+		resp, err := client.Do(req)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
 			return
 		}
-		defer resp.Body.Close()
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				s.logger.Warnw("could not close the GitHub response body", "error", closeErr)
+			}
+		}()
 
-		fmt.Println(resp.Body)
-		var user map[string]any
-		if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		if resp.StatusCode != http.StatusOK {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+			return
+		}
+
+		var user struct {
+			ID    int64  `json:"id"`
+			Login string `json:"login"`
+		}
+		if decodeErr := json.NewDecoder(resp.Body).Decode(&user); decodeErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse user info"})
 			return
 		}
-		login, ok := user["login"].(string)
-		if !ok {
+		if user.Login == "" {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "login field not found"})
 			return
 		}
-		fmt.Print(login)
-		jwt, err := auth.GenerateJWT(string(login))
+
+		// The JWT subject has to be the numeric user id: everything downstream
+		// resolves a user by id, and AuthMiddleware's GetUserID parses the
+		// subject as a uint32. This used to mint the subject from the GitHub
+		// login name, so every real GitHub login produced an unparseable token
+		// and no handler could identify the caller.
+		subject, err := s.services.LoginUser(c, entity.User{Username: user.Login})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save user to db"})
+			return
+		}
+
+		jwt, err := auth.GenerateJWT(strconv.FormatUint(uint64(subject), 10))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 			return
 		}
 
 		// Store JWT in cookie
-		c.SetCookie("token", jwt, 3600, "/", "localhost", false, true)
+		c.SetCookie("token", jwt, 3600, "/", "localhost", true, true)
 
 		c.Redirect(http.StatusSeeOther, "http://localhost:5173/")
 	})
-
 }
 
 func (s *Server) FakeGitHubAuth() {
@@ -101,12 +127,16 @@ func (s *Server) FakeGitHubAuth() {
 
 		// Set JWT token cookie
 		http.SetCookie(c.Writer, &http.Cookie{
-			Name:        "token",
-			Value:       jwt,
-			Path:        "/",
-			MaxAge:      3600,
-			HttpOnly:    true,
-			Secure:      true, // must be true if using "SameSite=None"
+			Name:     "token",
+			Value:    jwt,
+			Path:     "/",
+			MaxAge:   3600,
+			HttpOnly: true,
+			// Secure is false here because the dev frontend is served over
+			// plain http on localhost. A browser drops a Secure cookie sent
+			// over http, so leaving it true made the flag meaningless locally.
+			// Deployments behind TLS should set OSDTYPE_SECURE_COOKIES=1.
+			Secure:      os.Getenv("OSDTYPE_SECURE_COOKIES") == "1",
 			SameSite:    http.SameSiteNoneMode,
 			Partitioned: true, // requires Go 1.22+
 		})

@@ -4,35 +4,52 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
+
 	"osdtyp/app/api/auth"
 	"osdtyp/app/entity"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) CreateRoom(c *gin.Context) {
 	s.logger.Infof("Creating new Room")
+
+	// AuthMiddleware is advisory, so the handler has to verify the caller.
+	userID, err := auth.GetUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
+		return
+	}
+
 	jsonData, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error Reading JSON"})
+		return
 	}
-	var room_data entity.Room
-	err = json.Unmarshal(jsonData, &room_data)
-	if err != nil {
+
+	var roomData entity.Room
+	if err := json.Unmarshal(jsonData, &roomData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error Parsing JSON"})
+		return
 	}
-	user_id, err := auth.GetUserID(c)
-	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+
+	if err := s.services.CreateRoom(c.Request.Context(), roomData, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	err = s.services.CreateRoom(c.Request.Context(), room_data, user_id)
-	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": err})
-	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success"})
 }
 func (s *Server) AddMember(c *gin.Context) {
 	s.logger.Infof("Adding member to Room")
+
+	// This handler used to skip the caller check entirely, so anybody could
+	// add themselves to any room.
+	if _, err := auth.GetUserID(c); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
+		return
+	}
 
 	jsonData, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -74,7 +91,7 @@ func (s *Server) PromoteToMod(c *gin.Context) {
 
 	user_id, err := auth.GetUserID(c)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
 		return
 	}
 
@@ -105,7 +122,7 @@ func (s *Server) DemoteToMember(c *gin.Context) {
 
 	user_id, err := auth.GetUserID(c)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
 		return
 	}
 
@@ -136,7 +153,7 @@ func (s *Server) BlockUser(c *gin.Context) {
 
 	user_id, err := auth.GetUserID(c)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
 		return
 	}
 
@@ -167,7 +184,7 @@ func (s *Server) RemoveUser(c *gin.Context) {
 
 	user_id, err := auth.GetUserID(c)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
 		return
 	}
 
@@ -198,7 +215,7 @@ func (s *Server) UnBlockUser(c *gin.Context) {
 
 	user_id, err := auth.GetUserID(c)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
 		return
 	}
 
@@ -212,39 +229,52 @@ func (s *Server) UnBlockUser(c *gin.Context) {
 }
 
 func (s *Server) GetRoomList(c *gin.Context) {
-	user_id, err := auth.GetUserID(c)
+	userID, err := auth.GetUserID(c)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not logged in"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
 		return
 	}
-	index_str := c.Query("index")
-	index, err := strconv.ParseUint(index_str, 10, 8)
+
+	indexStr := c.Query("index")
+	if indexStr == "" {
+		indexStr = "0"
+	}
+	// The page index was parsed with a bit size of 8, which capped pagination
+	// at page 255 and made every later page unreachable. A page index is small
+	// but unbounded in practice, so it is parsed as a full uint.
+	index, err := strconv.ParseUint(indexStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Error in query"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid index"})
 		return
 	}
-	rooms, err := s.services.ListRooms(c.Request.Context(), user_id, uint8(index))
+
+	rooms, err := s.services.ListRooms(c.Request.Context(), userID, uint32(index))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error"})
 		return
 	}
-	rooms_json, err := json.Marshal(rooms)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to marshal"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"rooms": rooms_json})
+
+	// Pass the slice to gin directly. Marshaling it first and putting the
+	// []byte in the response made encoding/json emit a base64 string.
+	c.JSON(http.StatusOK, gin.H{"rooms": rooms})
 }
 func (s *Server) CreateContest(c *gin.Context) {
+	// AuthMiddleware is advisory: it populates the context when a token is
+	// present but never rejects the request. Every handler behind it has to
+	// check for itself. The contest routes used to skip this, so an anonymous
+	// caller could schedule contests.
+	if _, err := auth.GetUserID(c); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
+		return
+	}
 
 	var contest entity.Contest
 	if err := c.ShouldBindJSON(&contest); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
-
-	// Optional: you might want to set the creator or validate permissions here
-	// contest.CreatorID = user_id
 
 	err := s.services.NewContest(c.Request.Context(), contest)
 	if err != nil {
@@ -256,6 +286,10 @@ func (s *Server) CreateContest(c *gin.Context) {
 }
 
 func (s *Server) GetContests(c *gin.Context) {
+	if _, err := auth.GetUserID(c); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
+		return
+	}
 
 	roomIDStr := c.Query("room_id")
 	if roomIDStr == "" {
@@ -274,6 +308,10 @@ func (s *Server) GetContests(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid index query parameter"})
 		return
 	}
+	if index < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid index query parameter"})
+		return
+	}
 
 	contests, err := s.services.FetchContests(c.Request.Context(), uint32(roomID), int(index))
 	if err != nil {
@@ -281,17 +319,19 @@ func (s *Server) GetContests(c *gin.Context) {
 		return
 	}
 
-	contestsJSON, err := json.Marshal(contests)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to marshal contests"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"contests": contestsJSON})
+	// Hand the slice straight to gin's encoder. Marshaling it here and
+	// putting the resulting []byte in the response made encoding/json emit a
+	// base64 string, which is not what the client expects.
+	c.JSON(http.StatusOK, gin.H{"contests": contests})
 }
 
 func (s *Server) GetContestData(c *gin.Context) {
-	jobIDStr := c.Param("job_id") // assuming you use /contests/:job_id route
+	if _, err := auth.GetUserID(c); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not logged in"})
+		return
+	}
+
+	jobIDStr := c.Param("job_id")
 	if jobIDStr == "" {
 		jobIDStr = c.Query("job_id") // fallback to query param if needed
 	}
@@ -308,16 +348,9 @@ func (s *Server) GetContestData(c *gin.Context) {
 
 	contest, err := s.services.FetchContestData(c.Request.Context(), uint32(jobID))
 	if err != nil {
-		// You might want to distinguish not-found vs server error
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch contest data"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Contest not found"})
 		return
 	}
 
-	contestJSON, err := json.Marshal(contest)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to marshal contest data"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"contest": contestJSON})
+	c.JSON(http.StatusOK, gin.H{"contest": contest})
 }

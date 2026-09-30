@@ -2,20 +2,20 @@ package player
 
 import (
 	"encoding/json"
-	"fmt"
-	"osdtyp/app/entity"
-	"osdtyp/app/utils"
 	"strings"
 	"sync"
 	"time"
 
+	"osdtyp/app/entity"
+	"osdtyp/app/utils"
+
 	"go.uber.org/zap"
 )
 
-type OutGoing struct { //Common comms channel for the GameHandler
+type OutGoing struct { // Common comms channel for the GameHandler
 	PlayerID      uint32          `json:"player_id"`
 	CurrentPoints uint16          `json:"current_points"`
-	Update        entity.Keypress //For the frontend to caliberate
+	Update        entity.Keypress // For the frontend to caliberate
 }
 
 // Handling the player logic
@@ -26,41 +26,15 @@ type Player struct {
 	ID        uint32
 	Rank      uint16
 	In        chan entity.Keypress
-	Out       chan OutGoing //Global Out
-	LocalOut  chan OutGoing //To send updates to ws
+	Out       chan OutGoing // Global Out
+	LocalOut  chan OutGoing // To send updates to ws
 	Logger    *zap.SugaredLogger
 	WebSocIn  <-chan []byte
 	WebSocOut chan<- any
-	//Maintain a outqueue to send appended messages instead of one by one via ws
-	history   []entity.Keypress
+	// Maintain a outqueue to send appended messages instead of one by one via ws
 	Snippet   string
 	CloseTime time.Time
 	Duration  time.Duration
-}
-
-func (p *Player) PlayerOutUpdate() {
-	//For now dont send players anything...
-	// var message_list []OutGoing
-	// ticker := time.NewTicker(500 * time.Millisecond)
-	// defer ticker.Stop()
-	// for {
-	// 	select {
-	// 	case game := <-p.LocalOut:
-	// 		message_list = append(message_list, game)
-	// 		if game.PlayerID == 0 {
-	// 			close(p.In)
-	// 			close(p.LocalOut)
-	// 			p.WG.Done()
-	// 			return
-
-	// 		}
-	// 	case <-ticker.C:
-	// 		if len(message_list) > 0 {
-	// 			p.WebSocOut <- message_list
-	// 			message_list = nil
-	// 		}
-	// 	}
-	// }
 }
 
 func (p *Player) PlayerInRoutine(wg *sync.WaitGroup) {
@@ -74,10 +48,9 @@ func (p *Player) PlayerInRoutine(wg *sync.WaitGroup) {
 
 	for {
 		select {
-
 		case message, ok := <-p.WebSocIn:
 			if !ok {
-				//Player disconnected
+				// Player disconnected
 				p.Logger.Infow("websocket input channel closed",
 					"player_id", p.ID,
 				)
@@ -126,7 +99,6 @@ func (p *Player) PlayerInRoutine(wg *sync.WaitGroup) {
 	}
 }
 func (p *Player) HandlePress(keypress entity.Keypress) {
-
 	p.Logger.Debugw("handling keypress",
 		"player_id", p.ID,
 		"action", keypress.Action,
@@ -134,7 +106,6 @@ func (p *Player) HandlePress(keypress entity.Keypress) {
 	)
 
 	switch keypress.Action {
-
 	case entity.KEYPRESS:
 		p.State.WriteString(keypress.Value)
 		p.Logger.Debugln("Len of string is", p.State.Len())
@@ -147,11 +118,10 @@ func (p *Player) HandlePress(keypress entity.Keypress) {
 		}
 	}
 
-	//p.Send(keypress)
+	// p.Send(keypress)
 }
 
 func (p *Player) Send(keypress entity.Keypress) {
-
 	update := OutGoing{
 		PlayerID: p.ID,
 		Update:   keypress,
@@ -163,9 +133,18 @@ func (p *Player) Send(keypress entity.Keypress) {
 	}
 }
 func (p *Player) CalculateScore() entity.WPMRes {
-	fmt.Println("snippet: ", p.State.String())
+	p.Logger.Debugw("calculating score",
+		"player_id", p.ID,
+		"typed", p.State.Len(),
+		"snippet_len", len(p.Snippet),
+	)
+
 	input := entity.WPM{
-		OriginalSnippet: p.Snippet[:p.State.Len()],
+		// Only compare against the part of the snippet the player could
+		// possibly have reached. Slicing to State.Len() panicked when a player
+		// typed more characters than the snippet contains, which any client
+		// could trigger by simply keeping the keyboard held down.
+		OriginalSnippet: p.reachableSnippet(),
 		UserSnippet:     p.State.String(),
 		DurationMS:      p.Duration.Milliseconds(),
 	}
@@ -185,4 +164,18 @@ func (p *Player) CalculateScore() entity.WPMRes {
 	)
 
 	return wpm_res
+}
+
+// reachableSnippet returns as much of the snippet as the player typed, capped
+// at the snippet length. A player who overshoots the snippet gets the whole
+// snippet back; Calculate_WPM counts the excess characters as errors.
+func (p *Player) reachableSnippet() string {
+	n := p.State.Len()
+	if n > len(p.Snippet) {
+		n = len(p.Snippet)
+	}
+	if n < 0 {
+		n = 0
+	}
+	return p.Snippet[:n]
 }

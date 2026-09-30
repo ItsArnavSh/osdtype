@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -8,15 +9,22 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// jwtKey is shared between generation and validation
-var jwtKey = []byte(os.Getenv("JWTKEY"))
+// signingKey returns the HMAC key used for both signing and validation.
+//
+// The key is read from the environment on each call rather than captured in a
+// package-level variable at init time. Reading it lazily means the value is
+// picked up whenever the process sets it, which is what tests and any caller
+// that configures the environment after startup need.
+func signingKey() []byte {
+	return []byte(os.Getenv("JWTKEY"))
+}
 
 // GenerateJWT creates a new JWT for a given userID.
 // It stores the userID in the 'Subject' claim.
 func GenerateJWT(userID string) (string, error) {
-	if len(jwtKey) == 0 {
-		fmt.Println("Key Not Found")
-		return "", fmt.Errorf("JWTKEY environment variable not set")
+	key := signingKey()
+	if len(key) == 0 {
+		return "", errors.New("JWTKEY environment variable not set")
 	}
 
 	claims := jwt.RegisteredClaims{
@@ -26,14 +34,15 @@ func GenerateJWT(userID string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+	return token.SignedString(key)
 }
 
 // ValidateJWT parses a token string and returns the userID (from the Subject claim).
 // It returns an error if the token is invalid, expired, or malformed.
 func ValidateJWT(tokenString string) (string, error) {
-	if len(jwtKey) == 0 {
-		return "", fmt.Errorf("JWTKEY environment variable not set")
+	key := signingKey()
+	if len(key) == 0 {
+		return "", errors.New("JWTKEY environment variable not set")
 	}
 
 	// Parse the token with the RegisteredClaims structure
@@ -43,7 +52,7 @@ func ValidateJWT(tokenString string) (string, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		// Return the secret key for validation
-		return jwtKey, nil
+		return key, nil
 	})
 
 	if err != nil {
@@ -53,9 +62,14 @@ func ValidateJWT(tokenString string) (string, error) {
 
 	// Validate the token and extract the claims
 	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
-		// The token is valid, return the Subject (which contains the userID)
+		// A token with no subject is not usable: every handler resolves the
+		// subject to a numeric user id, and an empty one would silently become
+		// user 0. Refuse it here so the failure is explicit.
+		if claims.Subject == "" {
+			return "", errors.New("token has no subject")
+		}
 		return claims.Subject, nil
 	}
 
-	return "", fmt.Errorf("invalid token")
+	return "", errors.New("invalid token")
 }

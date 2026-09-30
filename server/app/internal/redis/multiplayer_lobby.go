@@ -1,4 +1,4 @@
-//This is for the multiplayer lobby
+// This is for the multiplayer lobby
 
 package redis
 

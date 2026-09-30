@@ -9,28 +9,23 @@ type prng struct {
 	number uint32
 }
 
-func (p *prng) setSeed(seed uint32) {
-	p.number = seed
-	p.seed = seed
-}
-func (p *prng) generateSeed() {
-	seed := rand.Uint32()
-	p.number = seed
-	p.seed = seed
-}
 func (p *prng) nextPRN() uint32 {
-	//Using the XOR shift method for PRN generation
+	// Using the XOR shift method for PRN generation
 	p.number ^= p.number << 13
 	p.number ^= p.number >> 7
 	p.number ^= p.number << 17
 	return p.number
 }
 
-// random returns a float32 in [0,1)
+// Random returns a float32 in [0,1).
+//
+// The generator state is 32 bits, so there is no way to obtain the 53 random
+// bits this function used to claim: the previous version shifted the value
+// right by 11 and divided by 1<<53, which yielded a maximum of 1/2048 instead
+// of 1. Everything built on top of it, RandomInt in particular, was therefore
+// stuck near zero. Normalise by the full 32-bit range instead.
 func (p *prng) Random() float32 {
-	// Take the next 53 random bits (same precision as math/rand.Float32)
-	v := p.nextPRN() >> 11        // keep top 53 bits
-	return float32(v) / (1 << 53) // normalize to [0,1)
+	return float32(p.nextPRN()) / (1 << 32)
 }
 
 // randomInt returns an int in [min, max)
@@ -42,12 +37,11 @@ func (p *prng) RandomInt(min, max int) int {
 	return min + int(r*float32(max-min))
 }
 
+// NewPRNG returns a seeded generator. A zero seed means "pick one at random",
+// which is also the only way a caller can get a non-reproducible sequence.
 func NewPRNG(seed uint32) prng {
-	prng := prng{}
 	if seed == 0 {
-		prng.generateSeed()
-	} else {
-		prng.setSeed(seed)
+		seed = rand.Uint32()
 	}
-	return prng
+	return prng{seed: seed, number: seed}
 }

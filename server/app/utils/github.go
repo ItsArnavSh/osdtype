@@ -29,10 +29,12 @@ func GetGitHubAvatar(ctx context.Context, username string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	// The body is only read to EOF, so a close failure cannot affect the
+	// caller; there is nowhere useful to report it from this helper.
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitHub API returned status: %s", resp.Status)
+		return "", fmt.Errorf("github api returned status: %s", resp.Status)
 	}
 
 	var user GitHubUser

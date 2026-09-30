@@ -10,8 +10,14 @@ func main() {
 	if logger == nil {
 		return
 	}
-	defer logger.Sync()
-	server := api.NewServer(logger)
+	// Sync flushes buffered log entries. It fails on some platforms when
+	// stdout is a terminal, which is not worth treating as fatal.
+	defer func() { _ = logger.Sync() }()
+	server, err := api.NewServer(logger)
+	if err != nil {
+		logger.Errorf("could not build the server: %v", err)
+		return
+	}
 	server.SetupRoutes()
 	server.StartServer()
 }

@@ -1,6 +1,10 @@
 package entity
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/datatypes"
+)
 
 type ContestStatus int
 
@@ -12,13 +16,14 @@ const (
 )
 
 type Contest struct {
+	ID          string `gorm:"primaryKey"`
 	JobID       uint32
 	RoomID      uint32
 	Time        time.Time
-	Data        []byte //The title, writeup etc
+	Data        string // The title, writeup etc
 	Lang        Language
 	Duration    LobbyType
-	LobbyID     uint32 //Will be alloted by the scheduler
+	LobbyID     uint32 // Will be alloted by the scheduler
 	Status      ContestStatus
-	Leaderboard []byte
+	Leaderboard datatypes.JSON
 }

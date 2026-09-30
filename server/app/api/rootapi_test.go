@@ -1,3 +1,5 @@
+//go:build unit
+
 package api
 
 import (
@@ -5,17 +7,47 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
-func TestPingRoute(t *testing.T) {
-	router := SetRouter()
+// newPingRouter builds a gin engine carrying only the unauthenticated /ping
+// route. Testing it in isolation keeps the unit suite free of any database
+// dependency.
+func newPingRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	logger := zap.NewNop().Sugar()
+
+	srv := Server{logger: logger, gin_engine: gin.New()}
+	srv.gin_engine.GET("/ping", srv.ping)
+	return srv.gin_engine
+}
+
+func TestPingReturnsPong(t *testing.T) {
+	router := newPingRouter()
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/ping", nil)
-
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "pong")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if got := w.Body.String(); got != `{"reply":"pong"}` {
+		t.Fatalf(`expected {"reply":"pong"}, got %s`, got)
+	}
+}
+
+// TestPingSetsJSONContentType guards the client contract: the frontend reads
+// the body with res.json(), so a non-JSON content type would break it.
+func TestPingSetsJSONContentType(t *testing.T) {
+	router := newPingRouter()
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	router.ServeHTTP(w, req)
+
+	if ct := w.Header().Get("Content-Type"); ct != "application/json; charset=utf-8" {
+		t.Fatalf("unexpected content type: %q", ct)
+	}
 }

@@ -1,10 +1,10 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
-	"osdtyp/app/api/auth"
 	"strconv"
+
+	"osdtyp/app/api/auth"
 
 	"github.com/gin-gonic/gin"
 )
@@ -151,21 +151,4 @@ func (s *Server) invitePlayerToLobby(g *gin.Context) {
 	s.services.InvitePlayerToLobby(invitorUser.Username, uint32(invitee), uint32(lobbyid))
 	s.logger.Infow("player invited to lobby", "invitor", invitorUser.Username, "invitee", invitee, "lobbyid", lobbyid)
 	g.JSON(http.StatusOK, gin.H{"message": "invitation sent"})
-}
-
-func (s *Server) searchPlayers(g *gin.Context) {
-	username := g.Query("name")
-	if username == "" {
-		g.JSON(http.StatusInternalServerError, gin.H{"error": "No username in query params"})
-		return
-	}
-	users, err := s.services.SearchUsers(g.Request.Context(), username)
-	if err != nil {
-		g.JSON(http.StatusInternalServerError, gin.H{"error": "Error Fetching Users"})
-	}
-	users_json, err := json.Marshal(users)
-	if err != nil {
-		g.JSON(http.StatusInternalServerError, gin.H{"error": "Error Fetching Users"})
-	}
-	g.JSON(http.StatusOK, users_json)
 }

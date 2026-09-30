@@ -9,7 +9,7 @@ func (s *ServiceLayer) StartSession(g *gin.Context, userid uint32) error {
 	if err != nil {
 		return err
 	}
-	//A consistent websocket connection will be established
+	// A consistent websocket connection will be established
 	// For the lifetime of the session
 	// Will automatically disconnect when the user closes his tab
 	return s.core.Sessions.NewUserSession(g, user.ID)
