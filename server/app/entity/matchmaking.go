@@ -1,27 +1,6 @@
 package entity
 
-import (
-	"time"
-
-	"github.com/google/btree"
-)
-
-type LobbyEntry struct {
-	ID       uint32
-	Name     string
-	Rank     uint16
-	JoinedAt time.Time
-	IN       <-chan []byte
-	OUT      chan<- any
-}
-type PlayerItem LobbyEntry
-
-func (a PlayerItem) Less(b btree.Item) bool {
-	if a.Rank == b.(PlayerItem).Rank {
-		return a.ID < b.(PlayerItem).ID
-	}
-	return a.Rank < b.(PlayerItem).Rank
-}
+import "time"
 
 type LobbyType int
 
@@ -31,14 +10,30 @@ const (
 	MARATHON
 )
 
-func (l LobbyType) Duration() time.Duration {
+func (l LobbyType) Seconds() int {
 	switch l {
 	case SPRINT:
-		return time.Second * 30
+		return 30
 	case STANDARD:
-		return time.Second * 90
+		return 90
 	case MARATHON:
-		return time.Second * 300
+		return 300
 	}
-	return time.Second * 60
+	return 90
+}
+
+func (l LobbyType) Duration() time.Duration {
+	return time.Duration(l.Seconds()) * time.Second
+}
+
+func LobbyTypeFromSeconds(s int) (LobbyType, bool) {
+	switch s {
+	case 30:
+		return SPRINT, true
+	case 90:
+		return STANDARD, true
+	case 300:
+		return MARATHON, true
+	}
+	return 0, false
 }

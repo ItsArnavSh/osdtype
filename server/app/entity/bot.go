@@ -1,19 +1,22 @@
 package entity
 
-type Persona uint8
+type Persona string
 
 const (
-	LEWIS Persona = iota
-	//Average, more consistent pace with less errors
-	MAX   //More agressive pace with errors and more varied speed and accuracy swings
-	LANCE //Highest variance, most aggresive, and extremely high variance
+	LEWIS Persona = "LEWIS"
+	MAX   Persona = "MAX"
+	LANCE Persona = "LANCE"
 )
 
+var Personas = []Persona{LEWIS, MAX, LANCE}
+
 type BotConfig struct {
-	Accuracy      int
-	RelativeSpeed float32
+	Accuracy      int     `mapstructure:"accuracy"`
+	RelativeSpeed float64 `mapstructure:"relative_speed"`
+	Rating        int     `mapstructure:"rating"`
 }
-type GenConfig struct {
-	personna   Persona
-	tokenLimit uint32
+
+// BotWPM is the base speed scaled by the persona multiplier.
+func (c BotConfig) BotWPM() float64 {
+	return 70 * c.RelativeSpeed
 }

@@ -2,64 +2,62 @@ package utils
 
 import "math"
 
-func UpdateElo(current []uint16, scores []uint16) []uint16 {
+// UpdateElo applies free-for-all Elo to a leaderboard. positions[i] is the
+// finishing position (1-based) of current[i]. Returns the new ratings.
+func UpdateElo(current []int, positions []int) []int {
 	n := len(current)
-	if n == 0 || len(scores) != n {
+	if n == 0 || len(positions) != n {
 		return current
 	}
-
-	// Work in float internally
-	newElo := make([]float32, n)
-	for i := range n {
-		newElo[i] = float32(current[i])
+	if n == 1 {
+		return []int{current[0]}
 	}
 
-	K := float32(32.0 / float32(n-1))
-
+	newElo := make([]float64, n)
 	for i := range n {
-		curPlace := scores[i]
-		curElo := float32(current[i])
+		newElo[i] = float64(current[i])
+	}
 
-		var eloChange float32 = 0
-
+	k := 32.0 / float64(n-1)
+	for i := range n {
+		curElo := float64(current[i])
+		delta := 0.0
 		for j := range n {
 			if i == j {
 				continue
 			}
-
-			oppPlace := scores[j]
-			oppElo := float32(current[j])
-
-			// S value
-			var S float32
-			if curPlace < oppPlace {
-				S = 1.0
-			} else if curPlace == oppPlace {
-				S = 0.5
-			} else {
-				S = 0.0
+			oppElo := float64(current[j])
+			var score float64
+			switch {
+			case positions[i] < positions[j]:
+				score = 1
+			case positions[i] == positions[j]:
+				score = 0.5
+			default:
+				score = 0
 			}
-
-			// Expected score
-			EA := float32(
-				1.0 / (1.0 + math.Pow(10, float64((oppElo-curElo)/400.0))),
-			)
-
-			// Same rounding behavior as Java
-			eloChange += float32(math.Round(float64(K * (S - EA))))
+			expected := 1.0 / (1.0 + math.Pow(10, (oppElo-curElo)/400.0))
+			delta += math.Round(k * (score - expected))
 		}
-
-		newElo[i] = curElo + eloChange
+		newElo[i] += delta
 	}
 
-	// Convert back to uint16
-	out := make([]uint16, n)
+	out := make([]int, n)
 	for i := range n {
 		if newElo[i] < 0 {
-			newElo[i] = 0 // safety clamp
+			newElo[i] = 0
 		}
-		out[i] = uint16(newElo[i])
+		out[i] = int(math.Round(newElo[i]))
 	}
+	return out
+}
 
+// EloDelta returns the delta for each player. Mirrors UpdateElo.
+func EloDelta(current []int, positions []int) []int {
+	updated := UpdateElo(current, positions)
+	out := make([]int, len(current))
+	for i := range current {
+		out[i] = updated[i] - current[i]
+	}
 	return out
 }

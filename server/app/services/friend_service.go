@@ -5,47 +5,57 @@ import (
 	"osdtyp/app/entity"
 )
 
-//Handles everything related to friends and friendly matches
+type FriendView struct {
+	User     entity.UserView `json:"user"`
+	Online   bool            `json:"online"`
+	IsFriend bool            `json:"is_friend"`
+	Follows  bool            `json:"follows_you"`
+}
 
 func (s *ServiceLayer) FollowUser(ctx context.Context, follower, following uint32) error {
+	if follower == following {
+		return errf(ErrBadRequest, "you cannot follow yourself")
+	}
+	if _, err := s.db.GetUser(following); err != nil {
+		return errf(ErrNotFound, "user not found")
+	}
 	return s.db.FollowUser(ctx, follower, following)
 }
+
 func (s *ServiceLayer) UnfollowUser(ctx context.Context, follower, following uint32) error {
 	return s.db.UnfollowUser(ctx, follower, following)
 }
 
-// Will return the lobby id of this lobby
-func (s *ServiceLayer) JoinNewLobby(userid uint32) (uint32, error) {
-	lobby_id := s.core.ManualLobby.CreateNewLobby()
-	err := s.core.ManualLobby.JoinControlledLobby(userid, lobby_id)
+func (s *ServiceLayer) Friends(ctx context.Context, uid uint32) ([]FriendView, error) {
+	ids, err := s.db.GetFriends(ctx, uid)
 	if err != nil {
-		//NUke da lobby
-		s.JoinControlledLobby(userid, lobby_id)
-		return 0, err
+		return nil, err
 	}
-	return lobby_id, nil
-}
-func (s *ServiceLayer) JoinControlledLobby(userid uint32, lobbyid uint32) error {
-
-	err := s.core.ManualLobby.JoinControlledLobby(userid, lobbyid)
+	following, err := s.db.GetFollowing(ctx, uid)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.core.Sessions.UpdateSession(userid, entity.PLAYING)
-	return nil
-}
-
-func (s *ServiceLayer) InvitePlayerToLobby(invitor string, invitee uint32, lobbyid uint32) {
-	if s.core.Sessions.GetStatus(invitee) == entity.AVAILABLE {
-		_, send := s.core.Sessions.GetSession(invitee).Subscribe()
-		invitation := entity.Invite{
-			From:    invitor,
-			LobbyID: lobbyid,
+	seen := make(map[uint32]bool, len(ids))
+	out := make([]FriendView, 0, len(ids))
+	for _, id := range ids {
+		u, err := s.db.GetUser(id)
+		if err != nil {
+			continue
 		}
-		send <- invitation
-		send <- nil //Unsubscribe
+		online, _ := s.rdb().IsOnline(ctx, id)
+		out = append(out, FriendView{User: entity.NewUserView(u), Online: online, IsFriend: true})
+		seen[id] = true
 	}
-}
-func (s *ServiceLayer) SearchUsers(ctx context.Context, username string) ([]entity.User, error) {
-	return s.db.SearchPeople(ctx, username, 10)
+	for _, id := range following {
+		if seen[id] {
+			continue
+		}
+		u, err := s.db.GetUser(id)
+		if err != nil {
+			continue
+		}
+		online, _ := s.rdb().IsOnline(ctx, id)
+		out = append(out, FriendView{User: entity.NewUserView(u), Online: online})
+	}
+	return out, nil
 }

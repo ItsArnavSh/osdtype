@@ -2,126 +2,122 @@ package postgresql
 
 import (
 	"context"
+	"errors"
+
 	"osdtyp/app/entity"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
+func (d *Database) setRelation(ctx context.Context, tx *gorm.DB, a, b uint32, rel entity.Relation) error {
+	row := entity.Friends{A: a, B: b, Relation: rel, CreatedAt: tx.NowFunc()}
+	return tx.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "a_id"}, {Name: "b_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"relation"}),
+	}).Create(&row).Error
+}
+
 func (d *Database) FollowUser(ctx context.Context, id, otherid uint32) error {
-	// Check if inverse relation exists (other->me)
-	var relation entity.Friends
-	result := d.db.WithContext(ctx).Where("B = ? AND A = ?", id, otherid).First(&relation)
-
-	if result.Error != nil {
-		// No inverse relation exists, create a new follow (me->other)
-		return d.db.WithContext(ctx).Create(&entity.Friends{
-			A:        id,
-			B:        otherid,
-			Relation: entity.FOLLOWS,
-		}).Error
+	if id == otherid {
+		return errors.New("cannot follow yourself")
 	}
+	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var direct entity.Friends
+		directErr := tx.Where("a_id = ? AND b_id = ?", id, otherid).First(&direct).Error
+		if directErr == nil {
+			if direct.Relation == entity.FOLLOWS {
+				var inverse entity.Friends
+				if err := tx.Where("a_id = ? AND b_id = ?", otherid, id).First(&inverse).Error; err == nil && inverse.Relation == entity.FOLLOWS {
+					if err := d.setRelation(ctx, tx, id, otherid, entity.FRIENDS); err != nil {
+						return err
+					}
+					return d.setRelation(ctx, tx, otherid, id, entity.FRIENDS)
+				}
+			}
+			return nil
+		}
+		if !errors.Is(directErr, gorm.ErrRecordNotFound) {
+			return directErr
+		}
 
-	// Inverse exists, check its state
-	switch relation.Relation {
-	case entity.FRIENDS:
-		// Already friends, nothing to do
-		return nil
-	case entity.FOLLOWS:
-		// Other follows me, so upgrade to FRIENDS
-		return d.db.WithContext(ctx).Model(&entity.Friends{}).
-			Where("B = ? AND A = ?", id, otherid).
-			Update("relation", entity.FRIENDS).Error
-	}
-
-	return nil
+		var inverse entity.Friends
+		inverseErr := tx.Where("a_id = ? AND b_id = ?", otherid, id).First(&inverse).Error
+		if inverseErr == nil && inverse.Relation == entity.FOLLOWS {
+			if err := d.setRelation(ctx, tx, id, otherid, entity.FRIENDS); err != nil {
+				return err
+			}
+			return d.setRelation(ctx, tx, otherid, id, entity.FRIENDS)
+		}
+		if inverseErr != nil && !errors.Is(inverseErr, gorm.ErrRecordNotFound) {
+			return inverseErr
+		}
+		return d.setRelation(ctx, tx, id, otherid, entity.FOLLOWS)
+	})
 }
 
 func (d *Database) UnfollowUser(ctx context.Context, id, otherid uint32) error {
-	// First, check if there's a direct relation (me->other)
-	var directRelation entity.Friends
-	directResult := d.db.WithContext(ctx).Where("A = ? AND B = ?", id, otherid).First(&directRelation)
-
-	// Check if there's an inverse relation (other->me)
-	var inverseRelation entity.Friends
-	inverseResult := d.db.WithContext(ctx).Where("B = ? AND A = ?", id, otherid).First(&inverseRelation)
-
-	// Case 1: Direct relation exists (A->B)
-	if directResult.Error == nil {
-		switch directRelation.Relation {
-		case entity.FOLLOWS:
-			// Simple follow, just delete it
-			return d.db.WithContext(ctx).Where("A = ? AND B = ?", id, otherid).
-				Delete(&entity.Friends{}).Error
-
-		case entity.FRIENDS:
-			// We're friends. Need to downgrade to B->A FOLLOWS
-			// Delete the current A B FRIENDS record
-			if err := d.db.WithContext(ctx).Where("A = ? AND B = ?", id, otherid).
-				Delete(&entity.Friends{}).Error; err != nil {
-				return err
-			}
-			// Create B->A FOLLOWS (other now follows me)
-			return d.db.WithContext(ctx).Create(&entity.Friends{
-				A:        otherid,
-				B:        id,
-				Relation: entity.FOLLOWS,
-			}).Error
+	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var direct entity.Friends
+		err := tx.Where("a_id = ? AND b_id = ?", id, otherid).First(&direct).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
 		}
-	}
-
-	// Case 2: Only inverse relation exists (B->A)
-	if inverseResult.Error == nil && inverseRelation.Relation == entity.FRIENDS {
-		// This means the record is stored as B A FRIENDS
-		// Downgrade it to B A FOLLOWS
-		return d.db.WithContext(ctx).Model(&entity.Friends{}).
-			Where("B = ? AND A = ?", id, otherid).
-			Update("relation", entity.FOLLOWS).Error
-	}
-	// Case 3: No relation exists, nothing to do
-	return nil
+		if err != nil {
+			return err
+		}
+		if err := tx.Where("a_id = ? AND b_id = ?", id, otherid).Delete(&entity.Friends{}).Error; err != nil {
+			return err
+		}
+		if direct.Relation == entity.FRIENDS {
+			var inverse entity.Friends
+			if err := tx.Where("a_id = ? AND b_id = ?", otherid, id).First(&inverse).Error; err == nil {
+				return tx.Model(&entity.Friends{}).Where("a_id = ? AND b_id = ?", otherid, id).
+					Update("relation", entity.FOLLOWS).Error
+			}
+		}
+		return nil
+	})
 }
 
 func (d *Database) GetFriends(ctx context.Context, id uint32) ([]uint32, error) {
-	var friends []uint32
-
-	// Find all FRIENDS relations where the user is either A or B
-	var relations []entity.Friends
-	err := d.db.WithContext(ctx).
-		Where("(A = ? OR B = ?) AND relation = ?", id, id, entity.FRIENDS).
-		Find(&relations).Error
-
-	if err != nil {
+	var rows []entity.Friends
+	if err := d.db.WithContext(ctx).
+		Where("(a_id = ? OR b_id = ?) AND relation = ?", id, id, entity.FRIENDS).
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-
-	// Extract the friend IDs (the other person in each relation)
-	for _, rel := range relations {
-		if rel.A == id {
-			friends = append(friends, rel.B)
-		} else {
-			friends = append(friends, rel.A)
+	seen := make(map[uint32]struct{})
+	out := make([]uint32, 0, len(rows))
+	for _, row := range rows {
+		other := row.B
+		if row.B == id {
+			other = row.A
 		}
+		if _, ok := seen[other]; ok {
+			continue
+		}
+		seen[other] = struct{}{}
+		out = append(out, other)
 	}
-
-	return friends, nil
+	return out, nil
 }
 
-func (d *Database) SearchPeople(
-	ctx context.Context,
-	txt string,
-	limit uint8,
-) ([]entity.User, error) {
-
-	var users []entity.User
-
-	err := d.db.WithContext(ctx).
-		Where("user_name LIKE ?", "%"+txt+"%").
-		Order("user_name ASC").
-		Limit(int(limit)).
-		Find(&users).
-		Error
-
-	if err != nil {
+func (d *Database) GetFollowing(ctx context.Context, id uint32) ([]uint32, error) {
+	var rows []entity.Friends
+	if err := d.db.WithContext(ctx).Where("a_id = ?", id).Find(&rows).Error; err != nil {
 		return nil, err
 	}
+	out := make([]uint32, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.B)
+	}
+	return out, nil
+}
 
-	return users, nil
+func (d *Database) IsFriend(ctx context.Context, a, b uint32) (bool, error) {
+	var n int64
+	err := d.db.WithContext(ctx).Model(&entity.Friends{}).
+		Where("a_id = ? AND b_id = ? AND relation = ?", a, b, entity.FRIENDS).Count(&n).Error
+	return n > 0, err
 }

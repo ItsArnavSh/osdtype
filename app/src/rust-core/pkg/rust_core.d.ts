@@ -7,7 +7,7 @@ export function add(a: number, b: number): number;
  * Generates a complete snippet for `lang` (a bundled template name such as
  * `"c"`, `"cpp"`, `"python"` or `"js"`), deterministically from `seed`.
  */
-export function generate(lang: string, seed: number, tokens: number): string;
+export function generate(lang: string, seed: bigint, tokens: number): string;
 
 /**
  * Short names of every language bundled with resrap-rs.
@@ -19,7 +19,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly add: (a: number, b: number) => number;
-  readonly generate: (a: number, b: number, c: number, d: number) => [number, number];
+  readonly generate: (a: number, b: number, c: bigint, d: number) => [number, number];
   readonly languages: () => [number, number];
   readonly __wbindgen_externrefs: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;

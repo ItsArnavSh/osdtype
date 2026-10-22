@@ -1,26 +1,51 @@
 [Core]
-port=":8080"
+port = ":8080"
+frontend_url = "http://localhost:5173"
+jwt_key = "dev-insecure-change-me"
+cookie_secure = false
+dev_login = true
+oauth_redirect_url = "http://localhost:8080/auth/github/callback"
 
 [DB]
-name="osdtyp_postgres"
-user="user"
-password="password"
-dbname="typedata"
-port=5432
-host="localhost"
+host = "localhost"
+user = "user"
+password = "password"
+dbname = "typedata"
+port = 5432
+
 [Redis]
-addr="localhost:6379"
+addr = "localhost:6379"
+password = ""
+db = 0
+
 [CodeGen]
-max_wait_queue=1000
-starting_id="program"
-service_url="http://localhost:8081/generate"
+service_url = "http://localhost:8081/generate"
+tokens = 120
+
+[Game]
+countdown_ms = 3000
+
+[Matchmaking]
+tick_ms = 500
+base_range = 100
+growth_range = 50
+max_players = 4
+bot_after_seconds = 20
+
+[Contests]
+lobby_minutes = 2
 
 [Bots.LEWIS]
 accuracy = 95
 relative_speed = 1.2
+rating = 1150
+
 [Bots.MAX]
 accuracy = 85
 relative_speed = 1.5
+rating = 1050
+
 [Bots.LANCE]
 accuracy = 75
 relative_speed = 1.8
+rating = 950

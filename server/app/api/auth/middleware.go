@@ -2,42 +2,43 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// AuthMiddleware checks for a valid JWT.
-// It is "optional" - if a token is present and valid, it sets the userID in the context.
-// If not, it proceeds without setting a user, allowing for guest access.
-func AuthMiddleware() gin.HandlerFunc {
+func tokenFromRequest(c *gin.Context) string {
+	if cookie, err := c.Cookie("token"); err == nil && cookie != "" {
+		return cookie
+	}
+	if after, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer "); ok {
+		return after
+	}
+	return ""
+}
 
+// OptionalAuth identifies a user when a valid token is present, but never
+// rejects the request. Public endpoints use it to personalise responses.
+func OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var tokenString string
-
-		cookie, err := c.Cookie("token")
-		if err == nil {
-			tokenString = cookie
-		}
-
-		if tokenString == "" {
-			bearerToken := c.GetHeader("Authorization")
-			// The header should be in the format "Bearer <token>"
-			if after, ok := strings.CutPrefix(bearerToken, "Bearer "); ok {
-				tokenString = after
+		if token := tokenFromRequest(c); token != "" {
+			if sub, err := ValidateJWT(token); err == nil {
+				if id, err := strconv.ParseUint(sub, 10, 32); err == nil {
+					c.Set("userID", strconv.FormatUint(id, 10))
+				}
 			}
 		}
+		c.Next()
+	}
+}
 
-		if tokenString == "" {
-			c.Next()
+func RequireAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !IsAuth(c) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required", "code": "unauthorized"})
 			return
-		}
-
-		// 4. Validate the token using your dedicated function
-		userID, err := ValidateJWT(tokenString)
-		if err == nil {
-			c.Set("userID", userID)
 		}
 		c.Next()
 	}
@@ -47,15 +48,27 @@ func IsAuth(c *gin.Context) bool {
 	_, exists := c.Get("userID")
 	return exists
 }
-func GetUserID(c *gin.Context) (uint32, error) {
-	userid := c.GetString("userID")
-	if userid == "" {
-		return 0, fmt.Errorf("No Active User Logged in")
-	}
-	uid, _ := strconv.ParseUint(userid, 10, 32)
 
-	return uint32(uid), nil
+func GetUserID(c *gin.Context) (uint32, error) {
+	value, exists := c.Get("userID")
+	if !exists {
+		return 0, fmt.Errorf("no active user")
+	}
+	switch v := value.(type) {
+	case string:
+		id, err := strconv.ParseUint(v, 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("invalid user id")
+		}
+		return uint32(id), nil
+	case uint32:
+		return v, nil
+	case uint:
+		return uint32(v), nil
+	}
+	return 0, fmt.Errorf("invalid user id")
 }
+
 func SetUserID(c *gin.Context, uid uint32) {
-	c.Set("userID", uid)
+	c.Set("userID", strconv.FormatUint(uint64(uid), 10))
 }

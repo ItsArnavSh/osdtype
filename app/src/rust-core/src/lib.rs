@@ -18,7 +18,7 @@ pub fn languages() -> Vec<String> {
 /// Generates a complete snippet for `lang` (a bundled template name such as
 /// `"c"`, `"cpp"`, `"python"` or `"js"`), deterministically from `seed`.
 #[wasm_bindgen]
-pub fn generate(lang: String, seed: u32, tokens: u32) -> String {
+pub fn generate(lang: String, seed: u64, tokens: u32) -> String {
     let template = match templates::get(lang.as_str()) {
         Ok(template) => template,
         Err(_) => return String::new(),
@@ -29,5 +29,5 @@ pub fn generate(lang: String, seed: u32, tokens: u32) -> String {
         return String::new();
     }
 
-    rs.generate_complete_with_seeded(template.name, "program", seed as u64, tokens as usize)
+    rs.generate_complete_with_seeded(template.name, "program", seed, tokens as usize)
 }

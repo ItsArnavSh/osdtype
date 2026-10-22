@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.*
+docker_data
+app/node_modules
+app/.svelte-kit
+app/build
+app/src/rust-core/target
+codegen/target
+server/tmp
+assets
+*.png

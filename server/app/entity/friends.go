@@ -1,5 +1,7 @@
 package entity
 
+import "time"
+
 type Relation int
 
 const (
@@ -8,11 +10,8 @@ const (
 )
 
 type Friends struct {
-	A        uint32 `gorm:"primaryKey"`
-	B        uint32 `gorm:"primaryKey"`
-	Relation Relation
-}
-type Invite struct {
-	From    string `json:"from"`
-	LobbyID uint32 `json:"lobby_id"`
+	A         uint32    `gorm:"primaryKey;column:a_id" json:"a_id"`
+	B         uint32    `gorm:"primaryKey;column:b_id" json:"b_id"`
+	Relation  Relation  `gorm:"not null;default:0" json:"relation"`
+	CreatedAt time.Time `json:"created_at"`
 }

@@ -2,18 +2,125 @@ package services
 
 import (
 	"context"
+	"errors"
+	"osdtyp/app/core/game"
+	"osdtyp/app/core/matchmaker"
 	"osdtyp/app/entity"
+	"osdtyp/app/utils"
+	"time"
+
+	"gorm.io/gorm"
 )
 
-func (s *ServiceLayer) JoinRankedLobby(ctx context.Context, userid uint32, duration entity.LobbyType) error {
-	rank, err := s.db.GetRank(ctx, userid)
-	if err != nil {
-		return err
+func (s *ServiceLayer) JoinQueue(ctx context.Context, uid uint32, duration int) (matchmaker.QueueStatus, error) {
+	if _, ok := entity.LobbyTypeFromSeconds(duration); !ok {
+		return matchmaker.QueueStatus{}, errf(ErrBadRequest, "duration must be 30, 90 or 300 seconds")
 	}
-	return s.core.Matchmaker.AddToGlobalLobby(userid, rank, duration)
+	user, err := s.GetUser(ctx, uid)
+	if err != nil {
+		return matchmaker.QueueStatus{}, err
+	}
+	if _, inGame := s.g().IsInGame(uid); inGame {
+		return matchmaker.QueueStatus{}, errf(ErrConflict, "finish or leave your current game first")
+	}
+	if _, inRoom, _ := s.db.ActiveRoomForUser(ctx, uid); inRoom {
+		return matchmaker.QueueStatus{}, errf(ErrConflict, "leave your current room before playing ranked")
+	}
+	if st, ok, _ := s.rdb().GetState(ctx, uid); ok && st.Status == "queue" && st.QueueDuration != duration {
+		_ = s.mm().Remove(ctx, uid, st.QueueDuration)
+	}
+	if err := s.mm().Add(ctx, uid, user.Rating, duration); err != nil {
+		return matchmaker.QueueStatus{}, err
+	}
+	status, ok, err := s.mm().Status(ctx, uid, user.Rating, duration)
+	if err != nil {
+		return matchmaker.QueueStatus{}, err
+	}
+	if !ok {
+		return matchmaker.QueueStatus{}, errf(ErrConflict, "could not join the queue")
+	}
+	return status, nil
 }
 
-// The game will be handled automatically using za core/
-func (s *ServiceLayer) GetRank(ctx context.Context, userid uint32) (uint16, error) {
-	return s.db.GetRank(ctx, userid)
+func (s *ServiceLayer) LeaveQueue(ctx context.Context, uid uint32, duration int) error {
+	if _, ok := entity.LobbyTypeFromSeconds(duration); !ok {
+		return errf(ErrBadRequest, "invalid duration")
+	}
+	return s.mm().Remove(ctx, uid, duration)
+}
+
+func (s *ServiceLayer) QueueStatus(ctx context.Context, uid uint32, duration int) (matchmaker.QueueStatus, bool, error) {
+	user, err := s.GetUser(ctx, uid)
+	if err != nil {
+		return matchmaker.QueueStatus{}, false, err
+	}
+	return s.mm().Status(ctx, uid, user.Rating, duration)
+}
+
+// StartRankedMatch is called by the matchmaker after it has claimed a group
+// from the Redis queue.
+func (s *ServiceLayer) StartRankedMatch(ctx context.Context, users []entity.User, durationSec int) error {
+	if len(users) < 2 {
+		return errf(ErrConflict, "not enough players")
+	}
+	seed := randomSeed()
+	language := entity.LanguageForSeed(seed)
+	genCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	snippet, _ := s.codegen.GenerateSnippet(genCtx, language, seed)
+	cancel()
+	startOffset := utils.SnippetStartOffset(seed, snippet)
+
+	now := time.Now().UTC()
+	starts := now.Add(s.countdown)
+	ends := starts.Add(time.Duration(durationSec) * time.Second)
+	g := entity.Game{
+		ID:          s.intGen.GenerateID(),
+		Mode:        entity.GameRanked,
+		Duration:    durationSec,
+		Language:    language,
+		Seed:        seed,
+		Snippet:     snippet,
+		StartOffset: startOffset,
+		Status:      entity.GameCountdown,
+		StartsAt:    &starts,
+		EndsAt:      &ends,
+		CreatedAt:   now,
+	}
+	players := make([]entity.GamePlayer, 0, len(users))
+	userMap := make(map[uint32]entity.User, len(users))
+	botConfigs := map[uint32]entity.BotConfig{}
+	for _, u := range users {
+		userMap[u.ID] = u
+		players = append(players, entity.GamePlayer{UserID: u.ID, RatingBefore: u.Rating, IsBot: u.IsBot})
+		if u.IsBot {
+			if _, cfg, ok := s.bots().PersonaForUsername(u.Username); ok {
+				botConfigs[u.ID] = cfg
+			}
+		}
+	}
+	if err := s.db.CreateGame(ctx, &g, players); err != nil {
+		return err
+	}
+	for _, u := range users {
+		if !u.IsBot {
+			s.state().SetGame(ctx, u.ID, g.ID, "")
+		}
+	}
+	opts := game.StartOptions{Game: g, Players: players, Users: userMap, Bots: botConfigs}
+	return s.g().Start(ctx, opts)
+}
+
+func (s *ServiceLayer) PickRankedBot(ctx context.Context, rating int) (entity.User, bool) {
+	if err := s.Bootstrap(ctx); err != nil {
+		s.logger.Warnw("bot bootstrap failed", "error", err)
+	}
+	bot, err := s.db.GetBotForRating(ctx, rating)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return entity.User{}, false
+		}
+		s.logger.Warnw("pick ranked bot", "error", err)
+		return entity.User{}, false
+	}
+	return bot, true
 }

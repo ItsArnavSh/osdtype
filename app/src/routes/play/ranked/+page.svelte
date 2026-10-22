@@ -1,452 +1,317 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onDestroy, onMount } from 'svelte';
-	import { joinRankedLobby } from '$lib/core/api';
-	import { OSDTypeSession } from '$lib/core/api/session';
-	import { gameState } from '$lib/core/state/state.svelte';
-	import { generate } from '$lib/core/codegen';
-	import { LANGUAGES, LANGUAGE_LABELS } from '$lib/core/entity/languages';
-	import type { Language } from '$lib/core/entity/languages';
-	import type { Leaderboard, GameplayBroadcastFrame } from '$lib/core/api/types';
-	import { KeypressAction } from '$lib/core/api/types';
+	import { appState, refreshState } from '$lib/core/state/state.svelte';
+	import { joinQueue, leaveQueue, queueStatus } from '$lib/core/api/queue';
+	import { onSocketEvent, sendSocket, socketConnected } from '$lib/core/api/socket';
+	import { errorMessage } from '$lib/core/api/client';
+	import type { LobbyDuration, QueueStatus } from '$lib/core/api/types';
+	import { LOBBY_DURATIONS } from '$lib/core/api/types';
 
-	// ─── Phase ───────────────────────────────────────────────────────────────
-	type Phase = 'searching' | 'countdown' | 'idle' | 'typing' | 'done';
-	let phase = $state<Phase>('searching');
-	let searchElapsed = $state(0);
-	let countdown = $state(3);
+	let selected = $state<LobbyDuration>(90);
+	let queue = $state<QueueStatus | null>(null);
+	let queuedAt = $state<number>(0);
+	let now = $state(Date.now());
+	let busy = $state(false);
+	let error = $state('');
+	let pollTimer: ReturnType<typeof setInterval> | null = null;
+	let clockTimer: ReturnType<typeof setInterval> | null = null;
+	let unsubscribe: (() => void) | null = null;
 
-	// ─── Game config ─────────────────────────────────────────────────────────
-	let timer = gameState.mode as number; // 30 | 90 | 300
-	let lang = $state<Language>('go');
+	let stateQueue = $derived(appState.state?.state === 'queue' ? appState.state.queue : null);
+	let activeQueue = $derived(queue ?? stateQueue ?? null);
+	let activeDuration = $derived((activeQueue?.duration ?? selected) as LobbyDuration);
 
-	// ─── Generated code ──────────────────────────────────────────────────────
-	let code = $state('');
-	let display_code = $derived(code);
-	let display_chars = $derived(display_code.split(''));
-
-	// ─── Typing state ────────────────────────────────────────────────────────
-	let cursor = $state(0);
-	let typed: Record<number, string> = $state({});
-	let timeLeft = $state(timer);
-	let wpm = $state(0);
-	let intervalId: ReturnType<typeof setInterval> | null = null;
-
-	// ─── Final scores ────────────────────────────────────────────────────────
-	let serverLeaderboard = $state<Leaderboard>([]);
-	let waitingForLeaderboard = $state(false);
-
-	// ─── Opponents ───────────────────────────────────────────────────────────
-	interface Opponent {
-		playerId: number;
-		username: string;
-		dotTop: number;
-		currentPoints: number;
+	function startPolling() {
+		if (pollTimer) clearInterval(pollTimer);
+		pollTimer = setInterval(async () => {
+			try {
+				const status = await queueStatus(activeDuration);
+				if (status) {
+					queue = status;
+					queuedAt = Date.parse(status.joined_at);
+				} else if (appState.state?.state === 'queue') {
+					await refreshState();
+				}
+			} catch {
+				// The socket remains the primary transport; polling is a fallback.
+			}
+		}, 3000);
 	}
-	let opponents = $state<Record<number, Opponent>>({});
 
-	// ─── DOM refs ────────────────────────────────────────────────────────────
-	let codeContainer: HTMLDivElement;
-	let spanRefs: HTMLSpanElement[] = [];
-	let inputRef: HTMLTextAreaElement;
-	let dotTop = $state(0);
+	function stopPolling() {
+		if (pollTimer) clearInterval(pollTimer);
+		pollTimer = null;
+	}
 
-	// ─── Session ─────────────────────────────────────────────────────────────
-	const session = new OSDTypeSession({
-		onOpen: () => {
-			searchTimer = setInterval(() => searchElapsed++, 1000);
-		},
+	async function join(duration: LobbyDuration) {
+		if (busy) return;
+		busy = true;
+		error = '';
+		selected = duration;
+		try {
+			const status = await joinQueue(duration);
+			queue = status;
+			queuedAt = Date.parse(status.joined_at);
+			await refreshState();
+			startPolling();
+		} catch (err) {
+			error = errorMessage(err);
+		} finally {
+			busy = false;
+		}
+	}
 
-		onSeed: (raw) => {
-			clearInterval(searchTimer);
-			const numeric = parseInt(raw, 10);
-			lang = LANGUAGES[numeric % LANGUAGES.length];
-			code = generate(lang, numeric, 120);
-			cursor = nextReal(0);
-			phase = 'countdown';
-			startCountdown();
-		},
+	async function cancel() {
+		if (busy) return;
+		busy = true;
+		error = '';
+		try {
+			await leaveQueue(activeDuration);
+			queue = null;
+			stopPolling();
+			await refreshState();
+		} catch (err) {
+			error = errorMessage(err);
+		} finally {
+			busy = false;
+		}
+	}
 
-		onBroadcast: (frame: GameplayBroadcastFrame) => {
-			const updated: typeof opponents = {};
-			for (const msg of frame) {
-				const span = spanRefs[msg.current_points];
-				const top =
-					span && codeContainer
-						? span.offsetTop - codeContainer.scrollTop + span.offsetHeight / 2
-						: (opponents[msg.player_id]?.dotTop ?? 0);
-				updated[msg.player_id] = {
-					playerId: msg.player_id,
-					username: String(msg.player_id),
-					dotTop: top,
-					currentPoints: msg.current_points
+	function fmt(seconds: number): string {
+		const safe = Math.max(0, seconds);
+		const m = Math.floor(safe / 60).toString().padStart(2, '0');
+		const s = Math.floor(safe % 60).toString().padStart(2, '0');
+		return `${m}:${s}`;
+	}
+
+	let waited = $derived(queuedAt > 0 ? Math.max(0, Math.floor((now - queuedAt) / 1000)) : 0);
+
+	onMount(() => {
+		clockTimer = setInterval(() => (now = Date.now()), 1000);
+		unsubscribe = onSocketEvent((event) => {
+			if (event.type === 'queue_status') {
+				const data = event.data as {
+					duration: number;
+					position: number;
+					waiting: number;
+					waited: number;
 				};
+				if (data && appState.state?.state === 'queue') {
+					queue = {
+						duration: data.duration,
+						position: data.position,
+						waiting: data.waiting,
+						joined_at: new Date(Date.now() - data.waited * 1000).toISOString()
+					};
+					queuedAt = Date.now() - data.waited * 1000;
+				}
 			}
-			opponents = updated;
-		},
-
-		onLeaderboard: (board) => {
-			if (leaderboardTimeout) clearTimeout(leaderboardTimeout);
-			serverLeaderboard = [...board].sort((a, b) => b.wpm - a.wpm);
-			waitingForLeaderboard = false;
-			phase = 'done';
-		},
-
-		onControl: () => {
-			session.disconnect();
-		},
-
-		onClose: () => {
-			clearAllIntervals();
-		}
-	});
-
-	let searchTimer: ReturnType<typeof setInterval>;
-
-	function clearAllIntervals() {
-		clearInterval(searchTimer);
-		if (intervalId) {
-			clearInterval(intervalId);
-			intervalId = null;
-		}
-		if (leaderboardTimeout) {
-			clearTimeout(leaderboardTimeout);
-			leaderboardTimeout = null;
-		}
-	}
-
-	// ─── Countdown ───────────────────────────────────────────────────────────
-	function startCountdown() {
-		countdown = 3;
-		const cd = setInterval(() => {
-			countdown--;
-			if (countdown <= 0) {
-				clearInterval(cd);
-				phase = 'idle';
+		});
+		if (appState.state?.state === 'queue') {
+			const q = appState.state.queue;
+			if (q) {
+				queue = q;
+				queuedAt = Date.parse(q.joined_at);
+				selected = q.duration as LobbyDuration;
 			}
-		}, 1000);
-	}
-
-	// ─── Game logic ──────────────────────────────────────────────────────────
-	function calcStats() {
-		const elapsed = timer - timeLeft;
-		const entries = Object.entries(typed);
-		const correct = entries.filter(([i, ch]) => ch === display_chars[Number(i)]).length;
-		const net = elapsed > 0 ? Math.round(correct / 5 / (elapsed / 60)) : 0;
-		return { net };
-	}
-
-	function startGame() {
-		if (phase !== 'idle') return;
-		phase = 'typing';
-		timeLeft = timer;
-		intervalId = setInterval(() => {
-			timeLeft--;
-			const { net } = calcStats();
-			wpm = net;
-			if (timeLeft <= 0) {
-				clearInterval(intervalId!);
-				intervalId = null;
-				endGame();
-			}
-		}, 1000);
-	}
-
-	let leaderboardTimeout: ReturnType<typeof setTimeout> | null = null;
-
-	function endGame() {
-		waitingForLeaderboard = true;
-		phase = 'done';
-		// Fallback: if server never sends leaderboard (e.g. last/only player),
-		// stop waiting after 10s and just show whatever we have
-		leaderboardTimeout = setTimeout(() => {
-			waitingForLeaderboard = false;
-		}, 10000);
-	}
-
-	function isSpecial(char: string) {
-		return char === ' ' || char === '\n' || char === '\t';
-	}
-	function nextReal(pos: number) {
-		while (pos < display_chars.length && isSpecial(display_chars[pos])) pos++;
-		return pos;
-	}
-	function prevReal(pos: number) {
-		pos--;
-		while (pos > 0 && isSpecial(display_chars[pos])) pos--;
-		return Math.max(0, pos);
-	}
-
-	let char_states = $derived(
-		display_chars.map((char, i) => {
-			if (isSpecial(char)) return 'special';
-			if (!(i in typed)) return 'pending';
-			return typed[i] === char ? 'correct' : 'wrong';
-		})
-	);
-
-	// ─── Dot + autoscroll ────────────────────────────────────────────────────
-	$effect(() => {
-		const pos = cursor;
-		const span = spanRefs[pos];
-		if (!span || !codeContainer) return;
-		const spanOffsetTop = span.offsetTop;
-		const targetScrollTop = spanOffsetTop - codeContainer.clientHeight / 2 + span.offsetHeight / 2;
-		codeContainer.scrollTop = Math.max(0, targetScrollTop);
-		dotTop = spanOffsetTop - codeContainer.scrollTop + span.offsetHeight / 2;
-	});
-
-	// ─── Keyboard ────────────────────────────────────────────────────────────
-	function focusInput() {
-		inputRef?.focus();
-	}
-
-	function handleKeydown(e: KeyboardEvent) {
-		if (phase === 'done' || phase === 'searching' || phase === 'countdown') return;
-		if (e.ctrlKey || e.metaKey || e.altKey) return;
-		if (e.key === ' ' || e.key === 'Enter') {
-			e.preventDefault();
-			return;
+			startPolling();
 		}
-		if (e.key === 'Backspace') {
-			e.preventDefault();
-			if (phase === 'idle') return;
-			const prev = prevReal(cursor);
-			delete typed[prev];
-			cursor = prev;
-			session.sendKeypress({ value: '', action: KeypressAction.BACKSPACE, time_ms: Date.now() });
-		}
-		if (e.key.length === 1) {
-			e.preventDefault();
-			if (phase === 'idle') startGame();
-			const pos = nextReal(cursor);
-			typed[pos] = e.key;
-			cursor = nextReal(pos + 1);
-			session.sendKeypress({ value: e.key, action: KeypressAction.KEYPRESS, time_ms: Date.now() });
-		}
-	}
-
-	// ─── Lifecycle ───────────────────────────────────────────────────────────
-	onMount(async () => {
-		await joinRankedLobby(gameState.mode);
-		await session.connect();
-		window.addEventListener('keydown', handleKeydown);
+		return () => {
+			stopPolling();
+			if (clockTimer) clearInterval(clockTimer);
+			unsubscribe?.();
+		};
 	});
 
 	onDestroy(() => {
-		session.disconnect();
-		clearAllIntervals();
-		window.removeEventListener('keydown', handleKeydown);
+		stopPolling();
+		if (clockTimer) clearInterval(clockTimer);
+		unsubscribe?.();
 	});
-
-	function formatTime(s: number) {
-		const m = Math.floor(s / 60)
-			.toString()
-			.padStart(2, '0');
-		const sec = (s % 60).toString().padStart(2, '0');
-		return `${m}:${sec}`;
-	}
-
-	function ghAvatar(username: string) {
-		return `https://github.com/${username}.png?size=32`;
-	}
 </script>
 
-<div class="m-0 min-h-screen overflow-hidden bg-(--bg)">
-	<!-- ── Header ── -->
-	<div class="mt-10 flex flex-col p-2 text-white">
-		<div class="flex flex-row items-end">
-			<div class="title-text flex-1 text-9xl">OSDTYP</div>
-			<div class="my-8 flex flex-col items-end gap-1 px-6">
-				<div class="font-mono text-(--red)">→Ranked</div>
-				<div class="flex flex-row items-end gap-6">
-					<div class="flex flex-col items-center">
-						<div class="font-mono text-3xl text-(--mer)">
-							{phase === 'searching' ? formatTime(searchElapsed) : timeLeft}
-						</div>
-						<div class="text-xs text-(--silver)/50">
-							{phase === 'searching' ? 'Searching' : 'Timer'}
-						</div>
-					</div>
-					{#if phase !== 'searching'}
-						<div class="flex flex-col items-end">
-							<div class="font-mono text-3xl text-(--mer)">{LANGUAGE_LABELS[lang]}</div>
-							<div class="text-xs text-(--silver)/50">Language</div>
-						</div>
-					{/if}
-				</div>
+<svelte:head><title>ranked · OSDTYP</title></svelte:head>
+
+<div class="flex min-h-screen flex-col bg-(--bg) p-6 md:p-8">
+	<header class="flex flex-wrap items-end justify-between gap-4">
+		<div class="flex items-end gap-4">
+			<a
+				href={resolve('/play')}
+				class="mb-2 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase hover:text-(--silver)"
+				>← hub</a
+			>
+			<div class="title-text text-7xl leading-none text-(--silver) md:text-8xl">RANKED</div>
+		</div>
+		<div class="flex items-end gap-6 text-right">
+			<div>
+				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">rank</div>
+				<div class="mt-1 text-lg text-(--mer)">{appState.user?.rank.label ?? '—'}</div>
+			</div>
+			<div>
+				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">rating</div>
+				<div class="mt-1 font-mono text-lg text-(--silver)">{appState.user?.rating ?? '—'}</div>
 			</div>
 		</div>
-	</div>
+	</header>
 
-	<textarea
-		bind:this={inputRef}
-		class="pointer-events-none absolute resize-none opacity-0"
-		autocomplete="off"
-		spellcheck="false"
-		rows="1"
-	></textarea>
-
-	<!-- ── Main panel ── -->
-	<div
-		class="relative border-t border-b border-(--silver) bg-(--fbg)"
-		onclick={focusInput}
-		role="none"
-		style="height: 75vh;"
-	>
-		<!-- SEARCHING -->
-		{#if phase === 'searching'}
-			<div class="flex h-full flex-col items-center justify-center gap-6">
-				<div class="searching-rings">
-					<div class="ring"></div>
-					<div class="delay ring"></div>
-					<span class="ring-icon">⌨</span>
-				</div>
-				<div class="font-mono text-xl tracking-widest text-(--silver)/60">finding a match…</div>
-				<div class="font-mono text-sm text-(--silver)/30">{formatTime(searchElapsed)}</div>
-			</div>
-
-			<!-- COUNTDOWN -->
-		{:else if phase === 'countdown'}
-			<div class="flex h-full flex-col items-center justify-center gap-4">
-				<div class="font-mono text-sm tracking-widest text-(--silver)/40 uppercase">
-					match found — starting in
-				</div>
-				<div
-					class="countdown-number font-mono text-(--mer)"
-					style="font-size: 8rem; line-height:1;"
-				>
-					{countdown}
-				</div>
-				<div class="font-mono text-sm text-(--silver)/30">{LANGUAGE_LABELS[lang]} · {timer}s</div>
-			</div>
-
-			<!-- DONE -->
-		{:else if phase === 'done'}
-			<div class="flex h-full flex-col items-center justify-center gap-10 overflow-y-auto px-16">
-				{#if waitingForLeaderboard}
-					<!-- Waiting for other players -->
-					<div class="flex flex-col items-center gap-6">
-						<div class="searching-rings">
-							<div class="ring"></div>
-							<div class="delay ring"></div>
-							<span class="ring-icon">🏁</span>
-						</div>
-						<div class="font-mono text-xl tracking-widest text-(--silver)/60">
-							waiting for other players…
+	<main class="mt-6 grid flex-1 gap-3 lg:grid-cols-[1fr_340px]">
+		<section class="flex min-h-[480px] flex-col border border-(--border) bg-(--fbg)" style="border-top-color: var(--mer);">
+			{#if activeQueue}
+				<div class="flex flex-1 flex-col items-center justify-center gap-8 px-8 py-12">
+					<div class="searching-rings">
+						<div class="ring"></div>
+						<div class="delay ring"></div>
+						<span class="ring-icon">⌨</span>
+					</div>
+					<div>
+						<div class="text-center text-2xl text-(--silver)">Finding a match…</div>
+						<div class="mt-2 text-center font-mono text-xs text-(--silver)/40">
+							{activeDuration}s · {activeQueue.waiting} in queue
 						</div>
 					</div>
-				{:else}
-					<!-- Server leaderboard -->
-					{#if serverLeaderboard.length > 0}
-						<div class="w-full max-w-2xl">
-							<div class="mb-4 font-mono text-sm tracking-widest text-(--silver)/30 uppercase">
-								leaderboard
+					<div class="grid w-full max-w-lg grid-cols-3 gap-3">
+						<div class="border border-(--border) px-4 py-3 text-center">
+							<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/30 uppercase">
+								waited
 							</div>
-							<div class="flex flex-col gap-3">
-								{#each serverLeaderboard as entry, i (i)}
-									<div
-										class="flex flex-row items-center gap-6 border border-(--silver)/10 px-6 py-4 font-mono"
-										class:border-mer={i === 0}
-									>
-										<span class="w-8 text-lg text-(--silver)/30">#{i + 1}</span>
-										<span class="flex-1 text-lg text-(--silver)">{entry.name}</span>
-										<span class="text-2xl text-(--mer)">{entry.wpm.toFixed(1)} wpm</span>
-										<span class="text-lg text-(--silver)/50"
-											>{(entry.accuracy * 100).toFixed(0)}%</span
-										>
-										<span class="text-lg text-(--red)">{entry.wrong} err</span>
-									</div>
-								{/each}
+							<div class="mt-1 font-mono text-xl text-(--silver)">{fmt(waited)}</div>
+						</div>
+						<div class="border border-(--border) px-4 py-3 text-center">
+							<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/30 uppercase">
+								position
+							</div>
+							<div class="mt-1 font-mono text-xl text-(--mer)">
+								#{activeQueue.position + 1}
 							</div>
 						</div>
-					{/if}
-				{/if}
-			</div>
-
-			<!-- TYPING / IDLE -->
-		{:else}
-			<div class="relative ml-10 h-full border-l border-(--silver) bg-(--fbg)">
-				<!-- Your dot -->
-				<div
-					class="dot your-dot absolute rounded-full transition-all duration-100"
-					style="left: -6px; top: {dotTop}px; transform: translateY(-50%); background-color: var(--mer);"
-				></div>
-
-				<!-- Opponent dots (GitHub avatars) -->
-				{#each Object.values(opponents) as opp (opp.playerId)}
-					<div
-						class="opponent-dot absolute transition-all duration-200"
-						style="left: -16px; top: {opp.dotTop}px; transform: translateY(-50%);"
-					>
-						<img
-							src={ghAvatar(opp.username)}
-							alt={opp.username}
-							class="rounded-full border border-(--silver)/30"
-							style="width:24px; height:24px; object-fit:cover;"
-							title={opp.username}
-						/>
+						<div class="border border-(--border) px-4 py-3 text-center">
+							<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/30 uppercase">
+								players
+							</div>
+							<div class="mt-1 font-mono text-xl text-(--silver)">{activeQueue.waiting}</div>
+						</div>
 					</div>
-				{/each}
-
-				<div
-					bind:this={codeContainer}
-					class="h-full overflow-hidden p-5 font-mono text-2xl leading-relaxed"
-				>
-					{#each display_chars as char, i (i)}
-						<span
-							bind:this={spanRefs[i]}
-							class="whitespace-pre-wrap {char_states[i] === 'special'
-								? 'text-(--silver)/20'
-								: char_states[i] === 'correct'
-									? 'text-(--silver)'
-									: char_states[i] === 'wrong'
-										? 'bg-red-950/40 text-(--red)'
-										: 'text-(--silver)/40'}">{char}</span
+					<div class="flex items-center gap-3">
+						<button
+							class="cursor-pointer border border-(--border) px-5 py-2 font-mono text-xs text-(--silver)/55 uppercase hover:border-(--red) hover:text-(--red) disabled:opacity-40"
+							onclick={cancel}
+							disabled={busy}
+						>cancel queue</button
 						>
+						<button
+							class="cursor-pointer border border-(--border) px-5 py-2 font-mono text-xs text-(--silver)/55 uppercase hover:border-(--silver)/40 hover:text-(--silver)"
+							onclick={() => sendSocket('state')}
+							disabled={!socketConnected()}
+						>resync</button
+						>
+					</div>
+					<div class="font-mono text-[10px] text-(--silver)/25">
+						the server will start the match automatically. leaving this page does not leave the
+						queue.
+					</div>
+				</div>
+			{:else}
+				<div class="flex flex-1 flex-col justify-center px-8 py-10 md:px-14">
+					<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">
+						free-for-all elo
+					</div>
+					<h1 class="mt-3 max-w-xl text-3xl leading-tight text-(--silver) md:text-4xl">
+						Pick a clock.<br />The server handles the rest.
+					</h1>
+					<p class="mt-4 max-w-lg font-mono text-xs leading-relaxed text-(--silver)/45">
+						Everyone in a match types the same server-generated snippet. Ratings update after
+						the race, but flagged runs do not move Elo. If nobody is around, a bot can fill
+						the lobby.
+					</p>
+
+					<div class="mt-8 grid gap-3 sm:grid-cols-3">
+						{#each LOBBY_DURATIONS as duration (duration)}
+							<button
+								class="cursor-pointer border px-5 py-4 text-left transition-colors"
+								class:border-(--mer)={selected === duration}
+								class:border-(--border)={selected !== duration}
+								onclick={() => (selected = duration)}
+							>
+								<div class="font-mono text-2xl text-(--silver)">{duration}s</div>
+								<div class="mt-1 font-mono text-[10px] tracking-[0.12em] text-(--silver)/35 uppercase">
+									{duration === 30 ? 'sprint' : duration === 90 ? 'standard' : 'marathon'}
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<div class="mt-6 flex flex-wrap items-center gap-4">
+						<button
+							class="cursor-pointer border border-(--mer) px-6 py-2.5 font-mono text-sm text-(--mer) hover:bg-(--mer)/10 disabled:cursor-not-allowed disabled:opacity-40"
+							onclick={() => join(selected)}
+							disabled={busy}
+						>{busy ? 'joining…' : 'enter queue =>'}</button
+						>
+						<span class="font-mono text-[10px] text-(--silver)/30">
+							Elo starts at 1000 · bots after 20s
+						</span>
+					</div>
+				</div>
+			{/if}
+		</section>
+
+		<aside class="flex flex-col gap-3">
+			<div class="border border-(--border) bg-(--fbg) p-5">
+				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
+					match rules
+				</div>
+				<ul class="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-(--silver)/50">
+					<li>· server chooses seed, language, snippet and start offset</li>
+					<li>· 3 second countdown after the lobby fills</li>
+					<li>· live progress over websocket</li>
+					<li>· anti-cheat flags freeze rating changes</li>
+					<li>· refresh or reconnect and the server resumes your game</li>
+				</ul>
+			</div>
+
+			<div class="border border-(--border) bg-(--fbg) p-5">
+				<div class="flex items-center justify-between">
+					<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
+						tiers
+					</div>
+					<span class="font-mono text-[10px] text-(--silver)/25">rating</span>
+				</div>
+				<div class="mt-3 flex flex-col gap-1.5 font-mono text-[11px]">
+					{#each [['Grandmaster', 1600], ['Master', 1200], ['Diamond', 800], ['Platinum', 600], ['Gold', 400], ['Silver', 200], ['Bronze', 0]] as [tier, rating] (tier)}
+						<div class="flex items-center justify-between border-b border-(--border)/40 pb-1.5">
+							<span class="text-(--silver)/55">{tier}</span>
+							<span class="text-(--silver)/30">{rating}+</span>
+						</div>
 					{/each}
 				</div>
 			</div>
 
-			<!-- Idle overlay -->
-			{#if phase === 'idle'}
-				<div
-					class="absolute inset-0 flex items-center justify-center"
-					style="background: rgba(0,0,0,0.5);"
-				>
-					<span class="font-mono text-xl tracking-widest text-(--silver)/70"
-						>start typing to begin</span
-					>
-				</div>
+			{#if error}
+				<div class="border border-(--red)/40 px-4 py-3 font-mono text-xs text-(--red)">{error}</div>
 			{/if}
-		{/if}
-	</div>
+		</aside>
+	</main>
 
-	<!-- ── Bottom bar ── -->
-	<div class="flex flex-row items-center px-4 py-3">
-		<div class="font-mono text-sm text-(--silver)/30">ranked match · {timer}s · {LANGUAGE_LABELS[lang]}</div>
-		<div class="flex-1"></div>
-		{#if phase === 'typing'}
-			<div class="text-right font-mono">
-				<span class="text-3xl text-(--mer)">{wpm}</span>
-				<span class="ml-1 text-sm text-(--silver)/40">wpm</span>
-			</div>
-		{/if}
-	</div>
+	<footer class="mt-4 flex items-center justify-between border-t border-(--border) pt-3 font-mono text-[10px] text-(--silver)/25">
+		<span>ranked queue · redis-backed</span>
+		<a class="hover:text-(--silver)/60" href={resolve('/leaderboard')}>leaderboard →</a>
+	</footer>
 </div>
 
 <style>
 	.searching-rings {
 		position: relative;
-		width: 120px;
-		height: 120px;
+		width: 110px;
+		height: 110px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
 	.ring {
 		position: absolute;
-		width: 100%;
-		height: 100%;
+		inset: 0;
 		border-radius: 50%;
 		border: 1px solid color-mix(in srgb, var(--mer) 25%, transparent);
 		animation: pulse 2.4s ease-out infinite;
@@ -456,44 +321,17 @@
 	}
 	.ring-icon {
 		position: relative;
-		font-size: 2.5rem;
+		font-size: 2rem;
 		z-index: 1;
 	}
 	@keyframes pulse {
 		0% {
-			transform: scale(0.5);
+			transform: scale(0.55);
 			opacity: 0.8;
 		}
 		100% {
-			transform: scale(2.2);
+			transform: scale(2.1);
 			opacity: 0;
 		}
-	}
-
-	.countdown-number {
-		animation: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-	}
-	@keyframes pop {
-		from {
-			transform: scale(0.4);
-			opacity: 0;
-		}
-		to {
-			transform: scale(1);
-			opacity: 1;
-		}
-	}
-
-	.your-dot {
-		width: 12px;
-		height: 12px;
-	}
-
-	.opponent-dot img {
-		display: block;
-	}
-
-	.border-mer {
-		border-color: var(--mer);
 	}
 </style>

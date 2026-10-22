@@ -6,12 +6,16 @@ import (
 )
 
 func main() {
-	logger := boot.Initialize_App()
-	if logger == nil {
-		return
+	logger, err := boot.Initialize_App()
+	if err != nil {
+		panic(err)
 	}
 	defer logger.Sync()
-	server := api.NewServer(logger)
-	server.SetupRoutes()
+
+	server, err := api.NewServer(logger)
+	if err != nil {
+		logger.Fatalw("failed to initialize server", "error", err)
+	}
+	defer server.Close()
 	server.StartServer()
 }

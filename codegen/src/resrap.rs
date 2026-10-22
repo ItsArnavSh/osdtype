@@ -1,32 +1,54 @@
-use resrap_rs::Resrap;
+use resrap_rs::{Resrap, templates};
 
-pub struct CodeGen {
-    r: Resrap,
-}
+/// Thin wrapper around resrap-rs' bundled templates. A fresh Resrap instance
+/// is used per request to mirror the browser WASM wrapper exactly: same
+/// library, same template, same seed and token count produce the same code.
+pub struct CodeGen;
+
 impl CodeGen {
     pub fn new() -> Self {
-        let mut r = Resrap::new();
-        r.parse_grammar_file(String::from("c"), String::from("templates/c.g4"))
-            .expect("Could not parse C");
-        r.parse_grammar_file(String::from("go"), String::from("templates/go.g4"))
-            .expect("Could not parse go");
-        r.parse_grammar_file(String::from("cpp"), String::from("templates/cpp.g4"))
-            .expect("Could not parse Cpp");
-        r.parse_grammar_file(String::from("java"), String::from("templates/java.g4"))
-            .expect("Could not parse Java");
-        r.parse_grammar_file(String::from("rs"), String::from("templates/rs.g4"))
-            .expect("Could not parse Rust");
-        r.parse_grammar_file(String::from("ts"), String::from("templates/ts.g4"))
-            .expect("Could not parse TS");
-        CodeGen { r }
+        CodeGen
     }
-    pub fn generate(&self, name: &str, seed: u64, tokens: usize) -> Vec<String> {
-        let res = self
-            .r
-            .generate_with_seed(name, String::from("program"), seed, tokens);
-        match res {
-            Ok(str) => return str,
-            Err(_) => return vec![],
+
+    pub fn generate(&self, name: &str, seed: u64, tokens: usize) -> String {
+        let template = match templates::get(name) {
+            Ok(template) => template,
+            Err(_) => return String::new(),
+        };
+
+        let mut rs = Resrap::new();
+        if template.load(&mut rs).is_err() {
+            return String::new();
         }
+
+        rs.generate_complete_with_seeded(template.name, "program", seed, tokens)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builtin_templates_generate() {
+        for name in templates::names() {
+            let out = CodeGen::new().generate(name, 42, 120);
+            assert!(!out.is_empty(), "template {name} produced nothing");
+        }
+    }
+
+    #[test]
+    fn deterministic_and_seed_sensitive() {
+        let codegen = CodeGen::new();
+        let a = codegen.generate("go", 1234, 120);
+        let b = codegen.generate("go", 1234, 120);
+        let c = codegen.generate("go", 1235, 120);
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn unknown_template_is_empty() {
+        assert!(CodeGen::new().generate("brainfuck", 1, 120).is_empty());
     }
 }

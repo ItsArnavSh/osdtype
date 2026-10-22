@@ -1,27 +1,30 @@
-import { ENDPOINTS } from "./config";
+import { api } from './client';
+import { BASE_URL, ENDPOINTS } from './config';
+import type { UserView } from './types';
 
-/**
- * Redirects the browser to GitHub for OAuth login.
- * Call this in a browser context only.
- */
-export function redirectToGithubLogin(): void {
-  window.location.href = ENDPOINTS.LOGIN_GITHUB;
+export function githubLogin(): void {
+	window.location.href = `${BASE_URL}${ENDPOINTS.GITHUB_LOGIN}`;
 }
 
-/**
- * Fake login for development — bypasses OAuth and sets the token cookie.
- * @param username - The username to log in as (default: "testuser")
- */
-export async function fakeLogin(username = "testuser"): Promise<void> {
-  const url = new URL(ENDPOINTS.LOGIN_FAKE);
-  url.searchParams.set("username", username);
+export async function devLogin(username: string): Promise<UserView> {
+	const res = await api<{ user: UserView }>(ENDPOINTS.DEV_LOGIN, {
+		method: 'POST',
+		body: { username }
+	});
+	return res.user;
+}
 
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    credentials: "include",
-  });
+export async function logout(): Promise<void> {
+	await api(ENDPOINTS.LOGOUT, { method: 'POST' });
+}
 
-  if (!res.ok) {
-    throw new Error(`Fake login failed: ${res.status} ${res.statusText}`);
-  }
+export async function me(): Promise<UserView | null> {
+	try {
+		return await api<UserView>(ENDPOINTS.ME);
+	} catch (err) {
+		if (err instanceof Error && 'status' in err && (err as { status?: number }).status === 401) {
+			return null;
+		}
+		return null;
+	}
 }

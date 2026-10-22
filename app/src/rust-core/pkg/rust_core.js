@@ -112,7 +112,7 @@ export function add(a, b) {
  * Generates a complete snippet for `lang` (a bundled template name such as
  * `"c"`, `"cpp"`, `"python"` or `"js"`), deterministically from `seed`.
  * @param {string} lang
- * @param {number} seed
+ * @param {bigint} seed
  * @param {number} tokens
  * @returns {string}
  */

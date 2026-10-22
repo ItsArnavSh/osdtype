@@ -85,6 +85,7 @@ dependencies = [
  "axum",
  "resrap-rs",
  "serde",
+ "serde_json",
  "tokio",
 ]
 
@@ -353,9 +354,9 @@ dependencies = [
 
 [[package]]
 name = "resrap-rs"
-version = "0.1.3"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35a64f188d0dfb6484511feb2b16ec43d3a436fdbad1f950fd899ec7231cc943"
+checksum = "ad4d00b19ee022679c1122609eecedb53ff5ea8189b359dcea2fd98ae6243773"
 
 [[package]]
 name = "ryu"

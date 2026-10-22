@@ -204,7 +204,8 @@ body {
 	color: color-mix(in srgb, var(--mer) 70%, transparent);
 }
 
-/* Caret sits on the upcoming character, not the left edge of the pane. */
+/* Terminal-style block caret: a blinking cell behind the upcoming character,
+   so the glyph stays readable while the cursor pulses. */
 .char-caret {
 	position: relative;
 }
@@ -212,11 +213,12 @@ body {
 	content: '';
 	position: absolute;
 	left: -1px;
-	top: 0.1em;
-	bottom: 0.1em;
-	width: 1.5px;
-	background: var(--mer);
-	animation: caret-blink 1s step-end infinite;
+	top: 0.08em;
+	bottom: 0.08em;
+	width: 0.62ch;
+	border-radius: 1px;
+	background: color-mix(in srgb, var(--mer) 62%, transparent);
+	animation: caret-blink 1.06s step-end infinite;
 }
 @keyframes caret-blink {
 	50% {

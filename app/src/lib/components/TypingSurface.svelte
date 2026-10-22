@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import ResultGraph from '$lib/components/ResultGraph.svelte';
-	import { initCodegen, generate } from '$lib/core/codegen';
+	import { initCodegen, generate, randomSeed, deriveSeed } from '$lib/core/codegen';
 	import {
 		LANGUAGES,
 		LANGUAGE_LABELS,
@@ -34,7 +34,8 @@
 
 	// ─── Generated code ──────────────────────────────────────────────────────
 	let code = $state('');
-	let seed = $state(0);
+	let seed = $state<bigint>(0n);
+	let extensions = 0;
 	let wasmReady = $state(false);
 	let display_chars = $derived(code.split(''));
 	let syntax_kinds = $derived(highlightCode(code, lang));
@@ -115,7 +116,8 @@
 
 	function newSnippet() {
 		if (!wasmReady) return;
-		seed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+		seed = randomSeed();
+		extensions = 0;
 		const text = generate(lang, seed, SNIPPET_TOKENS);
 		const parts = text.split('\n');
 
@@ -137,9 +139,14 @@
 			candidates.push(i);
 		}
 
+		// Pick the starting line from the seed rather than Math.random, so a
+		// seed always produces the same slice and the choice spreads across
+		// the whole generated program instead of favouring early lines.
+		const pick = deriveSeed(seed, 1);
+
 		const startLine =
 			candidates.length > 0
-				? candidates[Math.floor(Math.random() * candidates.length)]
+				? candidates[Number(pick % BigInt(candidates.length))]
 				: Math.min(SKIP_LINES, Math.max(0, parts.length - 1));
 
 		let cursorAt = offsets[startLine];
@@ -381,7 +388,7 @@
 			// Top up the text before the end is reached, in every mode, so a
 			// long timer never runs out of something to type.
 			if (cursor > display_chars.length - 400) {
-				const extraSeed = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+				const extraSeed = deriveSeed(seed, 1_000_000 + extensions++);
 				const extra = generate(lang, extraSeed, SNIPPET_TOKENS);
 				if (extra) code = code + '\n' + extra;
 			}
@@ -605,7 +612,7 @@
 			{#if phase === 'idle'}
 				<div
 					class="absolute inset-0 flex items-center justify-center"
-					style="background: color-mix(in srgb, var(--bg) 78%, transparent);"
+					style="background: color-mix(in srgb, var(--bg) 52%, transparent);"
 				>
 					<div
 						class="flex flex-col items-center gap-3 rounded border border-(--border) bg-(--fbg) px-8 py-6"

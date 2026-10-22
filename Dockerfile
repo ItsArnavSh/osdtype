@@ -1,22 +1,26 @@
+FROM golang:1.26 AS builder
 
-FROM golang:latest AS builder
-
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-
-WORKDIR /app/server
-
+WORKDIR /src
+ENV CGO_ENABLED=0 GOOS=linux
 COPY server/go.mod server/go.sum ./
 RUN go mod download
+COPY server/ ./
+RUN go build -trimpath -ldflags="-s -w" -o /out/osdtyp .
 
-COPY server/ .
-RUN go build -o /app/app .
+FROM alpine:3.22
 
-FROM alpine:latest
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S app \
+    && adduser -S -G app app
 
-WORKDIR /root/
-COPY --from=builder /app/app .
+WORKDIR /app
+COPY --from=builder /out/osdtyp /usr/local/bin/osdtyp
 COPY server/boot ./boot
-COPY server/grammar ./grammar
+
+USER app
 EXPOSE 8080
 
-CMD ["./app"]
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
+    CMD wget -qO- http://127.0.0.1:8080/ping >/dev/null || exit 1
+
+ENTRYPOINT ["osdtyp"]
