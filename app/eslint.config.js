@@ -12,6 +12,8 @@ const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
+	// Generated WASM bindings and Rust build artifacts are not ours to lint.
+	{ ignores: ['src/rust-core/pkg/**', 'src/rust-core/target/**'] },
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,

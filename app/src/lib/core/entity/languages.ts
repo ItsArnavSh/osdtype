@@ -1,32 +1,42 @@
-import { CGrammar } from '$lib/templates/c';
-import { TSGrammar } from '$lib/templates/cpp';
-import { GoGrammar } from '$lib/templates/go';
-import { JavaGrammar } from '$lib/templates/java';
-import { RustGrammar } from '$lib/templates/rs';
-import { CppGrammar } from '$lib/templates/ts';
+/**
+ * Languages bundled with the resrap-rs code generator.
+ *
+ * These ids are the canonical template names exposed by the Rust crate
+ * (`resrap_rs::templates`), so they can be handed straight to the WASM
+ * `generate` call. Keep this list in sync with `templates::names()`.
+ */
+export const LANGUAGES = [
+	'c',
+	'cpp',
+	'go',
+	'haskell',
+	'html',
+	'java',
+	'js',
+	'python',
+	'rust',
+	'sql'
+] as const;
 
-export const LANGUAGES = ['C', 'Go', 'CPP', 'Java', 'Rust', 'TypeScript'] as const;
 export type Language = (typeof LANGUAGES)[number];
+
+/** Presentable names for the language ids. */
+export const LANGUAGE_LABELS: Record<Language, string> = {
+	c: 'C',
+	cpp: 'C++',
+	go: 'Go',
+	haskell: 'Haskell',
+	html: 'HTML',
+	java: 'Java',
+	js: 'JavaScript',
+	python: 'Python',
+	rust: 'Rust',
+	sql: 'SQL'
+};
+
+export function languageLabel(lang: Language): string {
+	return LANGUAGE_LABELS[lang] ?? lang;
+}
 
 export const TIMES = [30, 90, 300] as const;
 export type Time = (typeof TIMES)[number];
-
-export function GetGrammar(lang: Language): string {
-	switch (lang) {
-		case 'C':
-			return CGrammar;
-		case 'Go':
-			return GoGrammar;
-		case 'CPP':
-			return CppGrammar;
-		case 'Java':
-			return JavaGrammar;
-		case 'Rust':
-			return RustGrammar;
-		case 'TypeScript':
-			return TSGrammar;
-
-		default:
-			return CGrammar;
-	}
-}

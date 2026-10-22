@@ -3,8 +3,8 @@
 	import { joinRankedLobby } from '$lib/core/api';
 	import { OSDTypeSession } from '$lib/core/api/session';
 	import { gameState } from '$lib/core/state/state.svelte';
-	import { generate } from '../../../rust-core/pkg/rust_core';
-	import { GetGrammar, LANGUAGES } from '$lib/core/entity/languages';
+	import { generate } from '$lib/core/codegen';
+	import { LANGUAGES, LANGUAGE_LABELS } from '$lib/core/entity/languages';
 	import type { Language } from '$lib/core/entity/languages';
 	import type { Leaderboard, GameplayBroadcastFrame } from '$lib/core/api/types';
 	import { KeypressAction } from '$lib/core/api/types';
@@ -17,12 +17,11 @@
 
 	// ─── Game config ─────────────────────────────────────────────────────────
 	let timer = gameState.mode as number; // 30 | 90 | 300
-	let lang = $state<Language>('Go');
-	let seed = $state(0);
+	let lang = $state<Language>('go');
 
 	// ─── Generated code ──────────────────────────────────────────────────────
-	let code = $state<string[]>([]);
-	let display_code = $derived(code.join(''));
+	let code = $state('');
+	let display_code = $derived(code);
 	let display_chars = $derived(display_code.split(''));
 
 	// ─── Typing state ────────────────────────────────────────────────────────
@@ -60,9 +59,8 @@
 		onSeed: (raw) => {
 			clearInterval(searchTimer);
 			const numeric = parseInt(raw, 10);
-			seed = numeric;
-			lang = LANGUAGES[numeric % 6];
-			code = generate(GetGrammar(lang), numeric, 1000);
+			lang = LANGUAGES[numeric % LANGUAGES.length];
+			code = generate(lang, numeric, 120);
 			cursor = nextReal(0);
 			phase = 'countdown';
 			startCountdown();
@@ -133,7 +131,6 @@
 		const elapsed = timer - timeLeft;
 		const entries = Object.entries(typed);
 		const correct = entries.filter(([i, ch]) => ch === display_chars[Number(i)]).length;
-		const raw = elapsed > 0 ? Math.round(entries.length / 5 / (elapsed / 60)) : 0;
 		const net = elapsed > 0 ? Math.round(correct / 5 / (elapsed / 60)) : 0;
 		return { net };
 	}
@@ -189,8 +186,8 @@
 
 	// ─── Dot + autoscroll ────────────────────────────────────────────────────
 	$effect(() => {
-		const _ = cursor;
-		const span = spanRefs[cursor];
+		const pos = cursor;
+		const span = spanRefs[pos];
 		if (!span || !codeContainer) return;
 		const spanOffsetTop = span.offsetTop;
 		const targetScrollTop = spanOffsetTop - codeContainer.clientHeight / 2 + span.offsetHeight / 2;
@@ -272,7 +269,7 @@
 					</div>
 					{#if phase !== 'searching'}
 						<div class="flex flex-col items-end">
-							<div class="font-mono text-3xl text-(--mer)">{lang}</div>
+							<div class="font-mono text-3xl text-(--mer)">{LANGUAGE_LABELS[lang]}</div>
 							<div class="text-xs text-(--silver)/50">Language</div>
 						</div>
 					{/if}
@@ -285,10 +282,9 @@
 		bind:this={inputRef}
 		class="pointer-events-none absolute resize-none opacity-0"
 		autocomplete="off"
-		autocorrect="off"
 		spellcheck="false"
 		rows="1"
-	/>
+	></textarea>
 
 	<!-- ── Main panel ── -->
 	<div
@@ -321,7 +317,7 @@
 				>
 					{countdown}
 				</div>
-				<div class="font-mono text-sm text-(--silver)/30">{lang} · {timer}s</div>
+				<div class="font-mono text-sm text-(--silver)/30">{LANGUAGE_LABELS[lang]} · {timer}s</div>
 			</div>
 
 			<!-- DONE -->
@@ -347,7 +343,7 @@
 								leaderboard
 							</div>
 							<div class="flex flex-col gap-3">
-								{#each serverLeaderboard as entry, i}
+								{#each serverLeaderboard as entry, i (i)}
 									<div
 										class="flex flex-row items-center gap-6 border border-(--silver)/10 px-6 py-4 font-mono"
 										class:border-mer={i === 0}
@@ -427,7 +423,7 @@
 
 	<!-- ── Bottom bar ── -->
 	<div class="flex flex-row items-center px-4 py-3">
-		<div class="font-mono text-sm text-(--silver)/30">ranked match · {timer}s · {lang}</div>
+		<div class="font-mono text-sm text-(--silver)/30">ranked match · {timer}s · {LANGUAGE_LABELS[lang]}</div>
 		<div class="flex-1"></div>
 		{#if phase === 'typing'}
 			<div class="text-right font-mono">

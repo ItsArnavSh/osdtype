@@ -1,24 +1,58 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { gameState } from '$lib/core/state/state.svelte';
+	import ModeIcon from '$lib/components/ModeIcon.svelte';
+	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
 
-	// No routing yet — purely visual
+	// Only singleplayer (Practice) is live right now. Everything else is
+	// rendered but disabled, blurred and tagged as coming soon.
+	const SOON = 'coming soon';
+	const SOON_MODES = [
+		{
+			name: 'Sprint',
+			icon: 'sprint',
+			desc: 'Fast rounds. Instant action. No waiting.',
+			time: '30s'
+		},
+		{
+			name: 'Standard',
+			icon: 'standard',
+			desc: 'Balanced gameplay. Steady pace. Pure fun.',
+			time: '90s'
+		},
+		{
+			name: 'Marathon',
+			icon: 'marathon',
+			desc: 'Endurance mode. Only the focused survive.',
+			time: '300s'
+		}
+	] as const;
 </script>
 
-<div class="flex h-screen flex-col bg-(--bg) p-8 pb-20">
+<div class="flex h-screen flex-col bg-(--bg) p-8 pb-16">
 	<!-- Header -->
-	<div class="flex flex-row items-start justify-between">
-		<div class="title-text text-9xl text-(--silver)">OSDTYP</div>
-		<div class="flex flex-col items-end gap-1">
-			<span class="text-sm text-(--red)">Hub</span>
-			<div class="title-text text-7xl text-(--silver)">PICK A MODE</div>
+	<header class="flex flex-row items-start justify-between">
+		<div class="flex items-end gap-4">
+			<div class="title-text text-9xl leading-none text-(--silver)">OSDTYP</div>
+			<div class="mb-3 flex flex-col gap-1">
+				<button
+					class="cursor-pointer rounded border border-(--border) px-2.5 py-1 font-mono text-[11px] text-(--silver)/55 transition-colors hover:border-(--silver)/40 hover:text-(--silver)"
+					onclick={cycleTheme}
+					title="cycle theme (ctrl+shift+T)"
+				>
+					{themeState.current}
+				</button>
+			</div>
 		</div>
-	</div>
+		<div class="flex flex-col items-end gap-1">
+			<span class="font-mono text-xs tracking-widest text-(--red) uppercase">hub</span>
+			<div class="title-text text-7xl leading-none text-(--silver)">PICK A MODE</div>
+		</div>
+	</header>
 
 	<!-- Main grid -->
 	<div
-		class="min-h-0 flex-1"
+		class="min-h-0 flex-1 pt-4"
 		style="display: grid; grid-template-columns: 1fr 2fr; grid-template-rows: 1fr; gap: 0.75rem;"
 	>
 		<!-- LEFT: Ranked card + sub-mode buttons -->
@@ -26,70 +60,80 @@
 			style="display: grid; grid-template-rows: 1fr auto auto auto; gap: 0.75rem; min-height: 0;"
 		>
 			<div
-				class="flex flex-col items-center justify-center gap-6 rounded bg-(--fbg) p-6"
-				style="border: 1px solid rgba(192,192,192,0.1); border-top: 1px solid var(--silver);"
+				class="relative flex flex-col items-center justify-center gap-6 overflow-hidden rounded bg-(--fbg) p-6"
+				style="border: 1px solid var(--border); border-top: 1px solid var(--silver);"
 			>
-				<div class="text-4xl text-(--silver)">Ranked</div>
-				<img src="/cpp.png" alt="C++" class="h-24 w-24 object-contain" />
-				<div class="text-center text-(--silver)">May the fastest fingers win</div>
+				<div
+					class="flex flex-col items-center justify-center gap-6 blur-[2px] select-none"
+					aria-hidden="true"
+				>
+					<div class="text-4xl text-(--silver)">Ranked</div>
+					<ModeIcon name="ranked" class="h-24 w-24 text-(--silver)/60" />
+					<div class="text-center text-(--silver)">May the fastest fingers win</div>
+				</div>
+				<span class="soon-badge absolute top-3 right-3">{SOON}</span>
 			</div>
 
-			{#each [{ name: 'Sprint', desc: 'Fast rounds. Instant action. No waiting.', duration: 30, time: '30s' }, { name: 'Standard', desc: 'Balanced gameplay. Steady pace. Pure fun.', duration: 90, time: '90s' }, { name: 'Marathon', desc: 'Endurance mode. Only the focused survive.', duration: 300, time: '300s' }] as mode, index (index)}
+			{#each SOON_MODES as mode, index (index)}
 				<button
-					class="flex cursor-pointer flex-row items-center justify-between rounded bg-(--fbg) px-4 py-4 transition-colors hover:brightness-110"
-					style="border: 1px solid rgba(192,192,192,0.1);"
-					onclick={() => {
-						gameState.mode = mode.duration;
-						goto(resolve('/play/ranked'));
-					}}
+					disabled
+					class="relative flex cursor-not-allowed flex-row items-center justify-between overflow-hidden rounded bg-(--fbg) px-4 py-3 opacity-60"
+					style="border: 1px solid var(--border);"
 				>
-					<div class="flex flex-col items-start gap-1">
-						<span class="text-base text-(--red)">{mode.name}</span>
-						<span class="text-left text-sm text-(--silver)">{mode.desc}</span>
+					<div class="flex items-center gap-3 blur-[1px] select-none" aria-hidden="true">
+						<ModeIcon name={mode.icon} class="h-7 w-7 shrink-0 text-(--silver)/45" />
+						<div class="flex flex-col items-start gap-1">
+							<span class="text-base text-(--red)">{mode.name}</span>
+							<span class="text-left text-xs text-(--silver)">{mode.desc}</span>
+						</div>
 					</div>
-					<span class="ml-4 flex-shrink-0 text-sm text-(--silver)">{mode.time}</span>
+					<span
+						class="ml-4 flex-shrink-0 font-mono text-[10px] tracking-widest text-(--silver)/55 uppercase"
+					>
+						soon
+					</span>
 				</button>
 			{/each}
 		</div>
 
 		<!-- RIGHT: Rooms + Practice + Zen -->
 		<div style="display: grid; grid-template-rows: 1fr auto; gap: 0.75rem; min-height: 0;">
-			<!-- Rooms + Practice — fills same 1fr as Ranked card -->
+			<!-- Rooms + Practice -->
 			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; min-height: 0;">
-				<!-- Rooms -->
+				<!-- Rooms (coming soon) -->
 				<div
-					class="flex flex-col rounded bg-(--fbg) p-6"
-					style="border: 1px solid rgba(192,192,192,0.1); border-top: 1px solid var(--silver);"
+					class="relative flex flex-col overflow-hidden rounded bg-(--fbg) p-6"
+					style="border: 1px solid var(--border); border-top: 1px solid var(--silver);"
 				>
-					<div class="flex flex-1 flex-col items-center justify-center gap-6">
+					<div
+						class="flex flex-1 flex-col items-center justify-center gap-6 blur-[2px] select-none"
+						aria-hidden="true"
+					>
 						<div class="text-4xl text-(--silver)">Rooms</div>
-						<img src="/python.png" alt="Python" class="h-24 w-24 object-contain" />
+						<ModeIcon name="rooms" class="h-24 w-24 text-(--silver)/60" />
 						<div class="text-center text-(--silver)">
 							Time to show the gang<br />who is the boss
 						</div>
 					</div>
-					<div class="flex justify-center pt-4">
-						<button
-							class="cursor-pointer text-4xl text-(--mer) transition-opacity hover:opacity-70"
-						>
-							Create =>
-						</button>
+					<div class="flex justify-center pt-4 blur-[2px] select-none" aria-hidden="true">
+						<span class="text-4xl text-(--mer)">Create =></span>
 					</div>
+					<span class="soon-badge absolute top-3 right-3">{SOON}</span>
 				</div>
 
-				<!-- Practice -->
+				<!-- Practice (live) -->
 				<div
 					class="flex flex-col rounded bg-(--fbg) p-6"
-					style="border: 1px solid rgba(192,192,192,0.1); border-top: 1px solid var(--silver);"
+					style="border: 1px solid var(--border); border-top: 1px solid var(--mer);"
 				>
 					<div class="flex flex-1 flex-col items-center justify-center gap-6">
 						<div class="text-4xl text-(--silver)">Practice</div>
-						<img src="/html.png" alt="HTML5" class="h-24 w-24 object-contain" />
+						<ModeIcon name="practice" class="h-24 w-24 text-(--mer)" />
 						<div class="text-center text-(--silver)">The<br />No Judgment Zone</div>
 					</div>
 					<div class="flex justify-center pt-4">
 						<button
-							class="cursor-pointer text-4xl text-(--mer) transition-opacity hover:opacity-70"
+							class="cursor-pointer border border-(--mer) px-6 py-2 text-2xl text-(--mer) transition-colors hover:bg-(--mer)/10"
 							onclick={() => {
 								goto(resolve('/play/me'));
 							}}
@@ -100,24 +144,41 @@
 				</div>
 			</div>
 
-			<!-- Zen — auto height, sits below like sub-mode buttons -->
+			<!-- Zen (live) -->
 			<div
-				class="flex w-full items-stretch justify-between overflow-hidden rounded bg-(--fbg)"
-				style="border: 1px solid rgba(192,192,192,0.1);"
+				class="flex w-full items-center justify-between rounded bg-(--fbg) px-8 py-6"
+				style="border: 1px solid var(--border); border-top: 1px solid var(--mer);"
 			>
-				<div class="flex flex-col gap-2 px-8 py-6">
-					<div class="text-4xl text-(--silver)">Zen Mode</div>
-					<div class="text-base text-(--silver)">
-						No timers. No stats. Just you, the keys, and the flow.
+				<div class="flex items-center gap-5">
+					<ModeIcon name="zen" class="h-14 w-14 shrink-0 text-(--mer)" />
+					<div class="flex flex-col gap-2">
+						<div class="text-4xl text-(--silver)">Zen Mode</div>
+						<div class="text-base text-(--silver)">
+							No timers. No stats. Just you, the keys, and the flow.
+						</div>
 					</div>
 				</div>
-				<button
-					class="flex w-24 items-center justify-center px-8 text-4xl transition-opacity hover:opacity-80"
-					style="background-color: var(--mer); color: var(--silver);"
+				<a
+					href={resolve('/play/zen')}
+					class="shrink-0 border border-(--mer) px-6 py-2 text-2xl text-(--mer) transition-colors hover:bg-(--mer)/10"
 				>
-					=>
-				</button>
+					Start =>
+				</a>
 			</div>
 		</div>
 	</div>
 </div>
+
+<style>
+	.soon-badge {
+		display: inline-block;
+		border: 1px solid var(--border);
+		background: color-mix(in srgb, var(--bg) 85%, transparent);
+		padding: 2px 8px;
+		font-family: 'Fira Code', monospace;
+		font-size: 10px;
+		letter-spacing: 0.15em;
+		text-transform: uppercase;
+		color: color-mix(in srgb, var(--silver) 60%, transparent);
+	}
+</style>

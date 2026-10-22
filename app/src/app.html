@@ -3,13 +3,39 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="theme-color" content="#040806" />
+		<meta
+			name="description"
+			content="OSDTYP — seeded code typing practice. No backend, no login, just you and the keys."
+		/>
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content="OSDTYP" />
+		<meta
+			property="og:description"
+			content="Seeded code typing practice. No backend, no login, just you and the keys."
+		/>
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content="OSDTYP" />
+		<meta name="twitter:description" content="Seeded code typing practice." />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
-			href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fira+Code:wght@300..700&family=Share+Tech&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fira+Code:wght@300..700&family=Share+Tech&family=Silkscreen:wght@400;700&family=VT323&display=swap"
 			rel="stylesheet"
 		/>
 		%sveltekit.head%
+		<script>
+			// Applied before first paint so a saved theme never flashes.
+			try {
+				document.documentElement.dataset.theme =
+					localStorage.getItem('osdtype.theme') || 'meridian';
+			} catch (e) {
+				document.documentElement.dataset.theme = 'meridian';
+			}
+		</script>
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>

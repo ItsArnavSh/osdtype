@@ -7,3 +7,5 @@ bun.lockb
 
 # Miscellaneous
 /static/
+/src/rust-core/pkg/
+/src/rust-core/target/
