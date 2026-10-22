@@ -1,4 +1,4 @@
-export const THEMES = ['meridian', 'gruvbox', 'amber', 'paper', 'crt'] as const;
+export const THEMES = ['gruvbox','meridian', 'amber', 'paper', 'crt'] as const;
 export type Theme = (typeof THEMES)[number];
 
 const STORAGE_KEY = 'osdtype.theme';
@@ -7,7 +7,7 @@ function isTheme(value: string | null): value is Theme {
 	return value !== null && (THEMES as readonly string[]).includes(value);
 }
 
-export const themeState = $state<{ current: Theme }>({ current: 'meridian' });
+export const themeState = $state<{ current: Theme }>({ current: 'gruvbox' });
 
 export function applyTheme(theme: Theme): void {
 	themeState.current = theme;
@@ -28,7 +28,7 @@ export function initTheme(): void {
 	} catch {
 		stored = null;
 	}
-	applyTheme(isTheme(stored) ? stored : 'meridian');
+	applyTheme(isTheme(stored) ? stored : 'gruvbox');
 }
 
 export function cycleTheme(): void {

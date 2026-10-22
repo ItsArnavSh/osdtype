@@ -31,9 +31,9 @@
 			// Applied before first paint so a saved theme never flashes.
 			try {
 				document.documentElement.dataset.theme =
-					localStorage.getItem('osdtype.theme') || 'meridian';
+					localStorage.getItem('osdtype.theme') || 'gruvbox';
 			} catch (e) {
-				document.documentElement.dataset.theme = 'meridian';
+				document.documentElement.dataset.theme = 'gruvbox';
 			}
 		</script>
 	</head>
