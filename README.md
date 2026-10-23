@@ -128,6 +128,8 @@ Environment overrides understood by the server include `PORT`, `JWTKEY`,
 
 ## Render
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ItsArnavSh/osdtype)
+
 The repository includes a `render.yaml` Blueprint for a lightweight managed
 deployment:
 
