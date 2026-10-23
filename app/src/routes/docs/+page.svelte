@@ -148,6 +148,11 @@
 				>about</a
 			>
 			<a
+				href={resolve('/bugs')}
+				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+				>report bug</a
+			>
+			<a
 				href={resolve('/contests')}
 				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
 				>contests</a
@@ -583,6 +588,18 @@
 						<p class="mt-1 text-sm leading-relaxed text-(--silver)/45">
 							Only event-page classes are in scope. Imports, raw tags and external URLs are
 							blocked. Open the CSS guide in the editor for the current class list.
+						</p>
+					</div>
+					<div>
+						<h3 class="font-mono text-[10px] tracking-[0.12em] text-(--mer) uppercase">
+							Still stuck?
+						</h3>
+						<p class="mt-1 text-sm leading-relaxed text-(--silver)/45">
+							Send a report with the page, steps and any error message. Include the request id
+							from an error response when you have one. Do not paste passwords, cookies or API
+							keys. <a href={resolve('/bugs')} class="text-(--mer) hover:underline"
+								>Open the bug report form →</a
+							>
 						</p>
 					</div>
 				</div>

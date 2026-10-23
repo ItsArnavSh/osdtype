@@ -1,0 +1,77 @@
+services:
+  - type: web
+    name: osdtype-api
+    runtime: go
+    plan: 0.5c-512mb
+    region: singapore
+    branch: main
+    rootDir: server
+    buildCommand: go build -trimpath -ldflags="-s -w" -o osdtyp .
+    startCommand: ./osdtyp
+    healthCheckPath: /healthz
+    numInstances: 1
+    maxShutdownDelaySeconds: 60
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - server/**
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: DB_MAX_OPEN_CONNS
+        value: "10"
+      - key: DB_MAX_IDLE_CONNS
+        value: "5"
+      - key: REDIS_URL
+        sync: false
+      - key: JWTKEY
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: DEV_LOGIN
+        value: "false"
+      - key: GIN_MODE
+        value: release
+      - key: LOG_FORMAT
+        value: json
+      - key: GITHUB_KEY
+        sync: false
+      - key: GITHUB_AUTH
+        sync: false
+      - key: GITHUB_REDIRECT_URL
+        sync: false
+      - key: CODEGEN_URL
+        value: disabled
+      - key: BUG_WEBHOOK_URL
+        sync: false
+      - key: METRICS_TOKEN
+        sync: false
+
+  - type: web
+    name: osdtype-web
+    runtime: static
+    branch: main
+    rootDir: app
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./build
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - app/**
+    envVars:
+      - key: ADAPTER
+        value: static
+      - key: NODE_VERSION
+        value: "22"
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

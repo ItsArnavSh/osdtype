@@ -24,4 +24,5 @@ var (
 	ErrFull             = fmt.Errorf("room full")
 	ErrBanned           = fmt.Errorf("banned")
 	ErrUnauthorized     = fmt.Errorf("unauthorized")
+	ErrRateLimited      = fmt.Errorf("rate limited")
 )

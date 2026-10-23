@@ -28,7 +28,8 @@
 		'/play/me',
 		'/play/zen',
 		'/contests',
-		'/docs'
+		'/docs',
+		'/bugs'
 	];
 	const GUEST_PREFIXES = ['/replay/', '/contests/'];
 

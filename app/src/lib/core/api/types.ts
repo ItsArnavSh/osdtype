@@ -340,6 +340,56 @@ export interface ContestListView {
 	server_time: string;
 }
 
+export type BugReportStatus =
+	| 'new'
+	| 'triaged'
+	| 'in_progress'
+	| 'resolved'
+	| 'closed'
+	| 'wontfix';
+
+export interface BugReport {
+	public_id: string;
+	title: string;
+	category: string;
+	severity: string;
+	description: string;
+	steps: string;
+	expected: string;
+	actual: string;
+	page_url: string;
+	user_agent: string;
+	app_version: string;
+	request_id: string;
+	contact_email: string;
+	status: BugReportStatus;
+	created_at: string;
+	updated_at: string;
+	resolved_at?: string | null;
+}
+
+export interface BugReportInput {
+	title: string;
+	category: string;
+	severity: string;
+	description: string;
+	steps?: string;
+	expected?: string;
+	actual?: string;
+	page_url?: string;
+	user_agent?: string;
+	app_version?: string;
+	request_id?: string;
+	contact_email?: string;
+	submission_id: string;
+	website?: string;
+}
+
+export interface BugReportResponse {
+	report: BugReport;
+	duplicate: boolean;
+}
+
 export interface SocketEvent<T = unknown> {
 	type: string;
 	data?: T;

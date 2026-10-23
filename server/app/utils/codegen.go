@@ -34,10 +34,14 @@ type generateResponse struct {
 }
 
 func NewCodeGen(logger *zap.SugaredLogger) CodeGen {
+	url := strings.TrimSpace(viper.GetString("CodeGen.service_url"))
+	if strings.EqualFold(url, "disabled") || strings.EqualFold(url, "off") {
+		url = ""
+	}
 	return CodeGen{
 		logger: logger,
 		client: &http.Client{Timeout: 8 * time.Second},
-		url:    viper.GetString("CodeGen.service_url"),
+		url:    url,
 	}
 }
 
@@ -89,7 +93,7 @@ func (c *CodeGen) GenerateSnippet(ctx context.Context, language string, seed uin
 	if err == nil {
 		return code, true
 	}
-	if c.logger != nil {
+	if c.url != "" && c.logger != nil {
 		c.logger.Warnw("falling back to bundled snippet", "language", language, "error", err)
 	}
 	return FallbackSnippet(language), false

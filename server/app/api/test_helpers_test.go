@@ -120,7 +120,9 @@ func (c *apiClient) do(method, path string, body any, headers map[string]string)
 		c.t.Fatalf("request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(c.cookie)
+	if c.cookie != nil {
+		req.AddCookie(c.cookie)
+	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

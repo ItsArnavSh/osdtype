@@ -3,24 +3,41 @@ port = ":8080"
 frontend_url = "http://localhost:5173"
 jwt_key = "dev-insecure-change-me"
 cookie_secure = false
+cookie_samesite = "lax"
 dev_login = true
 oauth_redirect_url = "http://localhost:8080/auth/github/callback"
 
 [DB]
+# DATABASE_URL takes precedence when set. Supabase example:
+# postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+url = ""
 host = "localhost"
 user = "user"
 password = "password"
 dbname = "typedata"
 port = 5432
+sslmode = "disable"
+max_open_conns = 10
+max_idle_conns = 5
 
 [Redis]
+# REDIS_URL takes precedence when set. Use rediss:// for TLS.
+url = ""
 addr = "localhost:6379"
 password = ""
 db = 0
+tls = false
 
 [CodeGen]
 service_url = "http://localhost:8081/generate"
 tokens = 120
+
+[BugReport]
+webhook_url = ""
+
+[Metrics]
+# Optional bearer token for GET /metrics. Leave empty to expose metrics.
+token = ""
 
 [Game]
 countdown_ms = 3000

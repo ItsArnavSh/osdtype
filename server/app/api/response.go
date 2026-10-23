@@ -10,8 +10,9 @@ import (
 )
 
 type apiError struct {
-	Error string `json:"error"`
-	Code  string `json:"code,omitempty"`
+	Error     string `json:"error"`
+	Code      string `json:"code,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
 }
 
 func errorStatus(err error) (int, string) {
@@ -34,6 +35,8 @@ func errorStatus(err error) (int, string) {
 		return http.StatusConflict, "room_full"
 	case errors.Is(err, services.ErrBanned):
 		return http.StatusForbidden, "banned"
+	case errors.Is(err, services.ErrRateLimited):
+		return http.StatusTooManyRequests, "rate_limited"
 	}
 	return http.StatusInternalServerError, "internal_error"
 }
@@ -45,12 +48,16 @@ func (s *Server) fail(c *gin.Context, err error) {
 		s.logger.Errorw("request failed", "path", c.FullPath(), "error", err)
 		msg = "internal server error"
 	}
-	c.AbortWithStatusJSON(status, apiError{Error: msg, Code: code})
+	c.AbortWithStatusJSON(status, apiError{Error: msg, Code: code, RequestID: requestID(c)})
 }
 
 func bindJSON(c *gin.Context, dst any) bool {
 	if err := c.ShouldBindJSON(dst); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, apiError{Error: "invalid JSON body", Code: "bad_request"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, apiError{
+			Error:     "invalid JSON body",
+			Code:      "bad_request",
+			RequestID: requestID(c),
+		})
 		return false
 	}
 	return true

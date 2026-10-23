@@ -1,7 +1,13 @@
 package postgresql
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"osdtyp/app/entity"
@@ -18,14 +24,68 @@ type Database struct {
 	logger *zap.SugaredLogger
 }
 
+func databaseDSN() (string, string, error) {
+	if raw := strings.TrimSpace(viper.GetString("DB.url")); raw != "" {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", "", fmt.Errorf("parse DATABASE_URL: %w", err)
+		}
+		if u.Scheme != "postgres" && u.Scheme != "postgresql" {
+			return "", "", fmt.Errorf("DATABASE_URL must use postgres:// or postgresql://")
+		}
+		if u.Host == "" {
+			return "", "", fmt.Errorf("DATABASE_URL is missing a host")
+		}
+		// Supabase URLs often omit sslmode. When DB_SSLMODE is explicitly set
+		// (for example, require on Render), add it without overriding a mode
+		// already present in the URL.
+		if u.Query().Get("sslmode") == "" {
+			if mode := strings.TrimSpace(os.Getenv("DB_SSLMODE")); mode != "" {
+				q := u.Query()
+				q.Set("sslmode", mode)
+				u.RawQuery = q.Encode()
+				raw = u.String()
+			}
+		}
+		return raw, u.Host + u.Path, nil
+	}
+
+	host := strings.TrimSpace(viper.GetString("DB.host"))
+	user := viper.GetString("DB.user")
+	password := viper.GetString("DB.password")
+	dbname := strings.TrimSpace(viper.GetString("DB.dbname"))
+	port := viper.GetInt("DB.port")
+	sslmode := strings.TrimSpace(viper.GetString("DB.sslmode"))
+	if host == "" {
+		host = "localhost"
+	}
+	if port <= 0 {
+		port = 5432
+	}
+	if dbname == "" {
+		dbname = "postgres"
+	}
+	if sslmode == "" {
+		sslmode = "disable"
+	}
+
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, password),
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+		Path:   "/" + dbname,
+	}
+	q := u.Query()
+	q.Set("sslmode", sslmode)
+	u.RawQuery = q.Encode()
+	return u.String(), u.Host + u.Path, nil
+}
+
 func ConnectDatabase(log *zap.SugaredLogger) (*Database, error) {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
-		viper.GetString("DB.host"),
-		viper.GetString("DB.user"),
-		viper.GetString("DB.password"),
-		viper.GetString("DB.dbname"),
-		viper.GetInt("DB.port"),
-	)
+	dsn, target, err := databaseDSN()
+	if err != nil {
+		return nil, err
+	}
 	gdb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger:  logger.Default.LogMode(logger.Warn),
 		NowFunc: func() time.Time { return time.Now().UTC() },
@@ -37,13 +97,27 @@ func ConnectDatabase(log *zap.SugaredLogger) (*Database, error) {
 	if err != nil {
 		return nil, err
 	}
-	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(10)
+	maxOpen := viper.GetInt("DB.max_open_conns")
+	if maxOpen <= 0 {
+		maxOpen = 10
+	}
+	maxIdle := viper.GetInt("DB.max_idle_conns")
+	if maxIdle <= 0 {
+		maxIdle = 5
+	}
+	if maxIdle > maxOpen {
+		maxIdle = maxOpen
+	}
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetMaxIdleConns(maxIdle)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	d := &Database{db: gdb, logger: log}
 	if err := d.Migrate(); err != nil {
 		return nil, err
+	}
+	if log != nil {
+		log.Infow("database connected", "target", target)
 	}
 	return d, nil
 }
@@ -184,6 +258,7 @@ func (d *Database) Migrate() error {
 		&entity.ContestEntry{},
 		&entity.Task{},
 		&entity.IdempotencyKey{},
+		&entity.BugReport{},
 	); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
@@ -270,4 +345,12 @@ func (d *Database) Ping() error {
 		return err
 	}
 	return sqlDB.Ping()
+}
+
+func (d *Database) PingContext(ctx context.Context) error {
+	sqlDB, err := d.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
 }

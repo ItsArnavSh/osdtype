@@ -2,9 +2,11 @@ package redis
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -16,15 +18,28 @@ type Client struct {
 }
 
 func NewClient() (*Client, error) {
-	addr := viper.GetString("Redis.addr")
-	if addr == "" {
-		addr = "localhost:6379"
+	var opts *goredis.Options
+	if raw := strings.TrimSpace(viper.GetString("Redis.url")); raw != "" {
+		parsed, err := goredis.ParseURL(raw)
+		if err != nil {
+			return nil, fmt.Errorf("parse REDIS_URL: %w", err)
+		}
+		opts = parsed
+	} else {
+		addr := viper.GetString("Redis.addr")
+		if addr == "" {
+			addr = "localhost:6379"
+		}
+		opts = &goredis.Options{
+			Addr:     addr,
+			Password: viper.GetString("Redis.password"),
+			DB:       viper.GetInt("Redis.db"),
+		}
 	}
-	rdb := goredis.NewClient(&goredis.Options{
-		Addr:     addr,
-		Password: viper.GetString("Redis.password"),
-		DB:       viper.GetInt("Redis.db"),
-	})
+	if viper.GetBool("Redis.tls") && opts.TLSConfig == nil {
+		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	rdb := goredis.NewClient(opts)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := rdb.Ping(ctx).Err(); err != nil {

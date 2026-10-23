@@ -2,9 +2,12 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"osdtyp/app/api/auth"
@@ -19,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type Server struct {
@@ -28,6 +32,7 @@ type Server struct {
 	core     *core.CodeCore
 	db       *postgresql.Database
 	rdb      *redis.Client
+	metrics  *requestMetrics
 }
 
 func NewServer(logger *zap.SugaredLogger) (*Server, error) {
@@ -55,9 +60,18 @@ func NewServerWithDeps(logger *zap.SugaredLogger, db *postgresql.Database, rdb *
 	}
 	c.Start()
 
-	s := &Server{logger: logger, services: svc, core: c, db: db, rdb: rdb}
+	s := &Server{logger: logger, services: svc, core: c, db: db, rdb: rdb, metrics: newRequestMetrics()}
 	s.engine = gin.New()
-	s.engine.Use(ginzap.Ginzap(logger.Desugar(), time.RFC3339, true))
+	s.engine.Use(requestIDMiddleware())
+	s.engine.Use(s.metrics.middleware())
+	s.engine.Use(ginzap.GinzapWithConfig(logger.Desugar(), &ginzap.Config{
+		TimeFormat: time.RFC3339,
+		UTC:        true,
+		SkipPaths:  []string{"/healthz", "/readyz", "/metrics"},
+		Context: func(c *gin.Context) []zapcore.Field {
+			return []zapcore.Field{zap.String("request_id", requestID(c))}
+		},
+	}))
 	s.engine.Use(ginzap.RecoveryWithZap(logger.Desugar(), true))
 	gin.DefaultWriter = utils.ZapWriter{Logger: logger}
 	gin.DefaultErrorWriter = utils.ZapWriter{Logger: logger}
@@ -77,8 +91,8 @@ func (s *Server) corsConfig() cors.Config {
 	return cors.Config{
 		AllowOrigins:     origins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization", "Idempotency-Key", "X-Requested-With"},
-		ExposeHeaders:    []string{"Content-Length", "Idempotent-Replay"},
+		AllowHeaders:     []string{"Content-Type", "Authorization", "Idempotency-Key", "X-Requested-With", "X-Request-ID"},
+		ExposeHeaders:    []string{"Content-Length", "Idempotent-Replay", "X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}
@@ -87,6 +101,10 @@ func (s *Server) corsConfig() cors.Config {
 func (s *Server) routes() {
 	r := s.engine
 	r.GET("/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"reply": "pong"}) })
+	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	r.GET("/readyz", s.readiness)
+	r.GET("/metrics", s.metrics.handler)
+	r.POST("/bugs", s.createBugReport)
 	r.GET("/login/github", s.githubLogin)
 	r.GET("/auth/github/callback", s.githubCallback)
 	r.GET("/login/github/fake", s.devLoginGET)
@@ -108,6 +126,7 @@ func (s *Server) routes() {
 
 		protected.GET("/state", s.getState)
 		protected.POST("/state/ack", s.ackResults)
+		protected.GET("/bugs/mine", s.listMyBugReports)
 
 		protected.GET("/user/whoami", s.whoami)
 		protected.GET("/user/search", s.searchUsers)
@@ -174,6 +193,30 @@ func (s *Server) routes() {
 	}
 }
 
+func (s *Server) readiness(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
+	defer cancel()
+	if s.db == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable"})
+		return
+	}
+	if err := s.db.PingContext(ctx); err != nil {
+		s.logger.Warnw("readiness check failed", "dependency", "postgres", "error", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable"})
+		return
+	}
+	if s.rdb == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable"})
+		return
+	}
+	if err := s.rdb.Ping(ctx); err != nil {
+		s.logger.Warnw("readiness check failed", "dependency", "redis", "error", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ready"})
+}
+
 func (s *Server) StartServer() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -185,9 +228,35 @@ func (s *Server) StartServer() {
 	if !strings.HasPrefix(port, ":") {
 		port = ":" + port
 	}
-	s.logger.Infof("OSDType server listening on %s", port)
-	if err := s.engine.Run(port); err != nil && err != http.ErrServerClosed {
-		s.logger.Fatalw("server stopped", "error", err)
+
+	srv := &http.Server{
+		Addr:              port,
+		Handler:           s.engine,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       90 * time.Second,
+	}
+	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		s.logger.Infof("OSDType server listening on %s", port)
+		errCh <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			s.logger.Fatalw("server stopped", "error", err)
+		}
+	case <-shutdownSignal.Done():
+		s.logger.Info("shutdown signal received")
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			s.logger.Warnw("graceful shutdown timed out", "error", err)
+			_ = srv.Close()
+		}
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -48,8 +49,25 @@ func ValidateJWT(tokenString string) (string, error) {
 	return "", fmt.Errorf("invalid token")
 }
 
+func authCookieSameSite() http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(viper.GetString("Core.cookie_samesite"))) {
+	case "none":
+		return http.SameSiteNoneMode
+	case "strict":
+		return http.SameSiteStrictMode
+	default:
+		return http.SameSiteLaxMode
+	}
+}
+
 func SetAuthCookie(w http.ResponseWriter, token string) {
 	secure := viper.GetBool("Core.cookie_secure")
+	sameSite := authCookieSameSite()
+	if sameSite == http.SameSiteNoneMode && !secure {
+		// Browsers reject SameSite=None without Secure. Fall back rather than
+		// silently dropping the session cookie in local HTTP development.
+		sameSite = http.SameSiteLaxMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    token,
@@ -57,17 +75,23 @@ func SetAuthCookie(w http.ResponseWriter, token string) {
 		MaxAge:   7 * 24 * 3600,
 		HttpOnly: true,
 		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	})
 }
 
 func ClearAuthCookie(w http.ResponseWriter) {
+	secure := viper.GetBool("Core.cookie_secure")
+	sameSite := authCookieSameSite()
+	if sameSite == http.SameSiteNoneMode && !secure {
+		sameSite = http.SameSiteLaxMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		Secure:   secure,
+		SameSite: sameSite,
 	})
 }

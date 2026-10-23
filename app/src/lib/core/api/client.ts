@@ -3,12 +3,14 @@ import { BASE_URL } from './config';
 export class ApiError extends Error {
 	status: number;
 	code?: string;
+	requestId?: string;
 
-	constructor(message: string, status: number, code?: string) {
+	constructor(message: string, status: number, code?: string, requestId?: string) {
 		super(message);
 		this.name = 'ApiError';
 		this.status = status;
 		this.code = code;
+		this.requestId = requestId;
 	}
 }
 
@@ -40,8 +42,13 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 		}
 	}
 	if (!res.ok) {
-		const obj = (data ?? {}) as { error?: string; code?: string };
-		throw new ApiError(obj.error ?? `Request failed (${res.status})`, res.status, obj.code);
+		const obj = (data ?? {}) as { error?: string; code?: string; request_id?: string };
+		throw new ApiError(
+			obj.error ?? `Request failed (${res.status})`,
+			res.status,
+			obj.code,
+			obj.request_id ?? res.headers.get('X-Request-ID') ?? undefined
+		);
 	}
 	return data as T;
 }

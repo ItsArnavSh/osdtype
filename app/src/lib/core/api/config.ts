@@ -5,6 +5,8 @@ export const WS_BASE_URL = BASE_URL.replace(/^https?/, (s) => (s === 'https' ? '
 
 export const ENDPOINTS = {
 	PING: '/ping',
+	BUGS: '/bugs',
+	BUGS_MINE: '/bugs/mine',
 	ME: '/auth/me',
 	DEV_LOGIN: '/auth/dev-login',
 	LOGOUT: '/auth/logout',
