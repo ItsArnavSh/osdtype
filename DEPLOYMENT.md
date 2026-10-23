@@ -289,6 +289,11 @@ Application-level protections already in the code:
 - 1 MiB request body cap, 10s header timeout, 30s read timeout, 32 KiB header
   cap.
 - `HttpOnly`, `Secure`, scoped auth cookies; explicit CORS allowlist.
+- Cross-site OAuth fallback: the callback also returns the JWT in the URL
+  fragment, which the SPA stores and sends as a Bearer token. The fragment is
+  stripped before the page is used and is never sent to a server. Prefer a
+  same-site web/API domain when possible so the HttpOnly cookie remains the
+  primary session transport.
 - OAuth state validation with constant-time comparison and a cleared state
   cookie.
 - Hidden admin routes, `no-store` on admin responses and audited admin

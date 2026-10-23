@@ -10,11 +10,19 @@ import (
 )
 
 func tokenFromRequest(c *gin.Context) string {
+	if after, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer "); ok {
+		return after
+	}
 	if cookie, err := c.Cookie("token"); err == nil && cookie != "" {
 		return cookie
 	}
-	if after, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer "); ok {
-		return after
+	// Browsers cannot set an Authorization header on a WebSocket handshake.
+	// The SPA passes the same JWT in the query string for that upgrade only,
+	// so ordinary API requests never accept tokens in URLs.
+	if strings.EqualFold(c.GetHeader("Upgrade"), "websocket") {
+		if token := c.Query("token"); token != "" {
+			return token
+		}
 	}
 	return ""
 }

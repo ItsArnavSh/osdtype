@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -119,7 +120,11 @@ func (s *Server) githubCallback(c *gin.Context) {
 		return
 	}
 	auth.SetAuthCookie(c.Writer, jwtToken)
-	c.Redirect(http.StatusSeeOther, frontend+"/play")
+	// The cookie works when the frontend and API are same-site. When they are
+	// not (Vercel + AWS), browsers that block third-party cookies never send it
+	// from the frontend. Hand the token back in the fragment as well; the SPA
+	// stores it and uses a Bearer header. Fragments are not sent to servers.
+	c.Redirect(http.StatusSeeOther, frontend+"/play#token="+url.QueryEscape(jwtToken))
 }
 
 type devLoginRequest struct {

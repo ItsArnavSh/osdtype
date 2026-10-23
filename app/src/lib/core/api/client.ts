@@ -1,4 +1,5 @@
 import { BASE_URL } from './config';
+import { authToken } from './session';
 
 export class ApiError extends Error {
 	status: number;
@@ -25,6 +26,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 	const headers: Record<string, string> = { ...(options.headers ?? {}) };
 	if (options.body !== undefined) headers['Content-Type'] = 'application/json';
 	if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
+	const token = authToken();
+	if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`;
 
 	const res = await fetch(`${BASE_URL}${path}`, {
 		method: options.method ?? 'GET',

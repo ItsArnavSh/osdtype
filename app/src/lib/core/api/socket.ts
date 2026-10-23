@@ -1,5 +1,6 @@
 import { WS_BASE_URL } from './config';
 import { ENDPOINTS } from './config';
+import { authToken } from './session';
 import type { SocketEvent } from './types';
 
 type Handler = (event: SocketEvent) => void;
@@ -33,7 +34,9 @@ function startHeartbeat(ws: WebSocket) {
 }
 
 function wsURL(): string {
-	return `${WS_BASE_URL}${ENDPOINTS.WS}`;
+	const base = `${WS_BASE_URL}${ENDPOINTS.WS}`;
+	const token = authToken();
+	return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
 export function connectSocket(): Promise<void> {

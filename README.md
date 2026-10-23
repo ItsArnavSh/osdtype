@@ -141,6 +141,12 @@ while Vercel serves the public static frontend:
   and deploys through SSM. The workflow is gated by `DEPLOY_ENABLED=true`.
 - **Secrets** — `/osdtype/prod/env` in SSM Parameter Store. The local
   `.env.prod` is gitignored; never commit it.
+- **Auth** — the OAuth callback sets an HttpOnly cookie and also returns the
+  JWT in the URL fragment. Vercel and the API are different sites, so browsers
+  that block third-party cookies would otherwise drop the API cookie; the SPA
+  stores the fragment token and sends it as `Authorization: Bearer` (and in
+  the WebSocket handshake). The fragment is removed from the address bar
+  immediately and is never sent to Vercel or the API.
 
 The API is a single process because the hub, matchmaker, scheduler and active
 game state live in-process. Keep it at one instance until that state moves out.

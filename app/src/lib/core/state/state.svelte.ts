@@ -1,5 +1,6 @@
 import { fetchState } from '$lib/core/api/state';
 import { me } from '$lib/core/api/auth';
+import { consumeAuthTokenFromURL } from '$lib/core/api/session';
 import { onSocketEvent, sendSocket } from '$lib/core/api/socket';
 import type { InviteView, StateView, UserView } from '$lib/core/api/types';
 
@@ -42,6 +43,7 @@ let bootPromise: Promise<void> | null = null;
 export async function bootSession(): Promise<void> {
 	if (bootPromise) return bootPromise;
 	bootPromise = (async () => {
+		consumeAuthTokenFromURL();
 		try {
 			const user = await me();
 			if (!user) {
