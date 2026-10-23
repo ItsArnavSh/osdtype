@@ -1,18 +1,90 @@
 name: osdtype
 
-# Production AWS compose file. Images are built by GitHub Actions and pushed
-# to ECR; the EC2 instance only pulls and runs them. PostgreSQL and Redis are
-# external managed services (Supabase + your Redis provider).
+# Production AWS compose file. One EC2 instance runs the API, PostgreSQL,
+# Redis and Caddy. Images are built by GitHub Actions and pushed to ECR; the
+# instance only pulls and runs them. PostgreSQL and Redis stay on the private
+# Compose network and are never published on the host.
 #
 # Usage on the instance:
 #   docker compose -f docker-compose.aws.yml --env-file .env.prod pull
 #   docker compose -f docker-compose.aws.yml --env-file .env.prod up -d
 
 services:
+  postgres:
+    image: public.ecr.aws/docker/library/postgres:17-alpine
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_DB: osdtype
+      POSTGRES_USER: osdtype
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}"
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=40
+      - -c
+      - wal_compression=on
+    shm_size: 128mb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U osdtype -d osdtype"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: public.ecr.aws/docker/library/redis:7-alpine
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.prod}"
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --appendfsync everysec --requirepass "$$REDIS_PASSWORD" --maxmemory 128mb --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   api:
     image: ${ECR_REGISTRY:-local}/osdtype-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env.prod
     environment:
@@ -24,6 +96,9 @@ services:
       FRONTEND_URL: "${PUBLIC_ORIGIN}"
       ADMIN_USERNAME: "${ADMIN_USERNAME:-ItsArnavSh}"
       CODEGEN_URL: "disabled"
+      DATABASE_URL: "postgres://osdtype:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}@postgres:5432/osdtype?sslmode=disable"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.prod}@redis:6379/0"
+      DB_SSLMODE: "disable"
     expose:
       - "8080"
     healthcheck:
@@ -65,5 +140,7 @@ services:
         max-file: "3"
 
 volumes:
+  postgres_data:
+  redis_data:
   caddy_data:
   caddy_config:

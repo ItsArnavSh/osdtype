@@ -2,10 +2,18 @@
 	# Caddy stores certificates in /data. The compose file mounts a named volume there.
 	# Keep the admin API internal to the container network.
 	admin off
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 15s
+			idle 5m
+		}
+		max_header_size 16KB
+	}
 }
 
-# Static SvelteKit build. The API is on a separate hostname so cookies stay
-# same-site (for example app.example.com + api.example.com).
+# Optional AWS-hosted static fallback. Vercel remains the public frontend; the
+# API lives on a separate hostname so the AWS fallback and API are same-site.
 {$WEB_DOMAIN} {
 	root * /srv
 	try_files {path} /index.html
@@ -26,6 +34,9 @@
 {$API_DOMAIN} {
 	reverse_proxy api:8080
 	encode zstd gzip
+	request_body {
+		max_size 2MB
+	}
 
 	header {
 		X-Content-Type-Options "nosniff"

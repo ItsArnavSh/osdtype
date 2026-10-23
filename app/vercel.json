@@ -2,7 +2,7 @@
 	"$schema": "https://openapi.vercel.sh/vercel.json",
 	"framework": null,
 	"installCommand": "bun install --frozen-lockfile",
-	"buildCommand": "ADAPTER=static npm run build",
+	"buildCommand": "ADAPTER=static VITE_API_URL=https://api.15.134.14.153.sslip.io VITE_APP_VERSION=v0.0.1 npm run build",
 	"outputDirectory": "build",
 	"rewrites": [
 		{

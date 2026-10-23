@@ -19,7 +19,7 @@ cat >/etc/docker/daemon.json <<'EOF'
 EOF
 systemctl restart docker
 
-# 1 GiB swap gives the Go runtime and image pulls headroom on a 1 GiB box.
+# 1 GiB swap gives the Go runtime, PostgreSQL and image pulls headroom.
 if [ ! -f /swapfile ]; then
   fallocate -l 1G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
   chmod 600 /swapfile
@@ -27,7 +27,13 @@ if [ ! -f /swapfile ]; then
   swapon /swapfile
   echo '/swapfile none swap sw 0 0' >>/etc/fstab
 fi
-printf 'vm.swappiness=10\n' >/etc/sysctl.d/99-swappiness.conf
+cat >/etc/sysctl.d/99-osdtype.conf <<'EOF'
+vm.swappiness=10
+vm.overcommit_memory=1
+net.core.somaxconn=1024
+net.ipv4.tcp_max_syn_backlog=4096
+net.ipv4.tcp_syncookies=1
+EOF
 sysctl --system
 
 # AL2023 usually ships the SSM agent. Start it in case it is present but disabled.
