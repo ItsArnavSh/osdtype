@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -56,7 +57,13 @@ func (s *Server) githubLogin(c *gin.Context) {
 	}
 	state := randomState()
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name: "oauth_state", Value: state, Path: "/", MaxAge: 600, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		Name:     "oauth_state",
+		Value:    state,
+		Path:     "/",
+		MaxAge:   600,
+		HttpOnly: true,
+		Secure:   viper.GetBool("Core.cookie_secure"),
+		SameSite: http.SameSiteLaxMode,
 	})
 	c.Redirect(http.StatusTemporaryRedirect, cfg.AuthCodeURL(state))
 }
@@ -64,7 +71,18 @@ func (s *Server) githubLogin(c *gin.Context) {
 func (s *Server) githubCallback(c *gin.Context) {
 	frontend := strings.TrimRight(viper.GetString("Core.frontend_url"), "/")
 	stateCookie, _ := c.Cookie("oauth_state")
-	if stateCookie == "" || stateCookie != c.Query("state") {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   viper.GetBool("Core.cookie_secure"),
+		SameSite: http.SameSiteLaxMode,
+	})
+	state := c.Query("state")
+	if stateCookie == "" || state == "" ||
+		subtle.ConstantTimeCompare([]byte(stateCookie), []byte(state)) != 1 {
 		c.Redirect(http.StatusSeeOther, frontend+"/login?error=invalid_oauth_state")
 		return
 	}
@@ -137,7 +155,7 @@ func (s *Server) devLoginGET(c *gin.Context) {
 	}
 	auth.SetAuthCookie(c.Writer, token)
 	if c.Query("redirect") == "0" || strings.Contains(c.GetHeader("Accept"), "application/json") {
-		c.JSON(http.StatusOK, gin.H{"user": entity.NewUserView(user)})
+		c.JSON(http.StatusOK, gin.H{"user": s.services.UserView(user)})
 		return
 	}
 	frontend := strings.TrimRight(viper.GetString("Core.frontend_url"), "/")
@@ -151,7 +169,7 @@ func (s *Server) finishDevLogin(c *gin.Context, username string) {
 		return
 	}
 	auth.SetAuthCookie(c.Writer, token)
-	c.JSON(http.StatusOK, gin.H{"user": entity.NewUserView(user)})
+	c.JSON(http.StatusOK, gin.H{"user": s.services.UserView(user)})
 }
 
 func (s *Server) loginDev(c *gin.Context, username string) (entity.User, string, error) {
@@ -186,5 +204,5 @@ func (s *Server) whoami(c *gin.Context) {
 		s.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, entity.NewUserView(user))
+	c.JSON(http.StatusOK, s.services.UserView(user))
 }

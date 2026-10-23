@@ -5,6 +5,7 @@
 	import { devLogin, githubLogin } from '$lib/core/api/auth';
 	import { refreshState, appState } from '$lib/core/state/state.svelte';
 	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
+	import VersionNotice from '$lib/components/VersionNotice.svelte';
 
 	let username = $state('');
 	let busy = $state(false);
@@ -58,6 +59,10 @@
 		</div>
 	</header>
 
+	<div class="mt-6">
+		<VersionNotice />
+	</div>
+
 	<main class="flex flex-1 items-center justify-center py-10">
 		<div class="w-full max-w-md border border-(--border) bg-(--fbg)">
 			<div class="border-b border-(--border) px-6 py-4">
@@ -66,8 +71,8 @@
 				</div>
 				<h1 class="mt-2 text-2xl text-(--silver)">Punch in.</h1>
 				<p class="mt-1 font-mono text-xs leading-relaxed text-(--silver)/45">
-					Your account keeps your rating, room memberships and unfinished matches. The server
-					decides where you resume.
+					Your rating, rooms and unfinished races are waiting when you return. Jump back in
+					wherever you left off.
 				</p>
 			</div>
 
@@ -126,8 +131,8 @@
 
 				{#if import.meta.env.DEV}
 				<p class="font-mono text-[10px] leading-relaxed text-(--silver)/25">
-					GitHub OAuth needs GITHUB_KEY / GITHUB_AUTH on the server. Dev login is available while
-					DEV_LOGIN is enabled.
+					GitHub sign-in is unavailable in this environment. Use the developer login below to
+					test the app.
 				</p>
 				{/if}
 			</div>

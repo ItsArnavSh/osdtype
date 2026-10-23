@@ -259,6 +259,10 @@ func (d *Database) Migrate() error {
 		&entity.Task{},
 		&entity.IdempotencyKey{},
 		&entity.BugReport{},
+		&entity.ActivityHour{},
+		&entity.HealthCheck{},
+		&entity.SystemEvent{},
+		&entity.AuditLog{},
 	); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}

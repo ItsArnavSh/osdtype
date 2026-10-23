@@ -2,6 +2,7 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import AuthGate from '$lib/components/AuthGate.svelte';
+	import BackKey from '$lib/components/BackKey.svelte';
 	import { initTheme } from '$lib/core/theme.svelte';
 	import { page } from '$app/state';
 	import { afterNavigate, goto } from '$app/navigation';
@@ -29,7 +30,8 @@
 		'/play/zen',
 		'/contests',
 		'/docs',
-		'/bugs'
+		'/bugs',
+		'/admin'
 	];
 	const GUEST_PREFIXES = ['/replay/', '/contests/'];
 
@@ -42,6 +44,7 @@
 
 	let gated = $derived(
 		appState.booted &&
+			page.status < 400 &&
 			!appState.user &&
 			!guestAllowed(page.url.pathname)
 	);
@@ -58,6 +61,7 @@
 			// an invite link can carry the login "next" destination.
 			return;
 		}
+		if (path.startsWith('/admin')) return;
 		if (path === '/') {
 			void goto(targetForCurrentState(), { replaceState: true });
 			return;
@@ -164,6 +168,9 @@
 	{#if gated}
 		<AuthGate next={page.url.pathname + page.url.search} />
 	{/if}
+	{#if page.url.pathname !== '/' && page.url.pathname !== '/admin' && page.status < 400}
+		<BackKey />
+	{/if}
 {/if}
 
 {#if appState.invites.length > 0}
@@ -203,7 +210,7 @@
 
 {#if appState.notice}
 	<button
-		class="fixed bottom-4 left-4 z-50 max-w-md cursor-pointer border border-(--border) bg-(--fbg) px-4 py-2 text-left font-mono text-[11px] text-(--silver)/60"
+		class="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 cursor-pointer border border-(--border) bg-(--fbg) px-4 py-2 text-left font-mono text-[11px] text-(--silver)/60"
 		onclick={() => (appState.notice = '')}
 	>
 		{appState.notice}

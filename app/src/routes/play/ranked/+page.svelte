@@ -143,7 +143,7 @@
 		<div class="flex items-end gap-4">
 			<a
 				href={resolve('/play')}
-				class="mb-2 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase hover:text-(--silver)"
+				class="mb-1 border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
 				>← hub</a
 			>
 			<div class="title-text text-7xl leading-none text-(--silver) md:text-8xl">RANKED</div>
@@ -219,8 +219,8 @@
 						>
 					</div>
 					<div class="font-mono text-[10px] text-(--silver)/25">
-						the server will start the match automatically. leaving this page does not leave the
-						queue.
+						the match starts automatically when a rival is found. leaving this page does not
+						leave the queue.
 					</div>
 				</div>
 			{:else}
@@ -232,9 +232,9 @@
 						Pick a clock.<br />Build its Elo.
 					</h1>
 					<p class="mt-4 max-w-lg font-mono text-xs leading-relaxed text-(--silver)/45">
-						Every clock has its own independent Elo. Everyone in a match types the same
-						server-generated snippet, ratings update after the race, and flagged runs do not
-						move Elo. If nobody is around, a bot can fill the lobby.
+						Every clock has its own independent Elo. Everyone in a match types the same snippet,
+						ratings update after the race, and flagged runs do not move Elo. If nobody is
+						around, a bot can fill the lobby.
 					</p>
 
 					<div class="mt-8 grid gap-3 sm:grid-cols-3">
@@ -280,11 +280,11 @@
 					match rules
 				</div>
 				<ul class="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-(--silver)/50">
-					<li>· server chooses seed, language, snippet and start offset</li>
+					<li>· same snippet and start point for everyone</li>
 					<li>· 3 second countdown after the lobby fills</li>
-					<li>· live progress over websocket</li>
-					<li>· anti-cheat flags freeze rating changes</li>
-					<li>· refresh or reconnect and the server resumes your game</li>
+					<li>· live progress while you race</li>
+					<li>· flagged runs do not change Elo</li>
+					<li>· refresh or reconnect and pick up where you left off</li>
 				</ul>
 			</div>
 
@@ -307,6 +307,11 @@
 					Each ladder moves only when you finish a ranked race on that clock. The hub shows
 					your highest.
 				</p>
+				<a
+					href={resolve('/leaderboard')}
+					class="mt-3 inline-block border border-(--border) px-3 py-2 font-mono text-[10px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
+					>leaderboard →</a
+				>
 			</div>
 
 			{#if error}
@@ -315,10 +320,6 @@
 		</aside>
 	</main>
 
-	<footer class="mt-4 flex items-center justify-between border-t border-(--border) pt-3 font-mono text-[10px] text-(--silver)/25">
-		<span>ranked queue · redis-backed</span>
-		<a class="hover:text-(--silver)/60" href={resolve('/leaderboard')}>leaderboard →</a>
-	</footer>
 </div>
 
 <style>

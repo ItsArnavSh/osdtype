@@ -26,6 +26,7 @@ echo "==> press ctrl+c to stop both"
 	cd "$ROOT/server"
 	PORT=":8080" \
 	DEV_LOGIN="true" \
+	ADMIN_USERNAME="${ADMIN_USERNAME:-ItsArnavSh}" \
 	FRONTEND_URL="http://localhost:5173" \
 	COOKIE_SECURE="false" \
 	go run .

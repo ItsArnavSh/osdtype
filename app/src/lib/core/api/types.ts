@@ -27,6 +27,7 @@ export interface UserView {
 	games_played: number;
 	wins: number;
 	is_bot: boolean;
+	is_admin?: boolean;
 	ratings: Record<ClockKey, EloView>;
 	best_duration: number;
 }

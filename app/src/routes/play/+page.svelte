@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import ModeIcon from '$lib/components/ModeIcon.svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
+	import VersionNotice from '$lib/components/VersionNotice.svelte';
 	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
 	import { appState, resetSession } from '$lib/core/state/state.svelte';
 	import { logout } from '$lib/core/api/auth';
@@ -100,6 +101,10 @@
 				title="cycle theme"
 			>{themeState.current}</button
 			>
+			<span
+				class="border border-(--red)/40 bg-(--red)/5 px-2 py-1 font-mono text-[9px] tracking-[0.12em] text-(--red) uppercase"
+				>v0.0.1 · experimental</span
+			>
 		</div>
 
 		<nav class="flex flex-wrap items-center gap-2">
@@ -114,15 +119,17 @@
 				>docs</a
 			>
 			<a
-				href={`${resolve('/docs')}#about`}
-				class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer)"
-				>about</a
-			>
-			<a
 				href={resolve('/bugs')}
 				class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer)"
 				>report bug</a
 			>
+			{#if user?.is_admin}
+				<a
+					href={resolve('/admin')}
+					class="border border-(--red)/40 px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--red) uppercase hover:bg-(--red)/10"
+					>admin</a
+				>
+			{/if}
 			{#if user}
 				<a
 					href={resolve('/leaderboard')}
@@ -160,7 +167,11 @@
 		</nav>
 	</header>
 
-	<div class="mt-8 flex flex-wrap items-end justify-between gap-4 border-b border-(--border) pb-4">
+	<div class="mt-4">
+		<VersionNotice />
+	</div>
+
+	<div class="mt-6 flex flex-wrap items-end justify-between gap-4 border-b border-(--border) pb-4">
 		<div>
 			<div class="font-mono text-[10px] tracking-[0.18em] text-(--red) uppercase">hub</div>
 			<div class="title-text mt-1 text-5xl leading-none text-(--silver) md:text-6xl">
@@ -412,8 +423,40 @@
 		</aside>
 	</main>
 
-	<footer class="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-(--border) pt-3 font-mono text-[10px] text-(--silver)/25">
-		<span>server-authoritative · explicit leave only</span>
-		<span>resrap-rs 1.0.1 · 10 languages</span>
+	<footer class="mt-8 border-t border-(--border) pt-4">
+		<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+			<div class="pb-8 sm:pb-0 sm:pl-24">
+				<p class="font-mono text-[10px] tracking-[0.08em] text-(--silver)/30">
+					OSDTYP v0.0.1 · experimental · a typing arena for people who write code.
+				</p>
+				<p class="mt-1 font-mono text-[9px] tracking-[0.08em] text-(--red)/55">
+					first public build — bugs expected.
+					<a href={resolve('/bugs')} class="underline">report them.</a>
+				</p>
+			</div>
+			<nav class="flex flex-wrap gap-2 font-mono text-[9px] uppercase">
+				<a
+					href="https://osdc.dev/"
+					target="_blank"
+					rel="noreferrer"
+					class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+					>osdc.dev</a
+				>
+				<a
+					href="https://itsarnavsh.github.io/"
+					target="_blank"
+					rel="noreferrer"
+					class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+					>author site</a
+				>
+				<a
+					href="https://github.com/ItsArnavSh/osdtype"
+					target="_blank"
+					rel="noreferrer"
+					class="border border-(--mer)/40 px-3 py-1.5 text-(--mer) hover:bg-(--mer)/10"
+					>github</a
+				>
+			</nav>
+		</div>
 	</footer>
 </div>

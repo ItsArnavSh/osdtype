@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -95,7 +96,8 @@ func (m *requestMetrics) middleware() gin.HandlerFunc {
 
 func (m *requestMetrics) handler(c *gin.Context) {
 	if token := strings.TrimSpace(viper.GetString("Metrics.token")); token != "" {
-		if c.GetHeader("Authorization") != "Bearer "+token {
+		provided := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
 			c.Header("WWW-Authenticate", `Bearer realm="metrics"`)
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return

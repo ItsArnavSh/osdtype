@@ -53,8 +53,8 @@
 		</a>
 		<a
 			href={resolve('/play')}
-			class="font-mono text-[10px] tracking-[0.12em] text-(--silver)/40 uppercase hover:text-(--mer)"
-			>open practice =></a
+			class="border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
+			>← hub</a
 		>
 	</header>
 
@@ -66,7 +66,7 @@
 		{:else if error || !bundle || bundle.runs.length === 0}
 			<div class="border border-(--border) bg-(--fbg) p-12 text-center">
 				<div class="font-mono text-[10px] tracking-[0.16em] text-(--red) uppercase">replay unavailable</div>
-				<p class="mt-2 font-mono text-xs text-(--silver)/40">{error || 'No recording was stored for this run.'}</p>
+				<p class="mt-2 font-mono text-xs text-(--silver)/40">{error || 'No recording is available for this run.'}</p>
 			</div>
 		{:else}
 			{@const game = bundle.game}
@@ -79,7 +79,7 @@
 							<span class="ml-2 text-(--mer)/70">temporary practice</span>
 						{/if}
 					</div>
-					<div class="font-mono text-[10px] text-(--silver)/25">game {game.id} · run {run.user_id}</div>
+					<div class="font-mono text-[10px] text-(--silver)/25">replay · {game.duration}s</div>
 				</div>
 				<ReplayPlayer
 					{run}
@@ -91,7 +91,7 @@
 				/>
 			</div>
 			<p class="mt-3 font-mono text-[10px] text-(--silver)/25">
-				This is a simulated replay drawn from stored keystrokes — not a video. Share links open without an account.
+				A key-by-key replay of the run. Share links open without an account.
 			</p>
 		{/if}
 	</main>

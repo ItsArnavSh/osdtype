@@ -36,6 +36,9 @@ type Server struct {
 }
 
 func NewServer(logger *zap.SugaredLogger) (*Server, error) {
+	if err := validateProductionConfig(); err != nil {
+		return nil, err
+	}
 	db, err := postgresql.ConnectDatabase(logger)
 	if err != nil {
 		return nil, err
@@ -63,20 +66,27 @@ func NewServerWithDeps(logger *zap.SugaredLogger, db *postgresql.Database, rdb *
 	s := &Server{logger: logger, services: svc, core: c, db: db, rdb: rdb, metrics: newRequestMetrics()}
 	s.engine = gin.New()
 	s.engine.Use(requestIDMiddleware())
+	s.engine.Use(securityHeaders())
 	s.engine.Use(s.metrics.middleware())
 	s.engine.Use(ginzap.GinzapWithConfig(logger.Desugar(), &ginzap.Config{
 		TimeFormat: time.RFC3339,
 		UTC:        true,
 		SkipPaths:  []string{"/healthz", "/readyz", "/metrics"},
 		Context: func(c *gin.Context) []zapcore.Field {
-			return []zapcore.Field{zap.String("request_id", requestID(c))}
+			fields := []zapcore.Field{zap.String("request_id", requestID(c))}
+			if uid, err := auth.GetUserID(c); err == nil {
+				fields = append(fields, zap.Uint32("user_id", uid))
+			}
+			return fields
 		},
 	}))
 	s.engine.Use(ginzap.RecoveryWithZap(logger.Desugar(), true))
 	gin.DefaultWriter = utils.ZapWriter{Logger: logger}
 	gin.DefaultErrorWriter = utils.ZapWriter{Logger: logger}
 	s.engine.Use(cors.New(s.corsConfig()))
+	s.engine.Use(bodyLimit(maxRequestBodyBytes))
 	s.engine.Use(auth.OptionalAuth())
+	s.engine.Use(s.activityMiddleware())
 	s.engine.Use(s.idempotency())
 	s.routes()
 	return s, nil
@@ -117,6 +127,24 @@ func (s *Server) routes() {
 	r.GET("/contests", s.listContests)
 	r.GET("/contests/:code", s.getContest)
 	r.GET("/contests/:code/calendar", s.contestCalendar)
+
+	// The admin surface is deliberately invisible: every non-admin request,
+	// including an unauthenticated one, gets the same 404 as an unknown route.
+	admin := r.Group("/admin")
+	admin.Use(s.requireAdmin())
+	{
+		admin.GET("/overview", s.adminOverview)
+		admin.GET("/bugs", s.adminBugs)
+		admin.PATCH("/bugs/:id", s.adminUpdateBug)
+		admin.GET("/users", s.adminUsers)
+		admin.POST("/users/:id/admin", s.adminGrant)
+		admin.DELETE("/users/:id/admin", s.adminRevoke)
+		admin.GET("/activity", s.adminActivity)
+		admin.GET("/health", s.adminHealth)
+		admin.GET("/logs", s.adminLogs)
+		admin.GET("/events", s.adminEvents)
+		admin.GET("/audits", s.adminAudits)
+	}
 
 	protected := r.Group("")
 	protected.Use(auth.RequireAuth())
@@ -217,6 +245,19 @@ func (s *Server) readiness(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ready"})
 }
 
+func (s *Server) activityMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if uid, err := auth.GetUserID(c); err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := s.services.RecordActivity(ctx, uid, time.Now().UTC()); err != nil {
+				s.logger.Warnw("could not record activity", "user_id", uid, "error", err)
+			}
+			cancel()
+		}
+		c.Next()
+	}
+}
+
 func (s *Server) StartServer() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -233,8 +274,12 @@ func (s *Server) StartServer() {
 		Addr:              port,
 		Handler:           s.engine,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       90 * time.Second,
+		MaxHeaderBytes:    32 << 10,
 	}
+	s.services.StartMonitoring()
+	s.services.RecordEvent(context.Background(), "info", "server", "server started", map[string]any{"port": port})
 	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -263,6 +308,8 @@ func (s *Server) StartServer() {
 func (s *Server) Engine() *gin.Engine { return s.engine }
 
 func (s *Server) Close() {
+	s.services.StopMonitoring()
+	s.services.RecordEvent(context.Background(), "info", "server", "server stopping", nil)
 	s.core.Stop()
 	if s.rdb != nil {
 		_ = s.rdb.Close()

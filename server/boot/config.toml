@@ -39,6 +39,12 @@ webhook_url = ""
 # Optional bearer token for GET /metrics. Leave empty to expose metrics.
 token = ""
 
+[Admin]
+# Primary operator username. The account is always admin and can promote or
+# demote other accounts. Set ADMIN_USERNAME in production.
+primary_username = ""
+health_interval_seconds = 60
+
 [Game]
 countdown_ms = 3000
 

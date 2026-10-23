@@ -153,7 +153,7 @@
 			<div class="title-text text-7xl leading-none text-(--silver) md:text-8xl">RESULTS</div>
 			{#if game}
 				<div class="mt-2 font-mono text-[10px] text-(--silver)/30">
-					game {game.id} · {game.duration}s · {LANGUAGE_LABELS[game.language] ?? game.language} · seed {game.seed}
+					{game.duration}s · {LANGUAGE_LABELS[game.language] ?? game.language} · {game.players.length} players
 				</div>
 				{#if game.contest_code}
 					<a

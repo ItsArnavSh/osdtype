@@ -56,6 +56,7 @@ type User struct {
 	GamesPlayed int       `gorm:"not null;default:0" json:"games_played"`
 	Wins        int       `gorm:"not null;default:0" json:"wins"`
 	IsBot       bool      `gorm:"not null;default:false" json:"is_bot"`
+	IsAdmin     bool      `gorm:"not null;default:false;index" json:"is_admin"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -191,6 +192,7 @@ type UserView struct {
 	GamesPlayed  int                `json:"games_played"`
 	Wins         int                `json:"wins"`
 	IsBot        bool               `json:"is_bot"`
+	IsAdmin      bool               `json:"is_admin,omitempty"`
 	Ratings      map[string]EloView `json:"ratings"`
 	BestDuration int                `json:"best_duration"`
 }
@@ -219,6 +221,7 @@ func NewUserView(u User) UserView {
 		GamesPlayed:  u.GamesPlayed,
 		Wins:         u.Wins,
 		IsBot:        u.IsBot,
+		IsAdmin:      u.IsAdmin,
 		Ratings:      ratings,
 		BestDuration: bestDuration,
 	}

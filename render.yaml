@@ -52,6 +52,8 @@ services:
         sync: false
       - key: METRICS_TOKEN
         sync: false
+      - key: ADMIN_USERNAME
+        value: ItsArnavSh
 
   - type: web
     name: osdtype-web
@@ -71,6 +73,27 @@ services:
         value: "22"
       - key: VITE_API_URL
         sync: false
+      - key: VITE_APP_VERSION
+        value: v0.0.1
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+      - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
     routes:
       - type: rewrite
         source: /*

@@ -430,7 +430,7 @@
 		<div class="flex items-center gap-2">
 			<span
 				class={`h-1.5 w-1.5 ${socketConnected() ? 'bg-(--mer)' : 'bg-(--red)'}`}
-				title={socketConnected() ? 'socket connected' : 'socket reconnecting'}
+				title={socketConnected() ? 'connected' : 'reconnecting'}
 			></span>
 			<button
 				class="cursor-pointer border border-(--border) px-3 py-1.5 font-mono text-[10px] text-(--silver)/45 hover:border-(--red) hover:text-(--red) disabled:opacity-40"
@@ -447,7 +447,11 @@
 	{:else if !game}
 		<div class="flex flex-1 flex-col items-center justify-center gap-3">
 			<div class="font-mono text-sm text-(--red)">{error || 'game not found'}</div>
-			<a href={resolve('/play')} class="font-mono text-xs text-(--mer)">return to hub</a>
+			<a
+				href={resolve('/play')}
+				class="border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--mer) uppercase hover:border-(--mer)"
+				>← hub</a
+			>
 		</div>
 	{:else}
 		{#if error}
@@ -456,7 +460,7 @@
 		<main class="grid min-h-0 flex-1 gap-3 pt-3 lg:grid-cols-[1fr_260px]">
 			<section class="relative flex min-h-0 flex-col border border-(--border) bg-(--fbg)">
 				<div class="flex items-center justify-between border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--silver)/35">
-					<span>seed {game.seed} · offset {game.start_offset}</span>
+					<span>{game.duration}s · {LANGUAGE_LABELS[game.language] ?? game.language}</span>
 					<span>{phase === 'typing' ? 'typing live' : phase}</span>
 				</div>
 				<div
@@ -482,7 +486,7 @@
 				{#if phase === 'countdown'}
 					<div class="absolute inset-0 flex flex-col items-center justify-center bg-(--bg)/80">
 						<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">
-							server starts the clock
+							get ready
 						</div>
 						<div class="countdown-number mt-2 font-mono text-8xl text-(--silver)">{countdown}</div>
 						<div class="mt-3 font-mono text-xs text-(--silver)/35">
@@ -493,7 +497,7 @@
 					<div class="absolute inset-x-0 bottom-0 border-t border-(--border) bg-(--bg)/95 px-5 py-3">
 						<div class="flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
 							<span class="text-(--silver)/50">
-								{localFinished ? 'run complete · waiting for the server' : 'clock over · waiting for results'}
+								{localFinished ? 'run complete · waiting for results' : 'clock over · waiting for results'}
 							</span>
 							<div class="flex items-center gap-3">
 								<span class="text-(--mer)">{fmt(remaining)}</span>
@@ -559,8 +563,8 @@
 						<div class="h-px bg-(--mer)" style={`width:${progressPct * 100}%`}></div>
 					</div>
 					<p class="mt-3 font-mono text-[9px] leading-relaxed text-(--silver)/25">
-						Backspace works. Whitespace is skipped automatically. Refreshing resumes from the server's
-						authoritative progress.
+						Backspace works. Whitespace is skipped automatically. Refreshing resumes your run
+						where you left off.
 					</p>
 				</div>
 			</aside>

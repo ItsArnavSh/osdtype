@@ -41,7 +41,7 @@
 		</div>
 		<a
 			href={resolve('/play')}
-			class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--silver)/40 hover:text-(--silver)"
+			class="border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
 			>hub</a
 		>
 	</header>

@@ -184,7 +184,7 @@
 		<div class="flex items-end gap-4">
 			<a
 				href={resolve('/play')}
-				class="mb-2 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase hover:text-(--silver)"
+				class="mb-1 border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
 				>← hub</a
 			>
 			<div class="title-text text-6xl leading-none text-(--silver) md:text-8xl">LEADERBOARD</div>

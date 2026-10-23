@@ -102,7 +102,7 @@
 		<div>
 			<a
 				href={resolve('/play')}
-				class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase hover:text-(--silver)"
+				class="border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
 				>← hub</a
 			>
 			<div class="title-text mt-2 text-7xl leading-none text-(--silver) md:text-8xl">FRIENDS</div>

@@ -127,6 +127,12 @@ func (h *Hub) IsOnline(userID uint32) bool {
 	return h.clients[userID] != nil
 }
 
+func (h *Hub) OnlineCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
 func (h *Hub) deliverLocal(userIDs []uint32, ev Event) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

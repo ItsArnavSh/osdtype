@@ -12,6 +12,7 @@ import (
 	"osdtyp/app/internal/postgresql"
 	"osdtyp/app/internal/redis"
 	"osdtyp/app/utils"
+	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -28,6 +29,14 @@ type ServiceLayer struct {
 	frontendURL  string
 	lobbyMinutes int
 	countdown    time.Duration
+
+	monitorMu         sync.Mutex
+	monitorCancel     context.CancelFunc
+	monitorWG         sync.WaitGroup
+	healthMu          sync.Mutex
+	healthInitialized bool
+	lastPostgres      bool
+	lastRedis         bool
 }
 
 func NewServiceLayer(logger *zap.SugaredLogger, c *core.CodeCore, db *postgresql.Database) (*ServiceLayer, error) {

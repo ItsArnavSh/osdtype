@@ -1,5 +1,9 @@
 # OSDType
 
+> **v0.0.1 · experimental.** This is the first public build. It is early,
+> rough, and bugs are expected. Please report them through the in-app bug form
+> (`/bugs`) with the steps and page where it happened.
+
 Speedtyping, but for coders. A server-authoritative typing arena with ranked Elo,
 multiplayer rooms, contests, bots and anti-cheat.
 
@@ -110,14 +114,17 @@ docker compose up --build -d
 ```
 
 `PUBLIC_API_URL` is baked into the browser bundle at build time; the others
-are runtime configuration. For local Docker development with the dev login
-button, run `DEV_LOGIN=true docker compose up --build`.
+are runtime configuration. `JWTKEY` is mandatory in the production-style
+stack and must be at least 32 characters; generate one with
+`openssl rand -hex 32`. For local Docker development with the dev login
+button, run `DEV_LOGIN=true JWTKEY=<local-dev-secret> docker compose up --build`.
 
 Environment overrides understood by the server include `PORT`, `JWTKEY`,
 `FRONTEND_URL`, `DEV_LOGIN`, `COOKIE_SECURE`, `COOKIE_SAMESITE`, `DB_HOST`,
 `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_DBNAME`, `DATABASE_URL`, `DB_SSLMODE`,
 `REDIS_ADDR`, `REDIS_URL`, `REDIS_TLS`, `CODEGEN_URL`, `BUG_WEBHOOK_URL`,
-`METRICS_TOKEN`, `GITHUB_KEY`, `GITHUB_AUTH` and `GITHUB_REDIRECT_URL`.
+`METRICS_TOKEN`, `ADMIN_USERNAME`, `GITHUB_KEY`, `GITHUB_AUTH` and
+`GITHUB_REDIRECT_URL`.
 
 ## Render
 
@@ -139,6 +146,9 @@ values. The API must be on a paid always-on plan; Render's free web services
 spin down after 15 minutes, which breaks WebSockets and scheduled contests.
 The static site can stay free.
 
+For the full platform-by-platform launch, DNS, Cloudflare/WAF and incident
+response checklist, see [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
 Set these values:
 
 ```text
@@ -152,6 +162,7 @@ GITHUB_REDIRECT_URL=https://<api-service>.onrender.com/auth/github/callback
 VITE_API_URL=https://<api-service>.onrender.com
 BUG_WEBHOOK_URL=<optional Discord or Slack webhook>
 METRICS_TOKEN=<optional bearer token for /metrics>
+ADMIN_USERNAME=ItsArnavSh
 ```
 
 Percent-encode reserved characters in the Supabase password before putting it
@@ -168,7 +179,10 @@ used; point `CODEGEN_URL` at a deployed codegen service to restore the full
 generator.
 
 Do not commit database passwords, Redis passwords, OAuth secrets or webhook
-URLs. Rotate any secret that has been pasted into chat or logs.
+URLs. Rotate any secret that has been pasted into chat or logs. The server
+refuses to start with the development JWT key when `DEV_LOGIN=false` or
+`GIN_MODE=release`; `JWTKEY` must be at least 32 characters. It also refuses
+`COOKIE_SAMESITE=none` without `COOKIE_SECURE=true`.
 
 ## Bug reports
 
@@ -179,6 +193,80 @@ posted to `BUG_WEBHOOK_URL`. The API exposes `POST /bugs` and
 `GET /bugs/mine`. Reports are plain text and should never contain passwords,
 cookies or API keys.
 
+## Admin console
+
+Set `ADMIN_USERNAME` to the GitHub username that should own the instance. That
+account is the primary admin; it can grant or revoke admin access for other
+accounts from `/admin`. The route is deliberately hidden: every request from
+an unauthenticated user, a normal player, or a revoked admin returns the same
+`404` as an unknown page. Admins who are not the primary account can inspect
+data but cannot change roles.
+
+The dashboard has tabs for:
+
+- **Overview** — active accounts this hour and over 24h, online sockets, queue
+  size, account/game counts, open bugs and 24h uptime.
+- **Bug reports** — full report details, submitter, request id, triage status
+  and internal notes. Search by report id/title/text, filter by status,
+  severity or category, and page through results. Updates are written to the
+  audit trail.
+- **Users** — search by username or numeric id, filter by role, and manage
+  admin access. The primary admin is immutable and cannot be demoted.
+- **Activity** — distinct active accounts per UTC hour for the last 24 hours,
+  72 hours or 7 days.
+- **Health** — current Postgres/Redis reachability, 24h uptime, failed checks
+  and a paginated minute-level check history.
+- **Logs** — recent structured process logs from the in-memory ring buffer,
+  durable system events and privileged-action audit entries. Process logs are
+  searchable by message/request/path, level and user (username or id); system
+  events filter by level/kind and audits by actor/action.
+
+Every admin list is server-paginated with `limit`, `offset`, `total`, `next`
+and `has_more`; the UI never asks for the whole data set. Defaults and hard
+caps are 50/100 for bugs and users, 100/200 for process logs, 50/200 for
+events and audits, and 100/500 for health checks. Activity is capped at 168
+hours. Offsets are capped at 100,000 to keep queries bounded.
+
+Activity is recorded once per authenticated user per UTC hour. The first
+request in an hour writes an `activity_hours` row; Redis throttles duplicate
+writes. The API records a dependency health check every minute, stores the last
+seven days in Redis so a Postgres outage remains visible after recovery, and
+also writes a Postgres backup row when the database is reachable. Startup,
+shutdown, dependency transitions and admin actions go to `system_events` and
+`audit_logs`; Render remains the durable request-log sink.
+
+## Security
+
+Application hardening lives in the Go API and the static headers file:
+
+- Security headers on every API response (`nosniff`, `DENY` framing,
+  referrer policy, permissions policy, HSTS, a deny-all CSP for API payloads).
+  `app/static/_headers` adds the same browser protections to the static site.
+- A 1 MiB request-body cap and 10s header / 30s read timeouts; chunked bodies
+  are capped with `http.MaxBytesReader`.
+- Production startup validation rejects the development JWT secret and
+  `SameSite=None` without `Secure` cookies.
+- Auth cookies are `HttpOnly`, `Secure` in production, and scoped to the
+  configured frontend. CORS is an explicit allowlist, not `*`.
+- Admin routes return the same `404` for guests, normal players and revoked
+  admins. Admin responses are `Cache-Control: no-store`; admin actions are
+  audited.
+- `/bugs` is rate-limited per IP and per account through Redis. `/metrics`
+  supports a bearer token; use it in production.
+
+The edge is the first line of defense: put Cloudflare (or an equivalent WAF)
+in front of both Render services, enable managed WAF rules/bot protection, add
+rate limits for `/auth/*`, `/bugs` and `/ws`, and keep `Always Use HTTPS` on.
+Render also provides network-level DDoS protection for its services. Do not
+rely on app-level limits alone; they are best-effort and share the API process.
+
+Rotate the Supabase password, Redis password, GitHub OAuth secret and JWT key
+if any of them were ever pasted into chat, logs or a commit. Rotating `JWTKEY`
+logs every session out. Keep database and Redis TLS on, use Supabase backups
+or PITR, and test a restore before launch. Never commit `.env`, `.prod-secret`
+or provider credentials. The complete launch and incident-response checklist
+is in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
 ## Observability
 
 The API exposes three health/metrics endpoints:
@@ -188,8 +276,8 @@ The API exposes three health/metrics endpoints:
   either dependency is unavailable.
 - `GET /metrics` — Prometheus text exposition with request counts, status
   classes, latency totals, goroutines and heap usage. Set `METRICS_TOKEN` to
-  require `Authorization: Bearer <token>`; leave it empty to keep the endpoint
-  public.
+  require `Authorization: Bearer <token>`. Production should always set it;
+  an empty token leaves the endpoint public.
 
 Every response includes an `X-Request-ID` header, and request-scoped errors
 include the same value as `request_id` in the JSON body. `LOG_FORMAT=json`
@@ -208,6 +296,10 @@ For Render:
 4. Watch Render's built-in CPU, memory and request metrics for the API service.
    Keep the service at one instance; the hub, matchmaker and scheduler are
    in-process.
+5. Keep `ADMIN_USERNAME` set to the primary operator account. The `/admin`
+   dashboard shows recent logs, bug reports, hourly activity and health; for a
+   full database outage, Render's own service events and the external uptime
+   monitor are the durable source of truth.
 
 ## Layout
 

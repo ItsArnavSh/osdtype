@@ -53,6 +53,15 @@ func (s *Server) fail(c *gin.Context, err error) {
 
 func bindJSON(c *gin.Context, dst any) bool {
 	if err := c.ShouldBindJSON(dst); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, apiError{
+				Error:     "request body too large",
+				Code:      "payload_too_large",
+				RequestID: requestID(c),
+			})
+			return false
+		}
 		c.AbortWithStatusJSON(http.StatusBadRequest, apiError{
 			Error:     "invalid JSON body",
 			Code:      "bad_request",

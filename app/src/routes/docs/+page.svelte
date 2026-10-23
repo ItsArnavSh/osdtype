@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import VersionNotice from '$lib/components/VersionNotice.svelte';
 
 	const sections = [
 		{ id: 'start', label: 'Getting started' },
@@ -12,23 +13,7 @@
 		{ id: 'replays', label: 'Replays and graphs' },
 		{ id: 'resrap', label: 'Resrap snippets' },
 		{ id: 'how', label: 'How it works' },
-		{ id: 'troubleshooting', label: 'Troubleshooting' },
-		{ id: 'about', label: 'About' }
-	];
-
-	const principles = [
-		{
-			title: 'Code first',
-			copy: 'Every run uses generated source code. Not quotes, not word lists. The point is to practise the shapes and symbols you actually type.'
-		},
-		{
-			title: 'Clean competition',
-			copy: 'The server owns the clock and the snippet. Ranked games, rooms and contest stages all score the same recorded run, so the board means something.'
-		},
-		{
-			title: 'Low noise',
-			copy: 'No coins, no daily streaks, no tier grind. Just a keyboard, a snippet, and a result you can replay and learn from.'
-		}
+		{ id: 'troubleshooting', label: 'Troubleshooting' }
 	];
 
 	// A small, hand-written index keeps docs search usable without shipping a
@@ -44,8 +29,7 @@
 		{ id: 'replays', label: 'Replays and graphs', keywords: 'replay graph speed keyboard share link result' },
 		{ id: 'resrap', label: 'Resrap snippets', keywords: 'resrap codegen snippet seed language rust wasm' },
 		{ id: 'how', label: 'How it works', keywords: 'stack architecture server websocket postgres redis svelte go' },
-		{ id: 'troubleshooting', label: 'Troubleshooting', keywords: 'error broken stuck queue contest attempt css' },
-		{ id: 'about', label: 'About', keywords: 'about arnav osdc github author project principles stack' }
+		{ id: 'troubleshooting', label: 'Troubleshooting', keywords: 'error broken stuck queue contest attempt css' }
 	];
 
 	let docQuery = $state('');
@@ -143,11 +127,6 @@
 				aria-current="page">docs</a
 			>
 			<a
-				href="#about"
-				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
-				>about</a
-			>
-			<a
 				href={resolve('/bugs')}
 				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
 				>report bug</a
@@ -165,6 +144,10 @@
 		</nav>
 	</header>
 
+	<div class="mx-auto mt-6 max-w-5xl">
+		<VersionNotice dismissible={false} />
+	</div>
+
 	<section class="mx-auto mt-8 max-w-5xl border-b border-(--border) pb-8">
 		<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">the manual</div>
 		<h1 class="mt-3 text-5xl leading-none text-(--silver) md:text-7xl">How OSDTYP works</h1>
@@ -172,7 +155,8 @@
 			OSDTYP is a speedtyping arena for source code. It has ranked ladders, offline practice,
 			multiplayer rooms, and standalone contest events with multi-stage funnels. This page covers
 			every mode, the contest format, replays, the resrap snippet generator, and the parts behind
-			the browser.
+			the browser. This is v0.0.1, the first public build: expect rough edges and report bugs
+			through the bug form.
 		</p>
 		<div class="mt-5 flex flex-wrap gap-2 font-mono text-[9px] tracking-[0.1em] uppercase">
 			<a
@@ -605,113 +589,6 @@
 				</div>
 			</section>
 
-			<footer id="about" class="border border-(--border) bg-(--fbg) p-5 md:p-7">
-				<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">
-					about the project
-				</div>
-				<h2 class="mt-3 text-3xl text-(--silver)">A typing arena for people who write code.</h2>
-				<p class="mt-3 max-w-3xl text-sm leading-relaxed text-(--silver)/50">
-					OSDTYP is a speedtyping game built around real source code. It has independent ranked
-					ladders, offline practice, multiplayer rooms, and contest events that can run as full
-					multi-stage competitions. It is made for the fun of typing fast without hiding the parts
-					that make code hard.
-				</p>
-
-				<div class="mt-5 grid gap-3 md:grid-cols-3">
-					{#each principles as principle (principle.title)}
-						<div class="border border-(--border) p-4">
-							<div class="font-mono text-[9px] tracking-[0.12em] text-(--mer) uppercase">
-								{principle.title}
-							</div>
-							<p class="mt-2 text-xs leading-relaxed text-(--silver)/45">{principle.copy}</p>
-						</div>
-					{/each}
-				</div>
-
-				<div class="mt-4 grid gap-3 md:grid-cols-2">
-					<div class="border border-(--border) p-4">
-						<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/35 uppercase">
-							what is inside
-						</div>
-						<ul class="mt-3 space-y-1.5 text-xs leading-relaxed text-(--silver)/45">
-							<li>Ranked queues at 30s, 90s and 300s with separate Elo ladders.</li>
-							<li>Practice, Zen, adaptive bots and local snippet generation.</li>
-							<li>Public and private rooms with invites, moderation and replayable results.</li>
-							<li>Contests with qualifiers, practice stages, HotLaps and live finals.</li>
-							<li>Profiles, follows, friends and a searchable leaderboard.</li>
-							<li>Speed graphs, input replays and share links.</li>
-						</ul>
-					</div>
-					<div class="border border-(--border) p-4">
-						<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/35 uppercase">
-							stack
-						</div>
-						<div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-(--silver)/45">
-							<span>SvelteKit + TypeScript</span>
-							<span>Go + Gin</span>
-							<span>PostgreSQL + Redis</span>
-							<span>Rust + WebAssembly</span>
-							<span>resrap-rs</span>
-						</div>
-						<p class="mt-3 text-xs leading-relaxed text-(--silver)/30">
-							The server is authoritative for clocks, scoring and match state. The browser owns
-							input, rendering and offline practice.
-						</p>
-					</div>
-				</div>
-
-				<div class="mt-4 border border-(--border) p-4">
-					<div class="flex flex-wrap items-start justify-between gap-4">
-						<div>
-							<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/35 uppercase">
-								built by
-							</div>
-							<div class="mt-1 text-lg text-(--silver)">Arnav Sharma</div>
-							<p class="mt-1 max-w-xl text-xs leading-relaxed text-(--silver)/40">
-								The project lives on GitHub and is maintained by Arnav. The links below cover the
-								developer community and the personal site.
-							</p>
-						</div>
-						<div class="flex flex-wrap gap-2 font-mono text-[9px] uppercase">
-							<a
-								href="https://osdc.dev/"
-								target="_blank"
-								rel="noreferrer"
-								class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
-								>osdc.dev</a
-							>
-							<a
-								href="https://itsarnavsh.github.io/"
-								target="_blank"
-								rel="noreferrer"
-								class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
-								>author site</a
-							>
-							<a
-								href="https://github.com/ItsArnavSh/osdtype"
-								target="_blank"
-								rel="noreferrer"
-								class="border border-(--mer) px-3 py-1.5 text-(--mer) hover:bg-(--mer)/10"
-								>github repository</a
-							>
-						</div>
-					</div>
-				</div>
-
-				<div
-					class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-(--border) pt-4"
-				>
-					<p class="max-w-xl text-xs leading-relaxed text-(--silver)/40">
-						If you want to get faster at typing code, open Practice. If you want a fair match,
-						queue Ranked. If you want to run an event, build a contest funnel.
-					</p>
-					<a
-						href={resolve('/play')}
-						class="border border-(--mer) px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-(--mer) uppercase hover:bg-(--mer)/10"
-						>start typing -></a
-					>
-				</div>
-			</footer>
 		</main>
 	</div>
 </div>

@@ -152,6 +152,17 @@ type QueueStatus struct {
 	JoinedAt time.Time `json:"joined_at"`
 }
 
+func (m *Matchmaker) QueueSize(ctx context.Context) int {
+	total := 0
+	for _, duration := range []int{30, 90, 300} {
+		items, err := m.rdb.QueueItems(ctx, duration)
+		if err == nil {
+			total += len(items)
+		}
+	}
+	return total
+}
+
 func (m *Matchmaker) Status(ctx context.Context, uid uint32, rating int, duration int) (QueueStatus, bool, error) {
 	items, err := m.rdb.QueueItems(ctx, duration)
 	if err != nil {

@@ -6,17 +6,29 @@ import (
 	"os"
 	"strings"
 
+	"osdtyp/app/utils"
+
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func newLogger() (*zap.Logger, error) {
+	var logger *zap.Logger
+	var err error
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("LOG_FORMAT")), "json") {
 		cfg := zap.NewProductionConfig()
-		return cfg.Build()
+		logger, err = cfg.Build()
+	} else {
+		logger, err = zap.NewDevelopment()
 	}
-	return zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+	return logger.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return utils.NewLogBufferCore(core, utils.Logs())
+	})), nil
 }
 
 // Initialize_App loads .env, config.toml and environment overrides, then
@@ -64,6 +76,7 @@ func Initialize_App() (*zap.SugaredLogger, error) {
 	_ = viper.BindEnv("CodeGen.service_url", "CODEGEN_URL")
 	_ = viper.BindEnv("BugReport.webhook_url", "BUG_WEBHOOK_URL")
 	_ = viper.BindEnv("Metrics.token", "METRICS_TOKEN")
+	_ = viper.BindEnv("Admin.primary_username", "ADMIN_USERNAME")
 
 	redisDesc := viper.GetString("Redis.addr")
 	if strings.TrimSpace(viper.GetString("Redis.url")) != "" {
@@ -97,6 +110,8 @@ func setDefaults() {
 	viper.SetDefault("CodeGen.service_url", "http://localhost:8081/generate")
 	viper.SetDefault("BugReport.webhook_url", "")
 	viper.SetDefault("Metrics.token", "")
+	viper.SetDefault("Admin.primary_username", "")
+	viper.SetDefault("Admin.health_interval_seconds", 60)
 	viper.SetDefault("CodeGen.tokens", 120)
 	viper.SetDefault("Game.countdown_ms", 3000)
 	viper.SetDefault("Matchmaking.tick_ms", 500)

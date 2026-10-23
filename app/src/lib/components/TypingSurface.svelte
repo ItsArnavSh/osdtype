@@ -830,7 +830,7 @@
 	<!-- Top bar -->
 	<header class="flex items-center gap-4 border-b border-(--border) px-6 py-4">
 		<button
-			class="cursor-pointer font-mono text-xs text-(--silver)/45 transition-colors hover:text-(--silver)"
+			class="cursor-pointer border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase transition-colors hover:border-(--mer) hover:text-(--mer)"
 			onclick={() => goto(resolve('/play'))}
 		>
 			← hub
@@ -1217,7 +1217,7 @@
 	</div>
 
 	<!-- Shortcut bar -->
-	<footer
+	<div
 		class="flex flex-wrap items-center gap-x-5 gap-y-2 px-6 py-3 font-mono text-[11px] text-(--silver)/45"
 	>
 		<button
@@ -1243,7 +1243,7 @@
 				guest mode · sign up for ranked + saved stats =>
 			</a>
 		{/if}
-	</footer>
+	</div>
 </div>
 
 {#if replayOpen && localRun}

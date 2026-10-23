@@ -58,7 +58,7 @@ services:
     environment:
       PORT: ":8080"
       FRONTEND_URL: "${FRONTEND_URL:-http://localhost:3000}"
-      JWTKEY: "${JWTKEY:-dev-compose-change-me}"
+      JWTKEY: "${JWTKEY:?set JWTKEY to a random 32+ character secret}"
       DEV_LOGIN: "${DEV_LOGIN:-false}"
       COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       DB_HOST: postgres

@@ -32,7 +32,7 @@ func (s *ServiceLayer) State(ctx context.Context, uid uint32) (StateView, error)
 	}
 	invites, _ := s.pendingInvites(ctx, uid)
 	out := StateView{
-		User:       entity.NewUserView(user),
+		User:       s.UserView(user),
 		Invites:    invites,
 		ServerTime: time.Now().UTC(),
 	}

@@ -54,7 +54,7 @@
 			: window.location.href;
 		userAgent = navigator.userAgent;
 		viewport = `${window.innerWidth}×${window.innerHeight}`;
-		appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'web';
+		appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'v0.0.1';
 		submissionId = newIdempotencyKey();
 	});
 
@@ -181,8 +181,10 @@
 				</div>
 				<h1 class="mt-3 text-4xl leading-none text-(--silver) md:text-6xl">Report a bug.</h1>
 				<p class="mt-4 max-w-2xl text-sm leading-relaxed text-(--silver)/50">
-					Include the steps that led to the problem and the page where it happened. Reports are
-					reviewed by a human. Do not paste passwords, cookies, API keys, or other secrets.
+					OSDTYP is at <span class="text-(--red)">v0.0.1 experimental</span> — the first public
+					build. Bugs, broken layouts and rough edges are expected. Include the steps that led to
+					the problem and the page where it happened. Reports are reviewed by a human. Do not
+					paste passwords, cookies, API keys, or other secrets.
 				</p>
 			</div>
 
