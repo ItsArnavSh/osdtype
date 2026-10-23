@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: typedata
+      POSTGRES_DB: "${DB_DBNAME:-typedata}"
     ports:
       - "5432:5432"
     volumes:
@@ -65,7 +65,7 @@ services:
       DB_PORT: "5432"
       DB_USER: user
       DB_PASSWORD: password
-      DB_DBNAME: typedata
+      DB_DBNAME: "${DB_DBNAME:-typedata}"
       REDIS_ADDR: "redis:6379"
       CODEGEN_URL: "http://codegen:8081/generate"
       GITHUB_KEY: "${GITHUB_KEY:-}"
