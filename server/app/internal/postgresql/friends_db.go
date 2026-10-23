@@ -121,3 +121,10 @@ func (d *Database) IsFriend(ctx context.Context, a, b uint32) (bool, error) {
 		Where("a_id = ? AND b_id = ? AND relation = ?", a, b, entity.FRIENDS).Count(&n).Error
 	return n > 0, err
 }
+
+func (d *Database) IsFollowing(ctx context.Context, a, b uint32) (bool, error) {
+	var n int64
+	err := d.db.WithContext(ctx).Model(&entity.Friends{}).
+		Where("a_id = ? AND b_id = ?", a, b).Count(&n).Error
+	return n > 0, err
+}

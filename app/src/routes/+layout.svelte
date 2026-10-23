@@ -22,9 +22,10 @@
 	// Everything else stays renderable but is covered by a login gate for
 	// guests, so they can still see what unlocking an account adds.
 	const GUEST_PATHS = ['/', '/login', '/play', '/play/me', '/play/zen'];
+	const GUEST_PREFIXES = ['/replay/'];
 
 	function guestAllowed(path: string): boolean {
-		return GUEST_PATHS.includes(path);
+		return GUEST_PATHS.includes(path) || GUEST_PREFIXES.some((prefix) => path.startsWith(prefix));
 	}
 
 	let gated = $derived(
@@ -57,6 +58,10 @@
 			void goto(targetForCurrentState(), { replaceState: true });
 			return;
 		}
+		// Shared recordings are public, even for signed-in users. In
+		// particular, opening a replay from the results screen must not
+		// bounce the viewer back to their unfinished results state.
+		if (path.startsWith('/replay/')) return;
 		const state = appState.state?.state ?? 'idle';
 		if (state === 'game' && !path.startsWith('/game/')) {
 			void goto(targetForCurrentState(), { replaceState: true });

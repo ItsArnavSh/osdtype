@@ -3,7 +3,10 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
+	import ExportModal from '$lib/components/ExportModal.svelte';
+	import ReplayModal from '$lib/components/ReplayModal.svelte';
 	import ResultGraph from '$lib/components/ResultGraph.svelte';
+	import SpeedGraph from '$lib/components/SpeedGraph.svelte';
 	import { initCodegen, generate, randomSeed, deriveSeed } from '$lib/core/codegen';
 	import {
 		LANGUAGES,
@@ -12,12 +15,25 @@
 		type Language,
 		type Time
 	} from '$lib/core/entity/languages';
-	import type { WpmSample } from '$lib/core/stats';
+	import type { ExportStat, SpeedSeries, WpmSample } from '$lib/core/stats';
 	import { highlightCode } from '$lib/core/syntax';
 	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
 	import { appState } from '$lib/core/state/state.svelte';
-	import { onDestroy, onMount, tick } from 'svelte';
-	import { toPng } from 'html-to-image';
+	import { createPracticeRun, savePracticeRun } from '$lib/core/api/game';
+	import { errorMessage } from '$lib/core/api/client';
+	import { KeypressAction } from '$lib/core/api/types';
+	import type { ClientKeypress, PracticeRunView, ReplayRun } from '$lib/core/api/types';
+	import { profile } from '$lib/core/api/users';
+	import {
+		DEFAULT_PACE_WPM,
+		PRACTICE_BOTS,
+		estimatePace,
+		targetForBot,
+		type PracticeBotID,
+		type PracticeBotProfile
+	} from '$lib/core/practice-bots';
+	import { mapTypedToDisplay, nonWhitespace, syntheticSamples } from '$lib/core/replay';
+	import { onDestroy, onMount } from 'svelte';
 
 	/** Zen: no timer, no results — just keep typing. */
 	let { zen = false }: { zen?: boolean } = $props();
@@ -48,6 +64,8 @@
 	/** The first character the run actually starts on; everything before it
 	 *  is dimmed context and is not counted. */
 	let start_cursor = $state(0);
+	/** Non-whitespace characters from the start point, shared by the bots. */
+	let targetCharacters = $derived(nonWhitespace(display_chars.slice(start_cursor)));
 
 	// ─── Typing state ────────────────────────────────────────────────────────
 	let cursor = $state(0);
@@ -69,44 +87,395 @@
 	let finalWrong = $state(0);
 	let finalTime = $state(0);
 
-	// ─── Result export ───────────────────────────────────────────────────────
-	let resultRef = $state<HTMLDivElement>();
-	let actionsRef = $state<HTMLDivElement>();
-	let exporting = $state(false);
+	// ─── Practice bots (logged-in singleplayer) ──────────────────────────────
+	let selectedBots = $state<PracticeBotID[]>([]);
+	let effectiveBots = $derived(guest ? [] : selectedBots);
+	let paceBase = $state(DEFAULT_PACE_WPM);
+	let paceRuns = $state(0);
+	let racePaceBase = $state(DEFAULT_PACE_WPM);
+	let racePaceRuns = $state(0);
+	let paceLoading = $state(false);
+	let paceRequest = 0;
 
-	async function exportResult() {
-		if (!resultRef || exporting) return;
-		exporting = true;
-		const actions = actionsRef;
+	interface LiveBot {
+		id: PracticeBotID;
+		label: string;
+		color: string;
+		targetWpm: number;
+		accuracy: number;
+		typed: string[];
+		correct: number;
+		wrong: number;
+		totalTyped: number;
+		finished: boolean;
+		backspacePending: boolean;
+		accum: number;
+		rngState: number;
+		samples: WpmSample[];
+		lastSampleSec: number;
+	}
+
+	let liveBots = $state<LiveBot[]>([]);
+	let botElapsedMs = $state(0);
+	let botIntervalId: ReturnType<typeof setInterval> | null = null;
+
+	// ─── Recorded practice run / replay / export ─────────────────────────────
+	let runEvents = $state<ClientKeypress[]>([]);
+	let runStartedAt = 0;
+	let runGeneration = 0;
+	let practiceRun = $state<PracticeRunView | null>(null);
+	let practiceSaving = $state(false);
+	let practiceSaveBusy = $state(false);
+	let practiceError = $state('');
+	let practiceSaved = $derived(practiceRun !== null && !practiceRun.temporary);
+	let replayOpen = $state(false);
+	let exportOpen = $state(false);
+
+	function botProfile(id: PracticeBotID): PracticeBotProfile {
+		return PRACTICE_BOTS.find((bot) => bot.id === id) ?? PRACTICE_BOTS[0];
+	}
+
+	function botTarget(id: PracticeBotID): number {
+		return targetForBot(botProfile(id), paceBase);
+	}
+
+	function toggleBot(id: PracticeBotID) {
+		if (guest) return;
+		selectedBots = selectedBots.includes(id)
+			? selectedBots.filter((bot) => bot !== id)
+			: [...selectedBots, id];
+	}
+
+	$effect(() => {
+		const uid = appState.user?.id ?? 0;
+		if (!uid || zen) return;
+		void loadPace();
+	});
+
+	async function loadPace() {
+		if (guest || zen || !appState.user) return;
+		const request = ++paceRequest;
+		paceLoading = true;
 		try {
-			// Drop the action bar from the capture so the image ends cleanly
-			// after the stats instead of leaving a gap.
-			if (actions) actions.style.display = 'none';
-			await tick();
-
-			const background =
-				getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#000000';
-			const width = resultRef.clientWidth + 96;
-			const height = resultRef.clientHeight + 96;
-			const dataUrl = await toPng(resultRef, {
-				backgroundColor: background,
-				width,
-				height,
-				pixelRatio: 2,
-				cacheBust: true,
-				style: { overflow: 'visible', padding: '48px' }
-			});
-			const link = document.createElement('a');
-			link.download = `osdtype-${finalWpm}wpm-${finalAccuracy}acc-${themeState.current}.png`;
-			link.href = dataUrl;
-			link.click();
-		} catch (err) {
-			console.error('Could not export result', err);
+			const data = await profile(appState.user.username);
+			const pace = estimatePace(data.history);
+			if (request === paceRequest) {
+				paceBase = pace.wpm;
+				paceRuns = pace.runs;
+			}
+		} catch {
+			// The default pace remains a playable fallback if history is unavailable.
 		} finally {
-			if (actions) actions.style.display = '';
-			exporting = false;
+			if (request === paceRequest) paceLoading = false;
 		}
 	}
+
+	function nextBotRandom(bot: LiveBot): number {
+		bot.rngState = (Math.imul(bot.rngState, 1664525) + 1013904223) >>> 0;
+		return bot.rngState / 4294967296;
+	}
+
+	function stepBot(bot: LiveBot, deltaMs: number, elapsedMs: number) {
+		if (bot.finished) return;
+		bot.accum += ((bot.targetWpm * 5) / 60) * (deltaMs / 1000);
+		let guard = 0;
+		while (bot.accum >= 1 && guard < 40 && !bot.finished) {
+			bot.accum -= 1;
+			guard++;
+
+			if (bot.backspacePending) {
+				bot.typed.pop();
+				bot.backspacePending = false;
+				continue;
+			}
+
+			const expected = targetCharacters[bot.typed.length];
+			if (expected === undefined) {
+				bot.finished = true;
+				break;
+			}
+
+			bot.totalTyped++;
+			if (nextBotRandom(bot) * 100 >= bot.accuracy) {
+				let wrong = 'x';
+				if (expected === wrong) wrong = 'z';
+				if (expected === wrong) wrong = 'q';
+				bot.typed.push(wrong);
+				bot.wrong++;
+				bot.backspacePending = true;
+			} else {
+				bot.typed.push(expected);
+				bot.correct++;
+			}
+		}
+
+		const second = Math.min(timer, Math.floor(elapsedMs / 1000));
+		while (bot.lastSampleSec < second) {
+			bot.lastSampleSec++;
+			const t = bot.lastSampleSec;
+			bot.samples.push({
+				t,
+				raw: (bot.totalTyped / 5) / (t / 60),
+				net: (bot.correct / 5) / (t / 60),
+				errors: bot.wrong
+			});
+		}
+	}
+
+	function stepBots() {
+		if (phase !== 'typing' || liveBots.length === 0) return;
+		const elapsed = Math.min(timer * 1000, Date.now() - runStartedAt);
+		if (elapsed <= botElapsedMs) return;
+		const delta = Math.min(1500, elapsed - botElapsedMs);
+		botElapsedMs = elapsed;
+		for (const bot of liveBots) stepBot(bot, delta, elapsed);
+	}
+
+	function stopBots() {
+		if (botIntervalId) {
+			clearInterval(botIntervalId);
+			botIntervalId = null;
+		}
+	}
+
+	function beginBotRace() {
+		stopBots();
+		botElapsedMs = 0;
+		racePaceBase = paceBase;
+		racePaceRuns = paceRuns;
+		liveBots = effectiveBots.map((id, index) => {
+			const profile = botProfile(id);
+			const targetWpm = targetForBot(profile, paceBase);
+			return {
+				id,
+				label: profile.label,
+				color: profile.color,
+				targetWpm,
+				accuracy: profile.accuracy,
+				typed: [],
+				correct: 0,
+				wrong: 0,
+				totalTyped: 0,
+				finished: false,
+				backspacePending: false,
+				accum: 0,
+				rngState: ((runGeneration + 1) * 2654435761 + index * 7919 + targetWpm * 97) >>> 0,
+				samples: [{ t: 0, raw: 0, net: 0, errors: 0 }],
+				lastSampleSec: 0
+			};
+		});
+		if (liveBots.length === 0) return;
+		botIntervalId = setInterval(stepBots, 100);
+	}
+
+	function finalizeBotRace() {
+		if (liveBots.length === 0) return;
+		const elapsed = Math.max(1000, (finalTime || timer) * 1000);
+		const remaining = Math.max(0, elapsed - botElapsedMs);
+		for (const bot of liveBots) {
+			if (remaining > 0) stepBot(bot, remaining, elapsed);
+			if (bot.backspacePending) {
+				bot.typed.pop();
+				bot.backspacePending = false;
+			}
+			while (bot.lastSampleSec < timer) {
+				bot.lastSampleSec++;
+				const t = bot.lastSampleSec;
+				bot.samples.push({
+					t,
+					raw: (bot.totalTyped / 5) / (t / 60),
+					net: (bot.correct / 5) / (t / 60),
+					errors: bot.wrong
+				});
+			}
+		}
+		botElapsedMs = elapsed;
+		stopBots();
+	}
+
+	function botLiveWpm(bot: LiveBot): number {
+		const seconds = Math.max(1, botElapsedMs / 1000);
+		return Math.round((bot.correct / 5) / (seconds / 60));
+	}
+
+	function botFinalWpm(bot: LiveBot): number {
+		const last = bot.samples[bot.samples.length - 1];
+		return last ? Math.round(last.net) : 0;
+	}
+
+	function botProgress(bot: LiveBot): number {
+		return Math.min(100, Math.round((bot.correct / Math.max(1, targetCharacters.length)) * 100));
+	}
+
+	function recordEvent(action: KeypressAction, value: string) {
+		if (zen) return;
+		runEvents.push({
+			value,
+			action,
+			time_ms: Math.max(0, Date.now() - runStartedAt)
+		});
+	}
+
+	function typedText(): string {
+		return Object.entries(typed)
+			.sort((a, b) => Number(a[0]) - Number(b[0]))
+			.map(([, char]) => char)
+			.join('');
+	}
+
+	function startOffsetBytes(): number {
+		return new TextEncoder().encode(code.slice(0, start_cursor)).length;
+	}
+
+	async function storePracticeRun(generation: number) {
+		if (guest || runEvents.length === 0) return;
+		practiceSaving = true;
+		practiceError = '';
+		try {
+			const run = await createPracticeRun({
+				language: lang,
+				duration: timer,
+				duration_ms: timer * 1000,
+				seed: seed.toString(),
+				snippet: code,
+				start_offset: startOffsetBytes(),
+				final: typedText(),
+				events: [...runEvents]
+			});
+			if (generation === runGeneration) practiceRun = run;
+		} catch (err) {
+			if (generation === runGeneration) practiceError = errorMessage(err);
+		} finally {
+			if (generation === runGeneration) practiceSaving = false;
+		}
+	}
+
+	async function saveRun() {
+		if (!practiceRun || practiceSaved || practiceSaveBusy) return;
+		practiceSaveBusy = true;
+		practiceError = '';
+		try {
+			practiceRun = await savePracticeRun(practiceRun.id);
+			void loadPace();
+		} catch (err) {
+			practiceError = errorMessage(err);
+		} finally {
+			practiceSaveBusy = false;
+		}
+	}
+
+	function practiceShareURL(): string {
+		if (!practiceRun || typeof location === 'undefined' || !appState.user) return '';
+		return `${location.origin}/replay/${practiceRun.id}/${appState.user.id}`;
+	}
+
+	let localRun = $derived.by<ReplayRun | null>(() => {
+		if (finalTime <= 0 || runEvents.length === 0) return null;
+		return {
+			user_id: appState.user?.id ?? 0,
+			username: appState.user?.username ?? 'guest',
+			avatar_url: appState.user?.avatar_url ?? '',
+			wpm: finalWpm,
+			raw: finalRawWpm,
+			accuracy: finalAccuracy / 100,
+			correct: finalCorrect,
+			wrong: finalWrong,
+			is_bot: false,
+			final: typedText(),
+			events: [...runEvents]
+		};
+	});
+
+	let resultSeries = $derived.by<SpeedSeries[]>(() => {
+		const duration = finalTime || timer;
+		const userSamples =
+			samples.length > 1
+				? samples
+				: syntheticSamples(finalWpm, finalAccuracy / 100, duration);
+		return [
+			{
+				label: appState.user?.username ?? 'you',
+				samples: userSamples,
+				color: 'var(--mer)'
+			},
+			...liveBots.map((bot) => ({
+				label: bot.label,
+				samples:
+					bot.samples.length > 1
+						? bot.samples
+						: syntheticSamples(botFinalWpm(bot), bot.accuracy / 100, duration),
+				color: bot.color,
+				isBot: true
+			}))
+		];
+	});
+
+	let resultStats = $derived<ExportStat[]>([
+		{ label: 'wpm', value: finalWpm, accent: true },
+		{ label: 'acc', value: `${finalAccuracy}%` },
+		{ label: 'raw', value: finalRawWpm },
+		{ label: 'time', value: `${finalTime}s` }
+	]);
+
+	interface RaceResult {
+		id: string;
+		label: string;
+		color: string;
+		wpm: number;
+		accuracy: number;
+		progress: number;
+		isYou: boolean;
+		place: number;
+	}
+
+	let raceResults = $derived.by<RaceResult[]>(() => {
+		if (liveBots.length === 0) return [];
+		const total = Math.max(1, targetCharacters.length);
+		const entries = [
+			{
+				id: 'you',
+				label: appState.user?.username ?? 'you',
+				color: 'var(--mer)',
+				wpm: finalWpm,
+				accuracy: finalAccuracy,
+				progress: Math.min(100, Math.round((finalCorrect / total) * 100)),
+				isYou: true
+			},
+			...liveBots.map((bot) => ({
+				id: bot.id,
+				label: bot.label,
+				color: bot.color,
+				wpm: botFinalWpm(bot),
+				accuracy: bot.accuracy,
+				progress: botProgress(bot),
+				isYou: false
+			}))
+		];
+		return entries
+			.sort((a, b) => b.wpm - a.wpm)
+			.map((entry, index) => ({ ...entry, place: index + 1 }));
+	});
+
+	/** Each bot's current display cursor, used to paint its coloured caret. */
+	let botDisplays = $derived.by(() => {
+		const offset = startOffsetBytes();
+		return liveBots.map((bot) => ({
+			bot,
+			display: mapTypedToDisplay(code, offset, bot.typed)
+		}));
+	});
+
+	let botCarets = $derived.by(() => {
+		const byIndex = new Map<number, LiveBot[]>();
+		for (const entry of botDisplays) {
+			const index = entry.display.cursor;
+			if (index >= display_chars.length) continue;
+			const list = byIndex.get(index) ?? [];
+			list.push(entry.bot);
+			byIndex.set(index, list);
+		}
+		return byIndex;
+	});
 
 	function calcStats() {
 		const elapsed = finalTime - timeLeft;
@@ -164,9 +533,22 @@
 	function startGame() {
 		if (phase !== 'idle') return;
 		samples = [];
+		runGeneration++;
+		runEvents = [];
+		runStartedAt = Date.now();
+		practiceRun = null;
+		practiceSaving = false;
+		practiceError = '';
+		practiceSaveBusy = false;
+		replayOpen = false;
+		exportOpen = false;
 		phase = 'typing';
-		if (zen) return;
+		if (zen) {
+			liveBots = [];
+			return;
+		}
 
+		beginBotRace();
 		timeLeft = timer;
 		finalTime = timer;
 		intervalId = setInterval(() => {
@@ -197,7 +579,9 @@
 		finalAccuracy = acc;
 		finalCorrect = correct;
 		finalWrong = wrong;
+		finalizeBotRace();
 		phase = 'done';
+		void storePracticeRun(runGeneration);
 	}
 
 	function resetGame() {
@@ -205,11 +589,22 @@
 			clearInterval(intervalId);
 			intervalId = null;
 		}
+		stopBots();
+		liveBots = [];
+		botElapsedMs = 0;
+		runGeneration++;
 		phase = 'idle';
 		timeLeft = timer;
 		wpm = 0;
 		typed = {};
 		samples = [];
+		runEvents = [];
+		practiceRun = null;
+		practiceSaving = false;
+		practiceError = '';
+		practiceSaveBusy = false;
+		replayOpen = false;
+		exportOpen = false;
 		newSnippet();
 		cursor = start_cursor;
 	}
@@ -220,11 +615,22 @@
 			clearInterval(intervalId);
 			intervalId = null;
 		}
+		stopBots();
+		liveBots = [];
+		botElapsedMs = 0;
+		runGeneration++;
 		phase = 'idle';
 		timeLeft = timer;
 		wpm = 0;
 		typed = {};
 		samples = [];
+		runEvents = [];
+		practiceRun = null;
+		practiceSaving = false;
+		practiceError = '';
+		practiceSaveBusy = false;
+		replayOpen = false;
+		exportOpen = false;
 		cursor = start_cursor;
 	}
 
@@ -381,11 +787,13 @@
 			const prev = Math.max(prevReal(cursor), start_cursor);
 			delete typed[prev];
 			cursor = prev;
+			recordEvent(KeypressAction.BACKSPACE, '');
 			return;
 		}
 		if (e.key.length === 1) {
 			e.preventDefault();
 			if (phase === 'idle') startGame();
+			recordEvent(KeypressAction.KEYPRESS, e.key);
 			const pos = nextReal(cursor);
 			typed[pos] = e.key;
 			cursor = nextReal(pos + 1);
@@ -414,6 +822,7 @@
 
 	onDestroy(() => {
 		if (intervalId) clearInterval(intervalId);
+		stopBots();
 	});
 </script>
 
@@ -497,12 +906,31 @@
 		rows="1"
 	></textarea>
 
+	{#if !zen && phase === 'typing' && liveBots.length > 0}
+		<div
+			class="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-(--border) bg-(--fbg) px-6 py-2 font-mono text-[10px]"
+		>
+			<span class="tracking-[0.14em] text-(--silver)/30 uppercase">race</span>
+			{#each liveBots as bot (bot.id)}
+				<div class="flex items-center gap-1.5">
+					<span class="h-2 w-2" style={`background:${bot.color}`}></span>
+					<span class="text-(--silver)/70">{bot.label}</span>
+					<span class="text-(--mer)/60">{botLiveWpm(bot)} wpm</span>
+					<span class="text-(--silver)/22">{botProgress(bot)}%</span>
+				</div>
+			{/each}
+			<span class="ml-auto text-[9px] text-(--silver)/20">
+				bot pace follows your {racePaceBase} wpm form
+			</span>
+		</div>
+	{/if}
+
 	<!-- Code / results -->
 	<div class="relative min-h-0 flex-1 border-b border-(--border)" onclick={focusInput} role="none">
 		{#if phase === 'done'}
 			<div class="h-full overflow-y-auto">
 				<div class="flex min-h-full items-center justify-center px-8 py-5">
-					<div bind:this={resultRef} class="flex w-full max-w-5xl flex-col gap-5">
+					<div class="flex w-full max-w-5xl flex-col gap-5">
 						<!-- Headline -->
 						<div class="flex flex-wrap items-end gap-x-10 gap-y-4">
 							<div>
@@ -527,6 +955,64 @@
 						</div>
 
 						<ResultGraph {samples} duration={finalTime} />
+
+						{#if raceResults.length > 0}
+							<div class="border border-(--border) bg-(--fbg)">
+								<div class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-4 py-2.5">
+									<div>
+										<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase">
+											race result
+										</div>
+										<div class="mt-1 font-mono text-[9px] text-(--silver)/25">
+											bots calibrated from your last {racePaceRuns || 0} run{racePaceRuns === 1 ? '' : 's'} · base {racePaceBase} wpm
+										</div>
+									</div>
+									<div class="font-mono text-[9px] text-(--mer)/60 uppercase">
+										{raceResults.find((entry) => entry.isYou)?.place === 1 ? 'you took it' : 'chase them down'}
+									</div>
+								</div>
+								<div class="divide-y divide-(--border)">
+									{#each raceResults as entry (entry.id)}
+										<div
+											class={`flex flex-wrap items-center gap-3 px-4 py-2.5 ${entry.isYou ? 'bg-(--mer)/5' : ''}`}
+										>
+											<span class="w-5 font-mono text-[11px] text-(--silver)/30">{entry.place}</span>
+											<span class="h-2 w-2 shrink-0" style={`background:${entry.color}`}></span>
+											<span class="min-w-0 flex-1 truncate font-mono text-xs" style={`color:${entry.isYou ? 'var(--mer)' : 'var(--silver)'}`}>
+												{entry.label}
+											</span>
+											{#if entry.isYou}
+												<span class="font-mono text-[8px] tracking-[0.1em] text-(--mer)/50 uppercase">you</span>
+											{:else}
+												<span class="font-mono text-[8px] tracking-[0.1em] text-(--silver)/25 uppercase">bot</span>
+											{/if}
+											<span class="font-mono text-xs text-(--mer)">{entry.wpm} <span class="text-[8px] text-(--silver)/25">wpm</span></span>
+											<span class="font-mono text-[10px] text-(--silver)/35">{entry.accuracy}% acc</span>
+											<span class="font-mono text-[10px] text-(--silver)/25">{entry.progress}%</span>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
+						{#if effectiveBots.length > 0}
+							<div class="border border-(--border) bg-(--fbg) px-3 py-2">
+								<div class="flex flex-wrap items-center justify-between gap-2 px-2 pt-1">
+									<div>
+										<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase">
+											combined speed · you + bots
+										</div>
+										<div class="mt-1 font-mono text-[9px] text-(--silver)/25">
+											coloured lines are the bots' actual simulated race
+										</div>
+									</div>
+									<div class="font-mono text-[9px] text-(--mer)/70 uppercase">
+										{effectiveBots.length} bot{effectiveBots.length === 1 ? '' : 's'}
+									</div>
+								</div>
+								<SpeedGraph series={resultSeries} duration={finalTime} />
+							</div>
+						{/if}
 
 						<!-- Secondary stats -->
 						<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -564,24 +1050,65 @@
 							</div>
 						</div>
 
+						<!-- Practice storage -->
+						{#if !guest}
+							<div class="flex flex-wrap items-center gap-3 border border-(--border) bg-(--fbg) px-3 py-2.5">
+								<span class="font-mono text-[10px] tracking-[0.12em] text-(--silver)/35 uppercase">
+									latest practice
+								</span>
+								{#if practiceSaving}
+									<span class="font-mono text-[11px] text-(--silver)/45">storing temporary run…</span>
+								{:else if practiceError}
+									<span class="font-mono text-[11px] text-(--red)">{practiceError}</span>
+								{:else if practiceSaved}
+									<span class="font-mono text-[11px] text-(--mer)">saved to profile</span>
+									<a
+										href={`/profile/${encodeURIComponent(appState.user?.username ?? '')}`}
+										class="font-mono text-[10px] text-(--silver)/40 underline-offset-2 hover:text-(--mer) hover:underline"
+										>view run =></a
+									>
+								{:else if practiceRun}
+									<span class="font-mono text-[11px] text-(--silver)/40">temporary · replaced next run</span>
+									<button
+										class="cursor-pointer border border-(--mer) px-3 py-1 font-mono text-[10px] tracking-[0.1em] text-(--mer) uppercase hover:bg-(--mer)/10 disabled:opacity-40"
+										onclick={saveRun}
+										disabled={practiceSaveBusy}
+										>{practiceSaveBusy ? 'saving…' : 'save run =>'}</button
+									>
+								{:else}
+									<span class="font-mono text-[11px] text-(--silver)/30">
+										no keystrokes stored
+									</span>
+								{/if}
+								<span class="ml-auto font-mono text-[9px] text-(--silver)/25">
+									temporary runs stay out of history until saved
+								</span>
+							</div>
+						{/if}
+
 						<!-- What next -->
 						<div
-							bind:this={actionsRef}
 							class="flex flex-wrap items-center gap-2 border-t border-(--border) pt-5"
 						>
 							<button class="result-action" onclick={resetGame}>
 								next test <span class="kbd">tab</span>
 							</button>
 							<button class="result-action" onclick={repeatTest}>repeat</button>
+							<button
+								class="result-action disabled:cursor-default disabled:opacity-40"
+								onclick={() => (replayOpen = true)}
+								disabled={!localRun}
+							>
+								replay
+							</button>
 							<button class="result-action" onclick={() => (modalOpen = true)}>
 								settings <span class="kbd">esc</span>
 							</button>
 							<button
-								class="result-action disabled:cursor-default disabled:opacity-40"
-								onclick={exportResult}
-								disabled={exporting}
+								class="result-action"
+								onclick={() => (exportOpen = true)}
 							>
-								{exporting ? 'exporting…' : 'export png'}
+								export png
 							</button>
 							<button class="result-action" onclick={() => goto(resolve('/play'))}>hub</button>
 							<span class="ml-auto font-mono text-[11px] text-(--silver)/30">
@@ -602,11 +1129,21 @@
 						<div class="code-line" class:code-line-active={li === currentLine}>
 							<span class="line-no">{li + 1}</span>
 							<span class="line-code"
-								>{#each line as i (i)}<span
+								>{#each line as i (i)}
+									{@const carets = botCarets.get(i) ?? []}<span
 										use:trackSpan={i}
 										class={charClass(i)}
-										class:char-caret={i === cursor}>{display_chars[i]}</span
-									>{/each}</span
+										class:char-caret={i === cursor}
+										class:bot-caret-host={carets.length > 0}
+										>{#if carets.length > 0}<span class="bot-caret-stack" aria-hidden="true"
+												>{#each carets as bot, depth (bot.id)}<span
+														class="bot-caret-mark"
+														style={`left:${depth * 3}px;background:${bot.color}`}
+													></span
+												>{/each}</span
+											>{/if}{display_chars[i]}</span
+									>
+								{/each}</span
 							>
 						</div>
 					{/each}
@@ -628,6 +1165,43 @@
 						<span class="font-mono text-[11px] text-(--silver)/35">
 							<span class="kbd">tab</span> restart · <span class="kbd">esc</span> settings
 						</span>
+						{#if !guest && !zen}
+							<div class="mt-2 w-full border-t border-(--border) pt-3">
+								<div class="flex items-center justify-between gap-3">
+									<span class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase">
+										add bots · singleplayer
+									</span>
+									<span class="font-mono text-[9px] text-(--silver)/25">
+										{paceLoading
+											? 'calibrating pace…'
+											: `your pace ${paceBase} wpm${paceRuns > 0 ? ` · last ${paceRuns}` : ' · default'}`}
+									</span>
+								</div>
+								<div class="mt-2 flex flex-wrap justify-center gap-1.5">
+									{#each PRACTICE_BOTS as bot (bot.id)}
+										<button
+											class={`flex cursor-pointer items-center gap-1.5 border px-2 py-1 font-mono text-[10px] transition-colors ${
+												selectedBots.includes(bot.id)
+													? 'border-(--silver)/40 text-(--silver)'
+													: 'border-(--border) text-(--silver)/40 hover:border-(--silver)/40 hover:text-(--silver)'
+											}`}
+											onclick={() => toggleBot(bot.id)}
+											title={`${botTarget(bot.id)} wpm · ${bot.accuracy}% accuracy`}
+										>
+											<span
+												class="h-1.5 w-1.5 shrink-0"
+												style={`background:${bot.color}`}
+											></span>
+											{selectedBots.includes(bot.id) ? '−' : '+'} {bot.label}
+											<span class="text-[9px] opacity-50">{botTarget(bot.id)}</span>
+										</button>
+									{/each}
+								</div>
+								<div class="mt-1.5 text-center font-mono text-[9px] text-(--silver)/20">
+									bot speeds follow an exponential moving average of your latest runs
+								</div>
+							</div>
+						{/if}
 						{#if guest}
 							<a
 								href={loginHref}
@@ -656,6 +1230,11 @@
 		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+T</span> theme</span>
 		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+L</span> language</span>
 		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+S</span> timer</span>
+		{#if effectiveBots.length > 0 && !zen}
+			<span class="flex items-center gap-2 text-(--mer)/60">
+				bots: {effectiveBots.map((id) => botProfile(id).label).join(' · ')}
+			</span>
+		{/if}
 		{#if guest}
 			<a
 				href={loginHref}
@@ -666,3 +1245,27 @@
 		{/if}
 	</footer>
 </div>
+
+{#if replayOpen && localRun}
+	<ReplayModal
+		run={localRun}
+		snippet={code}
+		startOffset={startOffsetBytes()}
+		duration={finalTime}
+		language={lang}
+		shareURL={practiceShareURL()}
+		onclose={() => (replayOpen = false)}
+	/>
+{/if}
+
+{#if exportOpen}
+	<ExportModal
+		title={`practice · ${appState.user?.username ?? 'guest'}`}
+		subtitle={`${LANGUAGE_LABELS[lang]} · ${finalTime}s · ${finalWpm} wpm`}
+		series={resultSeries}
+		duration={finalTime}
+		stats={resultStats}
+		filename={`osdtype-practice-${finalWpm}wpm`}
+		onclose={() => (exportOpen = false)}
+	/>
+{/if}

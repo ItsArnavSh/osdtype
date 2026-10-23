@@ -226,6 +226,29 @@ body {
 	}
 }
 
+/* Practice rivals use thin coloured carets, one offset per bot so several
+   racers can occupy the same character without hiding each other. */
+.bot-caret-host {
+	position: relative;
+}
+.bot-caret-stack {
+	position: absolute;
+	left: -1px;
+	top: 0.12em;
+	bottom: 0.1em;
+	width: 0;
+	pointer-events: none;
+	z-index: 2;
+}
+.bot-caret-mark {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 2px;
+	border-radius: 1px;
+	opacity: 0.95;
+}
+
 /* Flat controls on the results screen. */
 .result-action {
 	cursor: pointer;

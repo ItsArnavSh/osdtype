@@ -124,11 +124,11 @@ func (r *runtime) applyInput(userID uint32, kp entity.Keypress) {
 	if delta < 0 {
 		delta = 0
 	}
-	if !ps.isBot {
-		ps.events = append(ps.events, entity.Keypress{Value: kp.Value, Action: kp.Action, TimeMS: int64(delta)})
-		if len(ps.timestamps) < 20000 {
-			ps.timestamps = append(ps.timestamps, delta)
-		}
+	// Record bot keystrokes too, so their run appears on the combined graph
+	// and can be replayed. Anti-cheat timestamps stay human-only.
+	ps.events = append(ps.events, entity.Keypress{Value: kp.Value, Action: kp.Action, TimeMS: int64(delta)})
+	if !ps.isBot && len(ps.timestamps) < 20000 {
+		ps.timestamps = append(ps.timestamps, delta)
 	}
 
 	if _, more := nextChar(r.game.Snippet, r.game.StartOffset, len([]rune(string(ps.typed)))); !more {
@@ -230,16 +230,14 @@ func (r *runtime) finish(ctx context.Context) {
 		}
 		gps = append(gps, gp)
 
-		if !ps.isBot {
-			raw, _ := json.Marshal(ps.events)
-			recordings = append(recordings, entity.Recording{
-				GameID:    r.game.ID,
-				UserID:    uid,
-				Events:    raw,
-				Final:     typed,
-				CreatedAt: now,
-			})
-		}
+		raw, _ := json.Marshal(ps.events)
+		recordings = append(recordings, entity.Recording{
+			GameID:    r.game.ID,
+			UserID:    uid,
+			Events:    raw,
+			Final:     typed,
+			CreatedAt: now,
+		})
 		for _, reason := range report.Reasons {
 			flags = append(flags, entity.CheatFlag{
 				GameID: r.game.ID, UserID: uid, Reason: reason, Risk: report.Risk, CreatedAt: now,

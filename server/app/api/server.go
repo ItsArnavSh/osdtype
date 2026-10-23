@@ -91,6 +91,8 @@ func (s *Server) routes() {
 	r.GET("/auth/github/callback", s.githubCallback)
 	r.GET("/login/github/fake", s.devLoginGET)
 	r.POST("/auth/dev-login", s.devLogin)
+	// Share links must work without an account.
+	r.GET("/replay/:game/:user", s.publicReplay)
 
 	protected := r.Group("")
 	protected.Use(auth.RequireAuth())
@@ -144,6 +146,9 @@ func (s *Server) routes() {
 		protected.POST("/game/:id/leave", s.leaveGame)
 		protected.POST("/game/:id/ack", s.ackResults)
 		protected.GET("/game/:id/results", s.getGame)
+		protected.GET("/game/:id/replays", s.gameReplays)
+		protected.POST("/practice/runs", s.createPracticeRun)
+		protected.POST("/practice/runs/:id/save", s.savePracticeRun)
 		protected.GET("/contest/:id", s.getContest)
 		protected.GET("/contests/:id", s.getContest)
 

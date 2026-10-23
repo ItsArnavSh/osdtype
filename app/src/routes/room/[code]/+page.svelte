@@ -22,8 +22,9 @@
 		updateRoom
 	} from '$lib/core/api/rooms';
 	import { onSocketEvent } from '$lib/core/api/socket';
-	import type { ContestView, LobbyDuration, RoomView } from '$lib/core/api/types';
+	import type { ContestView, FriendView, LobbyDuration, RoomView, UserView } from '$lib/core/api/types';
 	import { LANGUAGE_LABELS, LOBBY_DURATIONS } from '$lib/core/api/types';
+	import { friends, searchUsers } from '$lib/core/api/users';
 	import { LANGUAGES, type Language } from '$lib/core/entity/languages';
 	import { appState, refreshState } from '$lib/core/state/state.svelte';
 
@@ -36,6 +37,8 @@
 	let error = $state('');
 	let notice = $state('');
 	let inviteName = $state('');
+	let friendList = $state<FriendView[]>([]);
+	let searchResults = $state<UserView[]>([]);
 	let password = $state('');
 	let settingsOpen = $state(false);
 	let contestOpen = $state(false);
@@ -64,6 +67,40 @@
 	let canManage = $derived(room?.my_role === 'owner' || room?.my_role === 'mod');
 	let canStart = $derived(canManage && (room?.member_count ?? 0) >= 2);
 	let myID = $derived(appState.user?.id ?? 0);
+	let memberIDs = $derived(new Set((room?.members ?? []).map((member) => member.user_id)));
+	let onlineFriendSuggestions = $derived(
+		friendList
+			.filter(
+				(friend) =>
+					friend.is_friend &&
+					friend.online &&
+					friend.user.id !== myID &&
+					!memberIDs.has(friend.user.id)
+			)
+			.slice(0, 5)
+	);
+	let filteredSearchResults = $derived(
+		searchResults
+			.filter((user) => user.id !== myID && !memberIDs.has(user.id))
+			.slice(0, 5)
+	);
+
+	$effect(() => {
+		const query = inviteName.trim();
+		if (query.length < 2) {
+			searchResults = [];
+			return;
+		}
+		const timer = setTimeout(async () => {
+			try {
+				const users = await searchUsers(query);
+				if (inviteName.trim() === query) searchResults = users;
+			} catch {
+				// Search is a convenience; the invite field still works.
+			}
+		}, 240);
+		return () => clearTimeout(timer);
+	});
 
 	function fillSettings(value: RoomView) {
 		settings = {
@@ -159,7 +196,11 @@
 	}
 
 	async function invite() {
-		const username = inviteName.trim();
+		await sendInvite(inviteName);
+	}
+
+	async function sendInvite(name: string) {
+		const username = name.trim();
 		if (!username) return;
 		busy = true;
 		error = '';
@@ -167,6 +208,7 @@
 		try {
 			await inviteToRoom(code, username);
 			inviteName = '';
+			searchResults = [];
 			notice = `Invite sent to ${username}.`;
 		} catch (err) {
 			error = errorMessage(err);
@@ -307,6 +349,9 @@
 			}
 		});
 		void load();
+		void friends()
+			.then((value) => (friendList = value))
+			.catch(() => {});
 		return () => {
 			unsubscribe?.();
 			if (clockTimer) clearInterval(clockTimer);
@@ -531,6 +576,61 @@
 							onclick={invite}>invite</button
 						>
 					</div>
+
+					{#if onlineFriendSuggestions.length > 0}
+						<div class="mt-3">
+							<div class="flex items-center justify-between font-mono text-[9px] tracking-[0.12em] text-(--silver)/30 uppercase">
+								<span>online friends</span>
+								<a href={resolve('/friends')} class="hover:text-(--silver)">manage</a>
+							</div>
+							<div class="mt-2 flex flex-wrap gap-1.5">
+								{#each onlineFriendSuggestions as friend (friend.user.id)}
+									<button
+										class="flex cursor-pointer items-center gap-1.5 border border-(--border) px-2 py-1 font-mono text-[10px] text-(--silver)/60 hover:border-(--mer) hover:text-(--mer)"
+										onclick={() => sendInvite(friend.user.username)}
+										title={`invite ${friend.user.username}`}
+									>
+										<span class="h-1.5 w-1.5 bg-(--mer)"></span>
+										{friend.user.username}
+										<span class="text-[9px] text-(--silver)/25">+</span>
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if inviteName.trim().length >= 2}
+						<div class="mt-3">
+							<div class="font-mono text-[9px] tracking-[0.12em] text-(--silver)/30 uppercase">
+								search results
+							</div>
+							{#if filteredSearchResults.length === 0}
+								<p class="mt-2 font-mono text-[10px] text-(--silver)/25">No available players found.</p>
+							{:else}
+								<div class="mt-2 flex flex-col gap-1.5">
+									{#each filteredSearchResults as user (user.id)}
+										<div class="flex items-center gap-2 border border-(--border) px-2 py-1.5">
+											<Avatar
+												src={user.avatar_url}
+												name={user.username}
+												class="h-5 w-5"
+												text="text-[8px]"
+											/>
+											<span class="min-w-0 flex-1 truncate font-mono text-[11px] text-(--silver)/65">
+												{user.username}
+											</span>
+											<span class="font-mono text-[9px] text-(--silver)/25">{user.rating}</span>
+											<button
+												class="cursor-pointer border border-(--border) px-1.5 py-0.5 font-mono text-[9px] text-(--mer)/70 hover:border-(--mer) hover:text-(--mer)"
+												onclick={() => sendInvite(user.username)}>invite</button
+											>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/if}
+
 					<button
 						class="mt-2 w-full cursor-pointer border border-(--border) px-3 py-2 font-mono text-[10px] text-(--silver)/40 hover:text-(--silver)"
 						onclick={copyLink}>copy /join/{code}</button

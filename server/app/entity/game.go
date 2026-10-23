@@ -5,9 +5,10 @@ import "time"
 type GameMode string
 
 const (
-	GameRanked  GameMode = "ranked"
-	GameRoom    GameMode = "room"
-	GameContest GameMode = "contest"
+	GameRanked   GameMode = "ranked"
+	GameRoom     GameMode = "room"
+	GameContest  GameMode = "contest"
+	GamePractice GameMode = "practice"
 )
 
 type GameStatus string
@@ -30,10 +31,13 @@ type Game struct {
 	Snippet     string     `gorm:"type:text" json:"-"`
 	StartOffset int        `gorm:"not null;default:0" json:"start_offset"`
 	Status      GameStatus `gorm:"size:16;not null;default:countdown" json:"status"`
-	StartsAt    *time.Time `json:"starts_at"`
-	EndsAt      *time.Time `json:"ends_at"`
-	CreatedAt   time.Time  `json:"created_at"`
-	FinishedAt  *time.Time `json:"finished_at"`
+	// Temporary marks a practice run that is only kept as the player's
+	// latest attempt. Saving it clears the flag and puts it in history.
+	Temporary  bool       `gorm:"not null;default:false;index" json:"temporary"`
+	StartsAt   *time.Time `json:"starts_at"`
+	EndsAt     *time.Time `json:"ends_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	FinishedAt *time.Time `json:"finished_at"`
 
 	Players []GamePlayer `gorm:"-" json:"players,omitempty"`
 }
@@ -101,6 +105,7 @@ type GameView struct {
 	Seed        string           `json:"seed"`
 	Snippet     string           `json:"snippet"`
 	StartOffset int              `json:"start_offset"`
+	Temporary   bool             `json:"temporary,omitempty"`
 	StartsAt    *time.Time       `json:"starts_at"`
 	EndsAt      *time.Time       `json:"ends_at"`
 	Players     []PlayerProgress `json:"players"`
@@ -139,6 +144,7 @@ type Recording struct {
 
 type MatchHistory struct {
 	GameID      uint32    `json:"game_id"`
+	UserID      uint32    `json:"user_id"`
 	Mode        GameMode  `json:"mode"`
 	RoomCode    string    `json:"room_code,omitempty"`
 	Language    string    `json:"language"`

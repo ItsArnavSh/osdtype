@@ -38,6 +38,10 @@ export const ENDPOINTS = {
 	DECLINE_INVITE: (id: number) => `/invites/${id}/decline`,
 	GAME: (id: number) => `/game/${id}`,
 	GAME_LEAVE: (id: number) => `/game/${id}/leave`,
+	GAME_REPLAYS: (id: number) => `/game/${id}/replays`,
+	PUBLIC_REPLAY: (gameID: number, userID: number) => `/replay/${gameID}/${userID}`,
+	PRACTICE_RUNS: '/practice/runs',
+	PRACTICE_SAVE: (id: number) => `/practice/runs/${id}/save`,
 	CONTEST: (id: number) => `/contest/${id}`,
 	WS: '/ws'
 } as const;

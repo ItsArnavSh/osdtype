@@ -4,15 +4,23 @@
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
+	import ExportModal from '$lib/components/ExportModal.svelte';
+	import ReplayModal from '$lib/components/ReplayModal.svelte';
+	import SpeedGraph from '$lib/components/SpeedGraph.svelte';
 	import { acknowledgeResults } from '$lib/core/api/state';
-	import { getGame } from '$lib/core/api/game';
+	import { getGame, getGameReplays } from '$lib/core/api/game';
 	import { errorMessage } from '$lib/core/api/client';
 	import { LANGUAGE_LABELS } from '$lib/core/api/types';
-	import type { GameView, ResultView } from '$lib/core/api/types';
+	import type { GameView, ReplayBundle, ReplayRun, ResultView } from '$lib/core/api/types';
+	import { deriveSamples, syntheticSamples } from '$lib/core/replay';
+	import type { ExportStat, SpeedSeries } from '$lib/core/stats';
 	import { appState, applyState } from '$lib/core/state/state.svelte';
 
 	const gameID = $derived(Number(page.params.id ?? 0));
 	let game = $state<GameView | null>(null);
+	let replays = $state<ReplayBundle | null>(null);
+	let selectedRun = $state<ReplayRun | null>(null);
+	let exportOpen = $state(false);
 	let loading = $state(true);
 	let busy = $state(false);
 	let error = $state('');
@@ -41,20 +49,73 @@
 	let myID = $derived(appState.user?.id ?? 0);
 	let mine = $derived(results.find((entry) => entry.user_id === myID) ?? null);
 
+	let graphSeries = $derived.by<SpeedSeries[]>(() => {
+		const currentGame = game;
+		if (!currentGame) return [];
+		return results.map((result) => {
+			const run = runFor(result.user_id);
+			const samples =
+				run && run.events.length > 0
+					? deriveSamples(
+							run.events,
+							currentGame.snippet,
+							currentGame.start_offset,
+							currentGame.duration
+						)
+					: syntheticSamples(result.wpm, result.accuracy, currentGame.duration);
+			return {
+				label: result.username,
+				samples,
+				isBot: result.is_bot
+			};
+		});
+	});
+
+	let exportStats = $derived.by<ExportStat[]>(() => {
+		const top = results[0];
+		return [
+			{ label: 'wpm', value: Math.round(top?.wpm ?? 0), accent: true },
+			{ label: 'acc', value: `${Math.round((top?.accuracy ?? 0) * 100)}%` },
+			{ label: 'players', value: results.length },
+			{ label: 'duration', value: `${game?.duration ?? 0}s` }
+		];
+	});
+
 	onMount(async () => {
+		const replayPromise = getGameReplays(gameID).catch(() => null);
 		if (appState.state?.results?.id === gameID) {
 			game = appState.state.results;
 			loading = false;
-			return;
+		} else {
+			try {
+				game = await getGame(gameID);
+			} catch (err) {
+				error = errorMessage(err);
+			} finally {
+				loading = false;
+			}
 		}
-		try {
-			game = await getGame(gameID);
-		} catch (err) {
-			error = errorMessage(err);
-		} finally {
-			loading = false;
-		}
+		replays = await replayPromise;
 	});
+
+	function runFor(userID: number): ReplayRun | undefined {
+		return replays?.runs.find((run) => run.user_id === userID);
+	}
+
+	function canReplay(result: ResultView): boolean {
+		const run = runFor(result.user_id);
+		return Boolean(run && run.events.length > 0);
+	}
+
+	function openReplay(result: ResultView) {
+		const run = runFor(result.user_id);
+		if (run && run.events.length > 0) selectedRun = run;
+	}
+
+	function shareURLFor(run: ReplayRun): string {
+		if (typeof location === 'undefined' || !game) return '';
+		return `${location.origin}/replay/${game.id}/${run.user_id}`;
+	}
 
 	async function acknowledge() {
 		if (busy) return;
@@ -117,6 +178,26 @@
 			</div>
 		{:else}
 			<div class="border border-(--border) bg-(--fbg)">
+				<div class="flex flex-wrap items-center justify-between gap-3 border-b border-(--border) px-5 py-3">
+					<div>
+						<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/40 uppercase">
+							speed graph · every player
+						</div>
+						<div class="mt-1 font-mono text-[10px] text-(--silver)/30">
+							labelled net wpm over {game.duration}s · click replay on a row for its recording
+						</div>
+					</div>
+					<button
+						class="cursor-pointer border border-(--mer) px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-(--mer) uppercase hover:bg-(--mer)/10"
+						onclick={() => (exportOpen = true)}>export image</button
+					>
+				</div>
+				<div class="px-3 py-4 md:px-5">
+					<SpeedGraph series={graphSeries} duration={game.duration} />
+				</div>
+			</div>
+
+			<div class="mt-4 border border-(--border) bg-(--fbg)">
 				<div class="grid grid-cols-[40px_1fr_70px_70px_80px] gap-2 border-b border-(--border) px-5 py-2 font-mono text-[9px] tracking-[0.12em] text-(--silver)/30 uppercase md:grid-cols-[50px_1fr_90px_90px_110px]">
 					<span>#</span>
 					<span>player</span>
@@ -138,10 +219,18 @@
 										class="block truncate text-sm text-(--silver) hover:text-(--mer)"
 										>{result.username}{result.user_id === myID ? ' (you)' : ''}</a
 									>
-									<div class="mt-0.5 flex gap-2 font-mono text-[9px] text-(--silver)/25">
+									<div class="mt-0.5 flex flex-wrap items-center gap-2 font-mono text-[9px] text-(--silver)/25">
 										{#if result.is_bot}<span>bot</span>{/if}
 										{#if result.left}<span>left early</span>{/if}
 										{#if result.flagged}<span class="text-(--red)/70">anti-cheat flag</span>{/if}
+										{#if canReplay(result)}
+											<button
+												class="cursor-pointer border border-(--border) px-1.5 py-0.5 text-[9px] tracking-[0.08em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer)"
+												onclick={() => openReplay(result)}>replay</button
+											>
+										{:else}
+											<span class="text-[9px] uppercase">no recording</span>
+										{/if}
 									</div>
 								</div>
 							</div>
@@ -180,3 +269,27 @@
 		{/if}
 	</main>
 </div>
+
+{#if selectedRun && game}
+	<ReplayModal
+		run={selectedRun}
+		snippet={game.snippet}
+		startOffset={game.start_offset}
+		duration={game.duration}
+		language={game.language}
+		shareURL={shareURLFor(selectedRun)}
+		onclose={() => (selectedRun = null)}
+	/>
+{/if}
+
+{#if exportOpen && game}
+	<ExportModal
+		title={`${game.mode} results`}
+		subtitle={`game ${game.id}${game.room_code ? ` · ${game.room_code}` : ''} · ${results.length} players`}
+		series={graphSeries}
+		duration={game.duration}
+		stats={exportStats}
+		filename={`osdtype-${game.mode}-${game.id}`}
+		onclose={() => (exportOpen = false)}
+	/>
+{/if}

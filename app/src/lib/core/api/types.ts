@@ -6,7 +6,7 @@ export const LOBBY_DURATIONS: LobbyDuration[] = [30, 90, 300];
 export type AppStateName = 'idle' | 'queue' | 'room' | 'game' | 'results';
 export type RoomStatus = 'lobby' | 'playing' | 'closed';
 export type RoomRole = 'owner' | 'mod' | 'member';
-export type GameMode = 'ranked' | 'room' | 'contest';
+export type GameMode = 'ranked' | 'room' | 'contest' | 'practice';
 export type GameStatus = 'countdown' | 'active' | 'finished' | 'abandoned';
 
 export interface RankInfo {
@@ -115,6 +115,7 @@ export interface GameView {
 	seed: string;
 	snippet: string;
 	start_offset: number;
+	temporary?: boolean;
 	starts_at: string | null;
 	ends_at: string | null;
 	players: PlayerProgress[];
@@ -143,6 +144,7 @@ export interface StateView {
 
 export interface MatchHistory {
 	game_id: number;
+	user_id: number;
 	mode: GameMode;
 	room_code?: string;
 	language: string;
@@ -163,6 +165,7 @@ export interface ProfileView {
 	online: boolean;
 	is_friend: boolean;
 	is_followed: boolean;
+	follows_you: boolean;
 }
 
 export interface FriendView {
@@ -204,6 +207,31 @@ export interface ClientKeypress {
 	value: string;
 	action: KeypressAction;
 	time_ms?: number;
+}
+
+export interface ReplayRun {
+	user_id: number;
+	username: string;
+	avatar_url: string;
+	wpm: number;
+	raw: number;
+	accuracy: number;
+	correct: number;
+	wrong: number;
+	is_bot: boolean;
+	final: string;
+	events: ClientKeypress[];
+}
+
+export interface ReplayBundle {
+	game: GameView;
+	runs: ReplayRun[];
+}
+
+export interface PracticeRunView {
+	id: number;
+	temporary: boolean;
+	url: string;
 }
 
 export const LANGUAGE_LABELS: Record<string, string> = {

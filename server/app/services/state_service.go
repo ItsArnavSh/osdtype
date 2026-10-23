@@ -212,6 +212,13 @@ func (s *ServiceLayer) GetGameView(ctx context.Context, uid, gameID uint32) (ent
 }
 
 func (s *ServiceLayer) gameViewFromDB(ctx context.Context, viewerID uint32, game entity.Game) (entity.GameView, error) {
+	return s.gameViewFromDBFor(ctx, viewerID, game, true)
+}
+
+// gameViewFromDBFor builds the shared view. requireParticipant is false for
+// public replay pages, which intentionally let anyone holding the link inspect
+// a recorded run without joining the game.
+func (s *ServiceLayer) gameViewFromDBFor(ctx context.Context, viewerID uint32, game entity.Game, requireParticipant bool) (entity.GameView, error) {
 	players, err := s.db.GetGamePlayers(ctx, game.ID)
 	if err != nil {
 		return entity.GameView{}, err
@@ -228,6 +235,7 @@ func (s *ServiceLayer) gameViewFromDB(ctx context.Context, viewerID uint32, game
 		Seed:        strconv.FormatUint(game.Seed, 10),
 		Snippet:     game.Snippet,
 		StartOffset: game.StartOffset,
+		Temporary:   game.Temporary,
 		StartsAt:    game.StartsAt,
 		EndsAt:      game.EndsAt,
 		CreatedAt:   game.CreatedAt,
@@ -279,7 +287,7 @@ func (s *ServiceLayer) gameViewFromDB(ctx context.Context, viewerID uint32, game
 			view.MyResult = &r
 		}
 	}
-	if !found {
+	if requireParticipant && !found {
 		return entity.GameView{}, errf(ErrForbidden, "you are not part of this game")
 	}
 	if game.Status == entity.GameFinished {

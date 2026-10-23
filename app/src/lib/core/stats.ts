@@ -9,3 +9,17 @@ export interface WpmSample {
 	/** Cumulative mistakes at this point in the run. */
 	errors: number;
 }
+
+/** One labelled line on a combined speed graph. */
+export interface SpeedSeries {
+	label: string;
+	samples: WpmSample[];
+	color?: string;
+	isBot?: boolean;
+}
+
+export interface ExportStat {
+	label: string;
+	value: string | number;
+	accent?: boolean;
+}

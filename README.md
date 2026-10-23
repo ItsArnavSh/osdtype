@@ -15,7 +15,11 @@ multiplayer rooms, contests, bots and anti-cheat.
 - **Contests** — scheduled room events that open a lobby and start
   automatically. Results and final standings are persisted.
 - **Practice and Zen** — unranked single-player typing with the same generated
-  snippets used in every other mode.
+  snippets used in every other mode. Practice runs are recorded, can be saved
+  to profile history and shared as simulated replay links, and logged-in
+  players can race adaptive Lewis/Max/Lance bots calibrated from recent form.
+- **Results** — every finished run has a labelled speed graph and simulated
+  replay. Ranked and room results combine every player on one exportable graph.
 
 All matches are generated from the same language, seed and token count so the
 server and browser produce byte-identical code. The backend owns the clock,

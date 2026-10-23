@@ -6,10 +6,35 @@
 	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
 	import { appState, resetSession } from '$lib/core/state/state.svelte';
 	import { logout } from '$lib/core/api/auth';
+	import { friends } from '$lib/core/api/users';
+	import type { FriendView } from '$lib/core/api/types';
+	import { onMount } from 'svelte';
 
 	let user = $derived(appState.user);
 	let guest = $derived(!user);
 	let inviteCount = $derived(appState.invites.length);
+	let friendList = $state<FriendView[]>([]);
+	let friendError = $state('');
+	let onlineFriends = $derived(friendList.filter((friend) => friend.online).length);
+	let visibleFriends = $derived(
+		[...friendList]
+			.sort(
+				(a, b) =>
+					Number(b.online) - Number(a.online) ||
+					Number(b.is_friend) - Number(a.is_friend) ||
+					a.user.username.localeCompare(b.user.username)
+			)
+			.slice(0, 4)
+	);
+
+	onMount(async () => {
+		if (!appState.user) return;
+		try {
+			friendList = await friends();
+		} catch (err) {
+			friendError = err instanceof Error ? err.message : 'could not load friends';
+		}
+	});
 
 	function loginHref(next: string): string {
 		return `/login?next=${encodeURIComponent(next)}`;
@@ -64,6 +89,11 @@
 						href={resolve('/leaderboard')}
 						class="border border-(--border) px-3 py-1 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--silver)/40 hover:text-(--silver)"
 						>leaderboard</a
+					>
+					<a
+						href={resolve('/friends')}
+						class="border border-(--border) px-3 py-1 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--silver)/40 hover:text-(--silver)"
+						>friends</a
 					>
 					<a
 						href={resolve(`/profile/${user.username}`)}
@@ -234,6 +264,49 @@
 			</button>
 
 			{#if user}
+				<div class="border border-(--border) bg-(--fbg) px-6 py-5">
+					<div class="flex items-center justify-between">
+						<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
+							friends
+						</div>
+						<a
+							href={resolve('/friends')}
+							class="font-mono text-[10px] text-(--silver)/40 hover:text-(--silver)"
+							>manage</a
+						>
+					</div>
+					{#if friendError}
+						<p class="mt-3 font-mono text-[11px] text-(--red)/70">{friendError}</p>
+					{:else if visibleFriends.length === 0}
+						<p class="mt-3 font-mono text-xs text-(--silver)/30">
+							No friends yet. Follow players from a profile or the ladder.
+						</p>
+					{:else}
+						<div class="mt-3 flex flex-col gap-2">
+							{#each visibleFriends as friend (friend.user.id)}
+								<a
+									href={resolve(`/profile/${friend.user.username}`)}
+									class="flex items-center gap-2.5 font-mono text-xs hover:text-(--mer)"
+								>
+									<span
+										class={`h-1.5 w-1.5 shrink-0 ${friend.online ? 'bg-(--mer)' : 'bg-(--silver)/20'}`}
+									></span>
+									<span class="truncate text-(--silver)/70">{friend.user.username}</span>
+									{#if friend.is_friend}
+										<span class="text-[9px] tracking-[0.1em] text-(--mer)/50 uppercase">friend</span>
+									{:else}
+										<span class="text-[9px] tracking-[0.1em] text-(--silver)/25 uppercase">following</span>
+									{/if}
+									<span class="ml-auto text-[10px] text-(--silver)/30">{friend.user.rating}</span>
+								</a>
+							{/each}
+						</div>
+						<div class="mt-3 font-mono text-[10px] text-(--silver)/25">
+							{onlineFriends} online now
+						</div>
+					{/if}
+				</div>
+
 				<div class="border border-(--border) bg-(--fbg) px-6 py-5">
 					<div class="flex items-center justify-between">
 						<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">

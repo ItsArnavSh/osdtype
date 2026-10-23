@@ -103,6 +103,7 @@ type ProfileView struct {
 	Online     bool                  `json:"online"`
 	IsFriend   bool                  `json:"is_friend"`
 	IsFollowed bool                  `json:"is_followed"`
+	FollowsYou bool                  `json:"follows_you"`
 }
 
 func (s *ServiceLayer) Profile(ctx context.Context, viewerID uint32, username string) (ProfileView, error) {
@@ -131,6 +132,13 @@ func (s *ServiceLayer) Profile(ctx context.Context, viewerID uint32, username st
 		for _, id := range following {
 			if id == user.ID {
 				out.IsFollowed = true
+				break
+			}
+		}
+		targetFollowing, _ := s.db.GetFollowing(ctx, user.ID)
+		for _, id := range targetFollowing {
+			if id == viewerID {
+				out.FollowsYou = true
 				break
 			}
 		}

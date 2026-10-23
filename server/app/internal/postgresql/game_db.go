@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"osdtyp/app/entity"
@@ -56,7 +57,7 @@ func (d *Database) LatestFinishedGameForUser(ctx context.Context, uid uint32) (e
 	err := d.db.WithContext(ctx).
 		Table("games").
 		Joins("JOIN game_players ON game_players.game_id = games.id").
-		Where("game_players.user_id = ? AND games.status = ?", uid, entity.GameFinished).
+		Where("game_players.user_id = ? AND games.status = ? AND games.mode <> ?", uid, entity.GameFinished, entity.GamePractice).
 		Order("games.finished_at DESC").First(&game).Error
 	return game, err
 }
@@ -69,7 +70,7 @@ func (d *Database) LatestUnacknowledgedGame(ctx context.Context, uid uint32) (en
 	err := d.db.WithContext(ctx).
 		Table("games").
 		Joins("JOIN game_players ON game_players.game_id = games.id").
-		Where("game_players.user_id = ? AND games.status = ? AND game_players.acked = ? AND game_players.left = ?", uid, entity.GameFinished, false, false).
+		Where("game_players.user_id = ? AND games.status = ? AND game_players.acked = ? AND game_players.left = ? AND games.mode <> ?", uid, entity.GameFinished, false, false, entity.GamePractice).
 		Order("games.finished_at DESC").First(&game).Error
 	return game, err
 }
@@ -160,17 +161,96 @@ func (d *Database) SaveRecordings(ctx context.Context, recordings []entity.Recor
 	return d.db.WithContext(ctx).Create(&recordings).Error
 }
 
+func (d *Database) GetRecordings(ctx context.Context, gameID uint32) ([]entity.Recording, error) {
+	var recordings []entity.Recording
+	err := d.db.WithContext(ctx).Where("game_id = ?", gameID).Order("user_id ASC").Find(&recordings).Error
+	return recordings, err
+}
+
+func (d *Database) GetRecording(ctx context.Context, gameID, userID uint32) (entity.Recording, error) {
+	var recording entity.Recording
+	err := d.db.WithContext(ctx).Where("game_id = ? AND user_id = ?", gameID, userID).First(&recording).Error
+	return recording, err
+}
+
+// CreatePracticeRun atomically replaces the player's previous temporary
+// practice attempt with a new one. Saved practice runs stay untouched.
+func (d *Database) CreatePracticeRun(ctx context.Context, game *entity.Game, player *entity.GamePlayer, recording *entity.Recording) error {
+	return d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var previous []uint32
+		if err := tx.Table("games").
+			Joins("JOIN game_players ON game_players.game_id = games.id").
+			Where("games.mode = ? AND games.temporary = ? AND game_players.user_id = ?", entity.GamePractice, true, player.UserID).
+			Pluck("games.id", &previous).Error; err != nil {
+			return err
+		}
+		if len(previous) > 0 {
+			if err := tx.Where("game_id IN ?", previous).Delete(&entity.Recording{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("game_id IN ?", previous).Delete(&entity.GamePlayer{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("id IN ?", previous).Delete(&entity.Game{}).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Create(game).Error; err != nil {
+			return err
+		}
+		player.GameID = game.ID
+		recording.GameID = game.ID
+		if err := tx.Create(player).Error; err != nil {
+			return err
+		}
+		return tx.Create(recording).Error
+	})
+}
+
+// SavePracticeRun makes a temporary practice run permanent. The bool reports
+// whether the run was found and belonged to the player.
+func (d *Database) SavePracticeRun(ctx context.Context, gameID, userID uint32) (bool, error) {
+	saved := false
+	err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var game entity.Game
+		if err := tx.Where("id = ? AND mode = ?", gameID, entity.GamePractice).First(&game).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		var playerCount int64
+		if err := tx.Model(&entity.GamePlayer{}).
+			Where("game_id = ? AND user_id = ?", gameID, userID).
+			Count(&playerCount).Error; err != nil {
+			return err
+		}
+		if playerCount == 0 {
+			return nil
+		}
+		if err := tx.Model(&entity.Game{}).
+			Where("id = ?", gameID).
+			Update("temporary", false).Error; err != nil {
+			return err
+		}
+		saved = true
+		return nil
+	})
+	return saved, err
+}
+
 func (d *Database) UserGameHistory(ctx context.Context, uid uint32, limit int) ([]entity.MatchHistory, error) {
-	const query = `SELECT g.id, g.mode, COALESCE(r.code, ''), g.language, g.duration,
+	const query = `SELECT g.id, gp.user_id, g.mode, COALESCE(r.code, ''), g.language, g.duration,
 		gp.wpm, gp.accuracy, gp.placement, gp.rating_after - gp.rating_before,
 		gp.flagged, (SELECT COUNT(*) FROM game_players x WHERE x.game_id = g.id),
 		g.finished_at
 		FROM game_players AS gp
 		JOIN games AS g ON g.id = gp.game_id
 		LEFT JOIN rooms AS r ON r.id = g.room_id
-		WHERE gp.user_id = ? AND g.status = ?
+		WHERE gp.user_id = ? AND g.status = ? AND (g.mode <> ? OR g.temporary = ?)
 		ORDER BY g.finished_at DESC LIMIT ?`
-	rows, err := d.db.WithContext(ctx).Raw(query, uid, entity.GameFinished, limit).Rows()
+	rows, err := d.db.WithContext(ctx).Raw(query, uid, entity.GameFinished, entity.GamePractice, false, limit).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +260,7 @@ func (d *Database) UserGameHistory(ctx context.Context, uid uint32, limit int) (
 		var item entity.MatchHistory
 		var playedAt any
 		if err := rows.Scan(
-			&item.GameID, &item.Mode, &item.RoomCode, &item.Language, &item.Duration,
+			&item.GameID, &item.UserID, &item.Mode, &item.RoomCode, &item.Language, &item.Duration,
 			&item.WPM, &item.Accuracy, &item.Rank, &item.RatingDelta,
 			&item.Flagged, &item.Players, &playedAt,
 		); err != nil {

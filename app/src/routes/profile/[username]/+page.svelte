@@ -89,6 +89,14 @@
 							{#if data.user.id === appState.user?.id}
 								<span class="font-mono text-[9px] text-(--mer) uppercase">you</span>
 							{/if}
+							{#if data.is_friend}
+								<span class="border border-(--mer)/40 px-2 py-0.5 font-mono text-[9px] text-(--mer) uppercase">friend</span>
+							{:else if data.is_followed}
+								<span class="border border-(--border) px-2 py-0.5 font-mono text-[9px] text-(--silver)/35 uppercase">following</span>
+							{/if}
+							{#if data.follows_you}
+								<span class="font-mono text-[9px] text-(--silver)/30 lowercase">follows you</span>
+							{/if}
 						</div>
 						<div class="mt-2 flex flex-wrap items-center gap-4 font-mono text-[11px] text-(--silver)/45">
 							<span class="text-(--mer)">{data.user.rank.label}</span>
@@ -149,15 +157,25 @@
 					{:else}
 						<div class="divide-y divide-(--border)">
 							{#each data.history as match (match.game_id)}
-								<div class="px-5 py-3">
+								<a
+									href={`/replay/${match.game_id}/${match.user_id || data.user.id}`}
+									class="block px-5 py-3 transition-colors hover:bg-(--mer)/5"
+									title="open simulated replay"
+								>
 									<div class="flex items-center justify-between gap-2">
 										<span class="font-mono text-[11px] text-(--silver)/70">
-											{match.mode}{match.room_code ? ` · ${match.room_code}` : ''}
+											{match.mode === 'practice'
+												? 'saved practice'
+												: `${match.mode}${match.room_code ? ` · ${match.room_code}` : ''}`}
 										</span>
 										<span class="font-mono text-[10px] text-(--silver)/25">{fmtDate(match.played_at)}</span>
 									</div>
-									<div class="mt-1 flex flex-wrap gap-3 font-mono text-[10px] text-(--silver)/35">
-										<span>#{match.rank}/{match.players}</span>
+									<div class="mt-1 flex flex-wrap items-center gap-3 font-mono text-[10px] text-(--silver)/35">
+										{#if match.mode !== 'practice'}
+											<span>#{match.rank}/{match.players}</span>
+										{:else}
+											<span class="text-(--mer)/60">solo</span>
+										{/if}
 										<span>{Math.round(match.wpm)} wpm</span>
 										<span>{Math.round(match.accuracy * 100)}%</span>
 										<span>{LANGUAGE_LABELS[match.language] ?? match.language}</span>
@@ -167,8 +185,9 @@
 											>
 										{/if}
 										{#if match.flagged}<span class="text-(--red)/70">flagged</span>{/if}
+										<span class="ml-auto text-(--mer)/40">replay =></span>
 									</div>
-								</div>
+								</a>
 							{/each}
 						</div>
 					{/if}
