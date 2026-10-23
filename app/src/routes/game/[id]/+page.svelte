@@ -311,7 +311,11 @@
 		<div class="flex items-center gap-4">
 			<div>
 				<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
-					{game?.mode ?? 'race'} · {game?.room_code || `game ${gameID}`}
+					{#if game?.mode === 'contest'}
+						contest · event race
+					{:else}
+						{game?.mode ?? 'race'} · {game?.room_code || `game ${gameID}`}
+					{/if}
 				</div>
 				<div class="mt-1 flex items-baseline gap-3">
 					<span class="font-mono text-3xl text-(--silver)">{fmt(remaining)}</span>

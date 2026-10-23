@@ -327,6 +327,15 @@ func TestFinishHookAppliesEloAndFlags(t *testing.T) {
 	if a.Rating <= 1000 || b.Rating >= 1000 {
 		t.Fatalf("ratings not applied: alice=%d bob=%d", a.Rating, b.Rating)
 	}
+	if a.RatingFor(entity.RankedDuration30) <= 1000 || b.RatingFor(entity.RankedDuration30) >= 1000 {
+		t.Fatalf("30s ladder not applied: alice=%d bob=%d",
+			a.RatingFor(entity.RankedDuration30), b.RatingFor(entity.RankedDuration30))
+	}
+	if a.RatingFor(entity.RankedDuration90) != entity.StartingElo ||
+		a.RatingFor(entity.RankedDuration300) != entity.StartingElo ||
+		a.GamesPlayed30 != 1 || a.GamesPlayed90 != 0 || a.GamesPlayed300 != 0 {
+		t.Fatalf("30s game leaked into another ladder: %+v", a)
+	}
 	if st := e.state(t, alice.ID); st.State != "results" {
 		t.Fatalf("missing results state: %+v", st)
 	}
@@ -347,5 +356,62 @@ func TestFinishHookAppliesEloAndFlags(t *testing.T) {
 	a2, _ := e.db.GetUser(alice.ID)
 	if a2.Rating != a.Rating {
 		t.Fatalf("flagged player rating changed: %d -> %d", a.Rating, a2.Rating)
+	}
+}
+
+func TestRankedGameMovesOnlyItsClock(t *testing.T) {
+	e := newTestEnv(t, "")
+	ctx := context.Background()
+	alice := e.login(t, "alice")
+	bob := e.login(t, "bob")
+
+	for _, uid := range []uint32{alice.ID, bob.ID} {
+		u, err := e.db.GetUser(uid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		u.SetRatingFor(entity.RankedDuration30, 500)
+		u.SetRatingFor(entity.RankedDuration90, 700)
+		u.SetRatingFor(entity.RankedDuration300, 900)
+		if err := e.db.SaveUser(ctx, u); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	game := entity.Game{
+		ID:       9911,
+		Mode:     entity.GameRanked,
+		Duration: entity.RankedDuration30,
+		Language: "go",
+		Seed:     1,
+		Status:   entity.GameActive,
+	}
+	players := []entity.GamePlayer{
+		{GameID: game.ID, UserID: alice.ID, RatingBefore: 500, Placement: 1, WPM: 80, Accuracy: 98},
+		{GameID: game.ID, UserID: bob.ID, RatingBefore: 500, Placement: 2, WPM: 70, Accuracy: 98},
+	}
+	views, err := e.svc.onGameFinished(ctx, game, players, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(views) != 2 {
+		t.Fatalf("result views = %d, want 2", len(views))
+	}
+
+	gotAlice, _ := e.db.GetUser(alice.ID)
+	gotBob, _ := e.db.GetUser(bob.ID)
+	if gotAlice.RatingFor(entity.RankedDuration30) == 500 || gotBob.RatingFor(entity.RankedDuration30) == 500 {
+		t.Fatalf("30s ladder did not move: alice=%d bob=%d",
+			gotAlice.RatingFor(entity.RankedDuration30), gotBob.RatingFor(entity.RankedDuration30))
+	}
+	for _, u := range []entity.User{gotAlice, gotBob} {
+		if u.RatingFor(entity.RankedDuration90) != 700 || u.RatingFor(entity.RankedDuration300) != 900 {
+			t.Fatalf("30s race changed another ladder for %s: %d/%d",
+				u.Username, u.RatingFor(entity.RankedDuration90), u.RatingFor(entity.RankedDuration300))
+		}
+		if u.GamesFor(entity.RankedDuration30) != 1 || u.GamesFor(entity.RankedDuration90) != 0 || u.GamesFor(entity.RankedDuration300) != 0 {
+			t.Fatalf("per-clock record leaked for %s: %d/%d/%d", u.Username,
+				u.GamesFor(entity.RankedDuration30), u.GamesFor(entity.RankedDuration90), u.GamesFor(entity.RankedDuration300))
+		}
 	}
 }

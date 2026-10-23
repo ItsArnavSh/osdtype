@@ -46,6 +46,27 @@ func (s *Server) savePracticeRun(c *gin.Context) {
 	c.JSON(http.StatusOK, run)
 }
 
+func (s *Server) updateRun(c *gin.Context) {
+	uid, err := auth.GetUserID(c)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	id, ok := idParam(c, "id")
+	if !ok {
+		return
+	}
+	var req services.RunMetaRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := s.services.UpdateRunMeta(c, uid, id, req); err != nil {
+		s.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func (s *Server) gameReplays(c *gin.Context) {
 	uid, err := auth.GetUserID(c)
 	if err != nil {

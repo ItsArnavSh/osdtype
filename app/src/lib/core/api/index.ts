@@ -5,6 +5,7 @@ export * from './auth';
 export * from './state';
 export * from './socket';
 export * from './rooms';
+export * from './contests';
 export * from './queue';
 export * from './game';
 export * from './users';

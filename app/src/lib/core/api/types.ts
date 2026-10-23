@@ -9,14 +9,14 @@ export type RoomRole = 'owner' | 'mod' | 'member';
 export type GameMode = 'ranked' | 'room' | 'contest' | 'practice';
 export type GameStatus = 'countdown' | 'active' | 'finished' | 'abandoned';
 
-export interface RankInfo {
-	tier: string;
-	division: number;
-	label: string;
+export interface EloView {
 	rating: number;
-	next: number;
-	progress: number;
+	peak_rating: number;
+	games_played: number;
+	wins: number;
 }
+
+export type ClockKey = '30' | '90' | '300';
 
 export interface UserView {
 	id: number;
@@ -27,7 +27,22 @@ export interface UserView {
 	games_played: number;
 	wins: number;
 	is_bot: boolean;
-	rank: RankInfo;
+	ratings: Record<ClockKey, EloView>;
+	best_duration: number;
+}
+
+// userElo returns one clock's ladder stats. The fallback keeps older cached
+// state and partial responses renderable while the server rolls forward.
+export function userElo(user: UserView | null | undefined, duration: number): EloView {
+	const key = String(duration) as ClockKey;
+	const clock = user?.ratings?.[key];
+	if (clock) return clock;
+	return {
+		rating: user?.rating ?? 400,
+		peak_rating: user?.peak_rating ?? 400,
+		games_played: user?.games_played ?? 0,
+		wins: user?.wins ?? 0
+	};
 }
 
 export interface MemberView {
@@ -35,7 +50,6 @@ export interface MemberView {
 	username: string;
 	avatar_url: string;
 	rating: number;
-	rank: RankInfo;
 	role: RoomRole;
 	joined_at: string;
 	is_bot: boolean;
@@ -110,6 +124,10 @@ export interface GameView {
 	room_id: number;
 	room_code: string;
 	contest_id: number;
+	contest_code?: string;
+	contest_stage_id?: number;
+	contest_stage_name?: string;
+	contest_stage_index?: number;
 	duration: number;
 	language: string;
 	seed: string;
@@ -156,12 +174,20 @@ export interface MatchHistory {
 	rating_delta: number;
 	flagged: boolean;
 	played_at: string;
+	run_name?: string;
+	run_description?: string;
+	pinned: boolean;
+	pinned_at?: string | null;
 }
 
 export interface ProfileView {
 	user: UserView;
 	position: number;
+	positions: Record<ClockKey, number>;
 	history: MatchHistory[];
+	pinned: MatchHistory[];
+	best: MatchHistory | null;
+	top_wpm: number;
 	online: boolean;
 	is_friend: boolean;
 	is_followed: boolean;
@@ -177,20 +203,133 @@ export interface FriendView {
 
 export interface LeaderboardRow {
 	position: number;
+	rating: number;
+	peak_rating: number;
+	games_played: number;
+	wins: number;
 	user: UserView;
+}
+
+export interface LeaderboardView {
+	duration: number;
+	leaderboard: LeaderboardRow[];
+	nearby: LeaderboardRow[];
+	my_position: number;
+}
+
+export interface LeaderboardSearchView {
+	duration: number;
+	results: LeaderboardRow[];
+}
+
+export interface RunMetaInput {
+	name?: string;
+	description?: string;
+	pinned?: boolean;
+}
+
+export type ContestStatus = 'upcoming' | 'lobby' | 'started' | 'ended' | 'cancelled';
+export type ContestVisibility = 'public' | 'private';
+export type ContestStageFormat = 'qualifier' | 'hotlaps' | 'multiplayer' | 'ranked';
+export type ContestStageStatus = 'pending' | 'active' | 'completed' | 'cancelled';
+export type ContestLanguageMode = 'fixed' | 'choice';
+export type ContestAdvanceType = 'count' | 'percent' | 'all';
+
+export interface ContestParticipant {
+	user: UserView;
+	joined_at: string;
+}
+
+export interface ContestStageStanding {
+	rank: number;
+	user: UserView;
+	wpm: number;
+	raw: number;
+	accuracy: number;
+	attempts: number;
+	game_id: number;
+	advanced: boolean;
+	eliminated: boolean;
+	flagged: boolean;
+	left: boolean;
+}
+
+export interface ContestStageRun {
+	rank: number;
+	user: UserView;
+	wpm: number;
+	raw: number;
+	accuracy: number;
+	game_id: number;
+	flagged: boolean;
+	left: boolean;
+}
+
+export interface ContestStageView {
+	id: number;
+	position: number;
+	name: string;
+	format: ContestStageFormat;
+	status: ContestStageStatus;
+	starts_at: string;
+	ends_at: string | null;
+	delay_minutes: number;
+	window_minutes: number;
+	duration: number;
+	language_mode: ContestLanguageMode;
+	language: string;
+	max_tries: number;
+	min_wpm: number;
+	advance_type: ContestAdvanceType;
+	advance_value: number;
+	max_players: number;
+	entry_count: number;
+	qualified_count: number;
+	advance_count: number;
+	run_count: number;
+	viewer_attempts: number;
+	viewer_best_wpm: number;
+	viewer_game_id: number;
+	viewer_can_attempt: boolean;
+	viewer_attempts_left: number;
+	standings?: ContestStageStanding[];
+	top_runs?: ContestStageRun[];
 }
 
 export interface ContestView {
 	id: number;
-	room_code: string;
+	code: string;
 	title: string;
 	description: string;
+	banner_url: string;
+	accent: string;
+	custom_css: string;
+	visibility: ContestVisibility;
 	starts_at: string;
 	duration: number;
 	language: string;
-	status: 'upcoming' | 'lobby' | 'started' | 'ended';
+	status: ContestStatus;
+	max_players: number;
+	entry_count: number;
+	host: UserView;
+	is_host: boolean;
+	is_enrolled: boolean;
+	requires_password: boolean;
+	share_link: string;
 	game_id: number;
+	stage_count: number;
+	current_stage: number;
+	stages: ContestStageView[];
+	participants?: ContestParticipant[];
 	leaderboard?: ResultView[];
+	created_at: string;
+}
+
+export interface ContestListView {
+	contests: ContestView[];
+	trending: ContestView[];
+	mine: ContestView[];
+	server_time: string;
 }
 
 export interface SocketEvent<T = unknown> {

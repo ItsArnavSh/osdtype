@@ -59,9 +59,13 @@ func newRuntime(m *Manager, opts StartOptions) *runtime {
 		if !ok {
 			continue
 		}
+		ratingBefore := gp.RatingBefore
+		if ratingBefore == 0 {
+			ratingBefore = user.Rating
+		}
 		ps := &playerState{
 			user:         user,
-			ratingBefore: user.Rating,
+			ratingBefore: ratingBefore,
 			isBot:        user.IsBot || gp.IsBot,
 			botCfg:       opts.Bots[gp.UserID],
 		}
@@ -141,6 +145,35 @@ func (r *runtime) applyInput(userID uint32, kp entity.Keypress) {
 	if now.After(r.ends) || allDone {
 		r.finish(context.Background())
 	}
+}
+
+// applyBotMistake records a wrong key and its correction inside one lock
+// window. Bots used to leave the wrong rune in typed state until the next
+// ticker tick, so 500ms progress broadcasts could show them moving backwards.
+func (r *runtime) applyBotMistake(userID uint32, wrong rune) {
+	now := time.Now().UTC()
+	if now.Before(r.started) {
+		return
+	}
+
+	r.mu.Lock()
+	ps := r.players[userID]
+	if ps == nil || r.finished || ps.finished || ps.left {
+		r.mu.Unlock()
+		return
+	}
+
+	delta := int32(now.Sub(r.started).Milliseconds())
+	if delta < 0 {
+		delta = 0
+	}
+	// Keep both events for the replay without ever putting the wrong rune
+	// into typed, so no observer can see the transient state.
+	ps.events = append(ps.events,
+		entity.Keypress{Value: string(wrong), Action: entity.KEYPRESS, TimeMS: int64(delta)},
+		entity.Keypress{Value: "", Action: entity.BACKSPACE, TimeMS: int64(delta)},
+	)
+	r.mu.Unlock()
 }
 
 func (r *runtime) allHumansDoneLocked() bool {
@@ -354,20 +387,21 @@ func (r *runtime) view(userID uint32) entity.GameView {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	view := entity.GameView{
-		ID:          r.game.ID,
-		Mode:        r.game.Mode,
-		Status:      r.game.Status,
-		RoomID:      r.game.RoomID,
-		ContestID:   r.game.ContestID,
-		Duration:    r.game.Duration,
-		Language:    r.game.Language,
-		Seed:        strconv.FormatUint(r.game.Seed, 10),
-		Snippet:     r.game.Snippet,
-		StartOffset: r.game.StartOffset,
-		StartsAt:    r.game.StartsAt,
-		EndsAt:      r.game.EndsAt,
-		CreatedAt:   r.game.CreatedAt,
-		Players:     r.progressLocked(),
+		ID:             r.game.ID,
+		Mode:           r.game.Mode,
+		Status:         r.game.Status,
+		RoomID:         r.game.RoomID,
+		ContestID:      r.game.ContestID,
+		ContestStageID: r.game.ContestStageID,
+		Duration:       r.game.Duration,
+		Language:       r.game.Language,
+		Seed:           strconv.FormatUint(r.game.Seed, 10),
+		Snippet:        r.game.Snippet,
+		StartOffset:    r.game.StartOffset,
+		StartsAt:       r.game.StartsAt,
+		EndsAt:         r.game.EndsAt,
+		CreatedAt:      r.game.CreatedAt,
+		Players:        r.progressLocked(),
 	}
 	return view
 }
@@ -457,7 +491,6 @@ func (r *runtime) runBot(ctx context.Context, uid uint32, cfg entity.BotConfig) 
 	ticker := time.NewTicker(60 * time.Millisecond)
 	defer ticker.Stop()
 	accum := 0.0
-	backspacePending := false
 
 	for {
 		select {
@@ -479,12 +512,6 @@ func (r *runtime) runBot(ctx context.Context, uid uint32, cfg entity.BotConfig) 
 				return
 			}
 
-			if backspacePending {
-				r.applyInput(uid, entity.Keypress{Action: entity.BACKSPACE, Value: ""})
-				backspacePending = false
-				continue
-			}
-
 			accum += charsPerSecond * 0.06
 			if accum < 1 {
 				continue
@@ -500,13 +527,15 @@ func (r *runtime) runBot(ctx context.Context, uid uint32, cfg entity.BotConfig) 
 				return
 			}
 			if rng.Intn(100) >= acc {
-				// Mistype once, then erase it on the next tick.
+				// A bot mistake is visible in its event history, but the bad
+				// character never survives a broadcast tick. This keeps the
+				// shared progress bar from briefly rewinding, which is what
+				// made ranked bots look glitchy compared with practice.
 				wrong := rune('x')
 				if next == wrong {
 					wrong = rune('z')
 				}
-				r.applyInput(uid, entity.Keypress{Action: entity.KEYPRESS, Value: string(wrong)})
-				backspacePending = true
+				r.applyBotMistake(uid, wrong)
 				continue
 			}
 			r.applyInput(uid, entity.Keypress{Action: entity.KEYPRESS, Value: string(next)})

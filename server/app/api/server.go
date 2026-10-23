@@ -94,6 +94,12 @@ func (s *Server) routes() {
 	// Share links must work without an account.
 	r.GET("/replay/:game/:user", s.publicReplay)
 
+	// Contest pages and their calendar links are shareable without an
+	// account. Private contests are protected by their unguessable code.
+	r.GET("/contests", s.listContests)
+	r.GET("/contests/:code", s.getContest)
+	r.GET("/contests/:code/calendar", s.contestCalendar)
+
 	protected := r.Group("")
 	protected.Use(auth.RequireAuth())
 	{
@@ -111,6 +117,7 @@ func (s *Server) routes() {
 		protected.GET("/user/:username/profile", s.profile)
 
 		protected.GET("/ranked/leaderboard", s.leaderboard)
+		protected.GET("/ranked/leaderboard/search", s.searchLeaderboard)
 		protected.POST("/ranked/queue", s.joinQueue)
 		protected.DELETE("/ranked/queue", s.leaveQueue)
 		protected.GET("/ranked/queue", s.queueStatus)
@@ -133,8 +140,13 @@ func (s *Server) routes() {
 		protected.POST("/room/:code/invite", s.inviteUser)
 		protected.POST("/room/:code/bot", s.addBot)
 		protected.GET("/room/:code/link", s.roomLink)
-		protected.POST("/room/:code/contest", s.createContest)
-		protected.GET("/room/:code/contests", s.listContests)
+
+		protected.POST("/contests", s.createContest)
+		protected.PATCH("/contests/:code", s.updateContest)
+		protected.DELETE("/contests/:code", s.cancelContest)
+		protected.POST("/contests/:code/enroll", s.enrollContest)
+		protected.DELETE("/contests/:code/enroll", s.leaveContest)
+		protected.POST("/contests/:code/stages/:position/attempts", s.startContestAttempt)
 
 		protected.GET("/invites", s.listInvites)
 		protected.POST("/invites/:id/accept", s.acceptInvite)
@@ -147,10 +159,9 @@ func (s *Server) routes() {
 		protected.POST("/game/:id/ack", s.ackResults)
 		protected.GET("/game/:id/results", s.getGame)
 		protected.GET("/game/:id/replays", s.gameReplays)
+		protected.PATCH("/game/:id/run", s.updateRun)
 		protected.POST("/practice/runs", s.createPracticeRun)
 		protected.POST("/practice/runs/:id/save", s.savePracticeRun)
-		protected.GET("/contest/:id", s.getContest)
-		protected.GET("/contests/:id", s.getContest)
 
 		protected.GET("/ws", s.websocket)
 		protected.GET("/user/imonline", s.websocket)

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SpeedGraph from '$lib/components/SpeedGraph.svelte';
-	import type { ReplayRun } from '$lib/core/api/types';
+	import { KeypressAction, type ClientKeypress, type ReplayRun } from '$lib/core/api/types';
 	import type { Language } from '$lib/core/entity/languages';
 	import type { SpeedSeries } from '$lib/core/stats';
 	import {
@@ -63,6 +63,143 @@
 	let lineRefs: (HTMLDivElement | undefined)[] = [];
 	let raf = 0;
 	let lastFrame = 0;
+
+	type KeyCap = {
+		id: string;
+		label: string;
+		shiftLabel?: string;
+		weight?: number;
+		mod?: boolean;
+	};
+
+	// A compact keyboard, not a photo-real one. Everything here is a key the
+	// browser can record; media/volume/browser keys are intentionally absent.
+	const KEY_ROWS: KeyCap[][] = [
+		[
+			{ id: '`', label: '`', shiftLabel: '~' },
+			{ id: '1', label: '1', shiftLabel: '!' },
+			{ id: '2', label: '2', shiftLabel: '@' },
+			{ id: '3', label: '3', shiftLabel: '#' },
+			{ id: '4', label: '4', shiftLabel: '$' },
+			{ id: '5', label: '5', shiftLabel: '%' },
+			{ id: '6', label: '6', shiftLabel: '^' },
+			{ id: '7', label: '7', shiftLabel: '&' },
+			{ id: '8', label: '8', shiftLabel: '*' },
+			{ id: '9', label: '9', shiftLabel: '(' },
+			{ id: '0', label: '0', shiftLabel: ')' },
+			{ id: '-', label: '-', shiftLabel: '_' },
+			{ id: '=', label: '=', shiftLabel: '+' },
+			{ id: 'Backspace', label: '⌫', weight: 2, mod: true }
+		],
+		[
+			{ id: 'Tab', label: 'tab', weight: 1.4, mod: true },
+			{ id: 'Q', label: 'Q' },
+			{ id: 'W', label: 'W' },
+			{ id: 'E', label: 'E' },
+			{ id: 'R', label: 'R' },
+			{ id: 'T', label: 'T' },
+			{ id: 'Y', label: 'Y' },
+			{ id: 'U', label: 'U' },
+			{ id: 'I', label: 'I' },
+			{ id: 'O', label: 'O' },
+			{ id: 'P', label: 'P' },
+			{ id: '[', label: '[', shiftLabel: '{' },
+			{ id: ']', label: ']', shiftLabel: '}' },
+			{ id: '\\', label: '\\', shiftLabel: '|', weight: 1.2 }
+		],
+		[
+			{ id: 'CapsLock', label: 'caps', weight: 1.7, mod: true },
+			{ id: 'A', label: 'A' },
+			{ id: 'S', label: 'S' },
+			{ id: 'D', label: 'D' },
+			{ id: 'F', label: 'F' },
+			{ id: 'G', label: 'G' },
+			{ id: 'H', label: 'H' },
+			{ id: 'J', label: 'J' },
+			{ id: 'K', label: 'K' },
+			{ id: 'L', label: 'L' },
+			{ id: ';', label: ';', shiftLabel: ':' },
+			{ id: "'", label: "'", shiftLabel: '"' },
+			{ id: 'Enter', label: 'enter', weight: 2.2, mod: true }
+		],
+		[
+			{ id: 'ShiftLeft', label: 'shift', weight: 2.3, mod: true },
+			{ id: 'Z', label: 'Z' },
+			{ id: 'X', label: 'X' },
+			{ id: 'C', label: 'C' },
+			{ id: 'V', label: 'V' },
+			{ id: 'B', label: 'B' },
+			{ id: 'N', label: 'N' },
+			{ id: 'M', label: 'M' },
+			{ id: ',', label: ',', shiftLabel: '<' },
+			{ id: '.', label: '.', shiftLabel: '>' },
+			{ id: '/', label: '/', shiftLabel: '?' },
+			{ id: 'ShiftRight', label: 'shift', weight: 2.3, mod: true }
+		],
+		[{ id: 'Space', label: 'space', weight: 10, mod: true }]
+	];
+
+	const SHIFTED_CHARS: Record<string, string> = {
+		'!': '1',
+		'@': '2',
+		'#': '3',
+		$: '4',
+		'%': '5',
+		'^': '6',
+		'&': '7',
+		'*': '8',
+		'(': '9',
+		')': '0',
+		_: '-',
+		'+': '=',
+		'{': '[',
+		'}': ']',
+		'|': '\\',
+		':': ';',
+		'"': "'",
+		'<': ',',
+		'>': '.',
+		'?': '/',
+		'~': '`'
+	};
+	const DIRECT_KEYS = new Set(Array.from('`1234567890-=[]\\;\',./'));
+	const KEY_FLASH_MS = 180;
+
+	function keyForEvent(event: ClientKeypress): { id: string; shift: boolean } | null {
+		if (event.action === KeypressAction.BACKSPACE) {
+			return { id: 'Backspace', shift: false };
+		}
+		const value = event.value ?? '';
+		const char = Array.from(value)[0];
+		if (!char || char === '\n' || char === '\r' || char === '\t') return null;
+		if (char === ' ') return { id: 'Space', shift: false };
+		const shifted = SHIFTED_CHARS[char];
+		if (shifted) return { id: shifted, shift: true };
+		if (/[A-Z]/.test(char)) return { id: char, shift: true };
+		if (/[a-z]/.test(char)) return { id: char.toUpperCase(), shift: false };
+		if (/[0-9]/.test(char) || DIRECT_KEYS.has(char)) return { id: char, shift: false };
+		return null;
+	}
+
+	const activeKeys = $derived.by(() => {
+		const pressed = new Map<string, 'primary' | 'secondary'>();
+		const cutoff = currentMs - KEY_FLASH_MS;
+		let last: { id: string; shift: boolean } | null = null;
+		for (const event of events) {
+			const at = event.time_ms ?? 0;
+			if (at > currentMs) break;
+			if (at < cutoff) continue;
+			const key = keyForEvent(event);
+			if (!key) continue;
+			pressed.set(key.id, 'secondary');
+			last = key;
+		}
+		if (last) {
+			pressed.set(last.id, 'primary');
+			if (last.shift) pressed.set('ShiftLeft', 'secondary');
+		}
+		return pressed;
+	});
 
 	const typedChars = $derived(typedAt(events, currentMs));
 	const display = $derived(mapTypedToDisplay(snippet, startOffset, typedChars));
@@ -271,6 +408,45 @@
 		</div>
 	</div>
 
+	<div class="border border-(--border) bg-(--fbg) p-3 md:p-4">
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<div>
+				<div class="font-mono text-[10px] tracking-[0.14em] text-(--mer)/70 uppercase">
+					keyboard
+				</div>
+				<div class="mt-0.5 font-mono text-[10px] text-(--silver)/25">
+					keys pressed at the replay cursor
+				</div>
+			</div>
+			<div class="flex items-center gap-3 font-mono text-[10px] text-(--silver)/30">
+				<span>{run.events.length} keystrokes</span>
+				<span class="hidden sm:inline">backspace flashes ⌫</span>
+			</div>
+		</div>
+
+		<div class="mt-3 overflow-x-auto pb-1">
+			<div class="mx-auto flex w-full min-w-[620px] max-w-3xl flex-col gap-1.5">
+				{#each KEY_ROWS as row}
+					<div class="flex gap-1.5">
+						{#each row as key}
+							{@const state = activeKeys.get(key.id)}
+							<div
+								class={`replay-key${key.mod ? ' is-mod' : ''}${state === 'primary' ? ' is-primary' : state === 'secondary' ? ' is-secondary' : ''}`}
+								style={`flex:${key.weight ?? 1} 1 0%`}
+								title={key.shiftLabel ? `${key.label} / ${key.shiftLabel}` : key.label}
+							>
+								{#if key.shiftLabel}
+									<span class="replay-key-alt">{key.shiftLabel}</span>
+								{/if}
+								<span>{key.label}</span>
+							</div>
+						{/each}
+					</div>
+				{/each}
+			</div>
+		</div>
+	</div>
+
 	<div class="flex flex-wrap items-center gap-3 border border-(--border) bg-(--fbg) px-4 py-3">
 		<button
 			class="w-24 cursor-pointer border border-(--mer) px-3 py-1.5 font-mono text-[11px] text-(--mer) hover:bg-(--mer)/10"
@@ -314,5 +490,57 @@
 	.replay-code :global(.replay-caret) {
 		background: color-mix(in srgb, var(--mer) 26%, transparent);
 		box-shadow: inset 0 -2px 0 var(--mer);
+	}
+
+	.replay-key {
+		position: relative;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		min-height: 2.15rem;
+		border: 1px solid var(--border);
+		background: color-mix(in srgb, var(--bg) 82%, var(--fbg));
+		padding: 0.25rem 0.35rem;
+		font-family: 'Fira Code', monospace;
+		font-size: 10px;
+		line-height: 1;
+		color: color-mix(in srgb, var(--silver) 48%, transparent);
+		transition:
+			background 0.08s ease,
+			border-color 0.08s ease,
+			color 0.08s ease,
+			transform 0.08s ease;
+	}
+
+	.replay-key.is-mod {
+		font-size: 9px;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: color-mix(in srgb, var(--silver) 30%, transparent);
+	}
+
+	.replay-key-alt {
+		position: absolute;
+		top: 0.22rem;
+		left: 0.35rem;
+		font-size: 8px;
+		color: color-mix(in srgb, var(--silver) 22%, transparent);
+	}
+
+	.replay-key.is-secondary {
+		border-color: color-mix(in srgb, var(--mer) 34%, var(--border));
+		background: color-mix(in srgb, var(--mer) 7%, transparent);
+		color: color-mix(in srgb, var(--silver) 68%, transparent);
+	}
+
+	.replay-key.is-primary {
+		border-color: var(--mer);
+		background: color-mix(in srgb, var(--mer) 22%, transparent);
+		color: var(--mer);
+		transform: translateY(1px);
+	}
+
+	.replay-key.is-primary .replay-key-alt {
+		color: color-mix(in srgb, var(--mer) 70%, transparent);
 	}
 </style>

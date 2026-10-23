@@ -1,12 +1,36 @@
 import { api } from './client';
 import { ENDPOINTS } from './config';
-import type { FriendView, LeaderboardRow, ProfileView, UserView } from './types';
+import type {
+	FriendView,
+	LeaderboardSearchView,
+	LeaderboardView,
+	ProfileView,
+	RunMetaInput,
+	UserView
+} from './types';
 
-export async function leaderboard(offset = 0, limit = 50): Promise<{
-	leaderboard: LeaderboardRow[];
-	my_position: number;
-}> {
-	return api(`${ENDPOINTS.LEADERBOARD}?offset=${offset}&limit=${limit}`);
+export function leaderboard(
+	duration = 90,
+	offset = 0,
+	limit = 5
+): Promise<LeaderboardView> {
+	return api<LeaderboardView>(
+		`${ENDPOINTS.LEADERBOARD}?duration=${duration}&offset=${offset}&limit=${limit}`
+	);
+}
+
+export function searchLeaderboard(
+	duration: number,
+	query: string,
+	limit = 10
+): Promise<LeaderboardSearchView> {
+	return api<LeaderboardSearchView>(
+		`${ENDPOINTS.LEADERBOARD_SEARCH}?duration=${duration}&q=${encodeURIComponent(query)}&limit=${limit}`
+	);
+}
+
+export function updateRunMeta(gameID: number, input: RunMetaInput): Promise<{ ok: boolean }> {
+	return api(ENDPOINTS.RUN_UPDATE(gameID), { method: 'PATCH', body: input });
 }
 
 export function profile(username: string): Promise<ProfileView> {

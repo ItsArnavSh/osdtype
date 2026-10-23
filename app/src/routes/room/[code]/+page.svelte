@@ -9,20 +9,18 @@
 		addRoomBot,
 		banFromRoom,
 		closeRoom,
-		createContest,
 		demoteInRoom,
 		getRoom,
 		inviteToRoom,
 		joinRoom,
 		kickFromRoom,
 		leaveRoom,
-		listContests,
 		promoteInRoom,
 		startRoomGame,
 		updateRoom
 	} from '$lib/core/api/rooms';
 	import { onSocketEvent } from '$lib/core/api/socket';
-	import type { ContestView, FriendView, LobbyDuration, RoomView, UserView } from '$lib/core/api/types';
+	import type { FriendView, LobbyDuration, RoomView, UserView } from '$lib/core/api/types';
 	import { LANGUAGE_LABELS, LOBBY_DURATIONS } from '$lib/core/api/types';
 	import { friends, searchUsers } from '$lib/core/api/users';
 	import { LANGUAGES, type Language } from '$lib/core/entity/languages';
@@ -31,7 +29,6 @@
 	const code = $derived((page.params.code ?? '').toUpperCase());
 
 	let room = $state<RoomView | null>(null);
-	let contests = $state<ContestView[]>([]);
 	let loading = $state(true);
 	let busy = $state(false);
 	let error = $state('');
@@ -41,7 +38,6 @@
 	let searchResults = $state<UserView[]>([]);
 	let password = $state('');
 	let settingsOpen = $state(false);
-	let contestOpen = $state(false);
 	let unsubscribe: (() => void) | null = null;
 	let clockTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -54,14 +50,6 @@
 		language: 'go' as Language,
 		password: ''
 	});
-	let contestForm = $state({
-		title: '',
-		description: '',
-		minutes: 5,
-		duration: 90 as LobbyDuration,
-		language: 'go' as Language
-	});
-
 	let isMember = $derived(Boolean(room?.my_role));
 	let isOwner = $derived(room?.my_role === 'owner');
 	let canManage = $derived(room?.my_role === 'owner' || room?.my_role === 'mod');
@@ -120,19 +108,10 @@
 			const next = await getRoom(code);
 			room = next;
 			fillSettings(next);
-			if (next.my_role) contests = await listContests(code);
 		} catch (err) {
 			error = errorMessage(err);
 		} finally {
 			if (!silent) loading = false;
-		}
-	}
-
-	async function refreshContests() {
-		try {
-			contests = await listContests(code);
-		} catch {
-			// Keep the last known list; the next room update will retry.
 		}
 	}
 
@@ -270,29 +249,6 @@
 		}
 	}
 
-	async function makeContest() {
-		busy = true;
-		error = '';
-		notice = '';
-		try {
-			const starts = new Date(Date.now() + contestForm.minutes * 60_000);
-			await createContest(code, {
-				title: contestForm.title.trim(),
-				description: contestForm.description.trim(),
-				starts_at: starts.toISOString(),
-				duration: contestForm.duration,
-				language: contestForm.language
-			});
-			contests = await listContests(code);
-			contestOpen = false;
-			notice = 'Contest scheduled.';
-		} catch (err) {
-			error = errorMessage(err);
-		} finally {
-			busy = false;
-		}
-	}
-
 	async function copyLink() {
 		const link = room?.invite_link || `${location.origin}/join/${code}`;
 		try {
@@ -305,11 +261,6 @@
 
 	function roleLabel(role: string): string {
 		return role === 'owner' ? 'host' : role;
-	}
-
-	function fmtDate(value: string): string {
-		const date = new Date(value);
-		return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 	}
 
 	async function backToHub() {
@@ -332,7 +283,6 @@
 				if (next.code === code) {
 					room = next;
 					if (isOwner) fillSettings(next);
-					if (next.my_role) void refreshContests();
 				}
 			}
 			if (event.type === 'game_start') {
@@ -516,7 +466,7 @@
 									{/if}
 								</div>
 								<div class="mt-0.5 font-mono text-[10px] text-(--silver)/35">
-									{member.rank.label} · {member.rating} · {member.online ? 'online' : 'away'}
+									{member.rating} elo · {member.online ? 'online' : 'away'}
 								</div>
 							</div>
 							{#if canManage && member.user_id !== myID && member.user_id !== room.host_id}
@@ -697,69 +647,6 @@
 						</div>
 					</div>
 				{/if}
-
-				<div class="border border-(--border) bg-(--fbg) p-5">
-					<div class="flex items-center justify-between">
-						<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
-							contests
-						</div>
-						{#if isOwner}
-							<button
-								class="cursor-pointer font-mono text-[10px] text-(--silver)/40 hover:text-(--mer)"
-								onclick={() => (contestOpen = !contestOpen)}>{contestOpen ? 'close' : '+ schedule'}</button
-							>
-						{/if}
-					</div>
-					{#if contestOpen && isOwner}
-						<div class="mt-3 flex flex-col gap-2">
-							<input
-								class="border border-(--border) bg-(--bg) px-2 py-1.5 font-mono text-xs text-(--silver)"
-								placeholder="contest title"
-								bind:value={contestForm.title}
-								maxlength="120"
-							/>
-							<div class="grid grid-cols-2 gap-2">
-								<input
-									type="number"
-									min="1"
-									class="border border-(--border) bg-(--bg) px-2 py-1.5 font-mono text-xs text-(--silver)"
-									bind:value={contestForm.minutes}
-									title="minutes from now"
-								/>
-								<select
-									class="border border-(--border) bg-(--bg) px-2 py-1.5 font-mono text-xs text-(--silver)"
-									bind:value={contestForm.duration}
-								>
-									{#each LOBBY_DURATIONS as duration (duration)}
-										<option value={duration}>{duration}s</option>
-									{/each}
-								</select>
-							</div>
-							<button
-								class="cursor-pointer border border-(--mer) px-3 py-2 font-mono text-xs text-(--mer) disabled:opacity-40"
-								onclick={makeContest}
-								disabled={busy || !contestForm.title.trim()}>schedule</button
-							>
-						</div>
-					{/if}
-					{#if contests.length === 0}
-						<p class="mt-3 font-mono text-[11px] text-(--silver)/30">No contests scheduled.</p>
-					{:else}
-						<div class="mt-3 flex flex-col gap-2">
-							{#each contests.slice(0, 5) as contest (contest.id)}
-								<div class="border-b border-(--border)/50 pb-2">
-									<div class="flex items-center justify-between gap-2">
-										<span class="truncate font-mono text-[11px] text-(--silver)/70">{contest.title}</span>
-										<span class="shrink-0 font-mono text-[9px] text-(--mer) uppercase">{contest.status}</span>
-									</div>
-									<div class="mt-1 font-mono text-[9px] text-(--silver)/30">
-										{fmtDate(contest.starts_at)} · {contest.duration}s
-									</div>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
 
 				<div class="border border-(--border) p-5">
 					<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/30 uppercase">

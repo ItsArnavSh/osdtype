@@ -8,6 +8,7 @@ import (
 	"osdtyp/app/core/hub"
 	"osdtyp/app/core/matchmaker"
 	"osdtyp/app/core/state"
+	"osdtyp/app/entity"
 	"osdtyp/app/internal/postgresql"
 	"osdtyp/app/internal/redis"
 	"osdtyp/app/utils"
@@ -68,10 +69,20 @@ func (s *ServiceLayer) bots() *bots.Manager        { return s.core.Bots }
 // Bootstrap creates the reserved bot accounts. It is safe to call on every
 // boot because usernames are unique.
 func (s *ServiceLayer) Bootstrap(ctx context.Context) error {
+	// Old seeds used the tier-era 950/1050/1150 spread. Move those exact
+	// accounts onto the new 400-based ladder once; ratings earned after a
+	// bot has actually played are left alone.
+	legacyRatings := map[entity.Persona]int{entity.LEWIS: 1150, entity.MAX: 1050, entity.LANCE: 950}
 	for _, persona := range s.bots().All() {
 		cfg, _ := s.bots().Config(persona)
 		name := bots.Username(persona)
-		if _, err := s.db.GetUserFromName(ctx, name); err == nil {
+		if existing, err := s.db.GetUserFromName(ctx, name); err == nil {
+			if existing.Rating == legacyRatings[persona] && cfg.Rating != existing.Rating {
+				existing.SetAllRatings(cfg.Rating)
+				if err := s.db.SaveUser(ctx, existing); err != nil {
+					s.logger.Warnw("could not migrate bot elo", "persona", persona, "error", err)
+				}
+			}
 			continue
 		}
 		user := s.newUser(name, cfg.Rating, true)

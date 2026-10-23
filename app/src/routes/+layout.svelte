@@ -21,10 +21,22 @@
 	// These pages work without an account (and without the Go backend).
 	// Everything else stays renderable but is covered by a login gate for
 	// guests, so they can still see what unlocking an account adds.
-	const GUEST_PATHS = ['/', '/login', '/play', '/play/me', '/play/zen'];
-	const GUEST_PREFIXES = ['/replay/'];
+	const GUEST_PATHS = [
+		'/',
+		'/login',
+		'/play',
+		'/play/me',
+		'/play/zen',
+		'/contests',
+		'/docs',
+		'/about'
+	];
+	const GUEST_PREFIXES = ['/replay/', '/contests/'];
 
 	function guestAllowed(path: string): boolean {
+		// Public contest pages are shareable. Hosting and editing still need
+		// an account.
+		if (path === '/contests/new' || path.endsWith('/edit')) return false;
 		return GUEST_PATHS.includes(path) || GUEST_PREFIXES.some((prefix) => path.startsWith(prefix));
 	}
 

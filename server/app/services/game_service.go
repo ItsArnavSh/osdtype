@@ -75,7 +75,7 @@ func (s *ServiceLayer) onGameFinished(ctx context.Context, g entity.Game, player
 			// before-value is stale (for example after a reconnect).
 			current := players[i].RatingBefore
 			if user, ok := userMap[players[i].UserID]; ok {
-				current = user.Rating
+				current = user.RatingFor(g.Duration)
 			}
 			players[i].RatingBefore = current
 			players[i].RatingAfter = current
@@ -102,14 +102,18 @@ func (s *ServiceLayer) onGameFinished(ctx context.Context, g entity.Game, player
 		if g.Mode != entity.GameRanked {
 			delta = 0
 		}
-		user.Rating = p.RatingAfter
-		if user.Rating > user.PeakRating {
-			user.PeakRating = user.Rating
+		if g.Mode == entity.GameRanked {
+			user.SetRatingFor(g.Duration, p.RatingAfter)
 		}
 		if !user.IsBot {
-			user.GamesPlayed++
-			if p.Placement == 1 && !p.Flagged && !p.Left {
-				user.Wins++
+			won := p.Placement == 1 && !p.Flagged && !p.Left
+			if g.Mode == entity.GameRanked {
+				user.AddGameStatsFor(g.Duration, won)
+			} else {
+				user.GamesPlayed++
+				if won {
+					user.Wins++
+				}
 			}
 		}
 		if err := s.db.SaveUser(ctx, user); err != nil {
@@ -123,7 +127,7 @@ func (s *ServiceLayer) onGameFinished(ctx context.Context, g entity.Game, player
 				UserID:      user.ID,
 				GameID:      g.ID,
 				RatingDelta: delta,
-				RatingAfter: user.Rating,
+				RatingAfter: p.RatingAfter,
 				Mode:        g.Mode,
 				CreatedAt:   now,
 			})
@@ -138,21 +142,40 @@ func (s *ServiceLayer) onGameFinished(ctx context.Context, g entity.Game, player
 	if g.RoomID != 0 {
 		if room, err := s.db.GetRoomByID(ctx, g.RoomID); err == nil {
 			roomCode = room.Code
-			if room.GameID == g.ID {
+			if room.GameID == g.ID && g.ContestID == 0 {
 				_ = s.db.UpdateRoomFields(ctx, room.ID, map[string]any{
 					"status":  entity.RoomLobby,
 					"game_id": 0,
 				})
+				s.broadcastRoom(ctx, room.ID, "room_update")
 			}
-			s.broadcastRoom(ctx, room.ID, "room_update")
+			if g.ContestID != 0 {
+				// The contest's staging room is an implementation detail.
+				// Nothing should be able to browse or re-enter it after the
+				// event ends.
+				members, _ := s.db.ListMembers(ctx, room.ID)
+				_ = s.db.CloseRoom(ctx, room.ID)
+				for _, member := range members {
+					_ = s.db.RemoveMember(ctx, room.ID, member.UserID)
+				}
+			}
 		}
 	}
 	if g.ContestID != 0 {
 		if contest, err := s.db.GetContest(ctx, g.ContestID); err == nil {
-			lb, _ := json.Marshal(resultViewsFor(g.ID, players, userMap))
-			contest.Status = entity.ContestEnded
-			contest.Leaderboard = lb
+			if g.ContestStageID == 0 {
+				// Legacy contest games ended the whole event immediately.
+				lb, _ := json.Marshal(resultViewsFor(g.ID, players, userMap))
+				contest.Status = entity.ContestEnded
+				contest.RoomID = 0
+				contest.Leaderboard = lb
+			}
+			// Funnel stages aggregate all attempts and advance players when
+			// the stage window closes, so a single attempt must not end the
+			// contest.
+			contest.RoomID = 0
 			contest.GameID = g.ID
+			contest.UpdatedAt = time.Now().UTC()
 			_ = s.db.SaveContest(ctx, &contest)
 		}
 	}

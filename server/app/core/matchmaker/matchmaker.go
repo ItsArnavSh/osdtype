@@ -19,7 +19,7 @@ import (
 // who plays whom; creating games and applying ratings stays in one place.
 type Creator interface {
 	StartRankedMatch(ctx context.Context, players []entity.User, durationSec int) error
-	PickRankedBot(ctx context.Context, rating int) (entity.User, bool)
+	PickRankedBot(ctx context.Context, rating, duration int) (entity.User, bool)
 }
 
 type Matchmaker struct {
@@ -216,7 +216,7 @@ func (m *Matchmaker) matchDuration(ctx context.Context, duration int) {
 
 		if len(group) < 2 {
 			if wait >= m.botAfter && m.creator != nil {
-				bot, ok := m.creator.PickRankedBot(ctx, a.Rating)
+				bot, ok := m.creator.PickRankedBot(ctx, a.Rating, duration)
 				if ok {
 					users, err := m.loadUsers(ctx, []uint32{a.UserID, bot.ID})
 					if err == nil && len(users) == 2 {
@@ -247,7 +247,7 @@ func (m *Matchmaker) matchDuration(ctx context.Context, duration int) {
 			if err := m.creator.StartRankedMatch(ctx, users, duration); err != nil {
 				m.logger.Errorw("failed to start ranked match", "error", err)
 				for _, u := range users {
-					_ = m.rdb.QueueAdd(ctx, duration, u.ID, u.Rating, now)
+					_ = m.rdb.QueueAdd(ctx, duration, u.ID, u.RatingFor(duration), now)
 				}
 			}
 		}

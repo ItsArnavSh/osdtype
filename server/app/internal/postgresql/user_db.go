@@ -2,12 +2,26 @@ package postgresql
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"osdtyp/app/entity"
 
 	"gorm.io/gorm"
 )
+
+// eloColumns maps a ranked duration to its whitelisted database columns.
+func eloColumns(duration int) (rating, games string, ok bool) {
+	switch duration {
+	case entity.RankedDuration30:
+		return "rating_30", "games_played_30", true
+	case entity.RankedDuration90:
+		return "rating_90", "games_played_90", true
+	case entity.RankedDuration300:
+		return "rating_300", "games_played_300", true
+	}
+	return "", "", false
+}
 
 func (d *Database) AddUser(ctx context.Context, user entity.User) error {
 	return d.db.WithContext(ctx).Create(&user).Error
@@ -59,12 +73,33 @@ func (d *Database) ListUsersByIDs(ctx context.Context, ids []uint32) ([]entity.U
 	return users, err
 }
 
-func (d *Database) Leaderboard(ctx context.Context, offset, limit int) ([]entity.User, error) {
+func (d *Database) Leaderboard(ctx context.Context, duration, offset, limit int) ([]entity.User, error) {
+	ratingCol, gamesCol, ok := eloColumns(duration)
+	if !ok {
+		return nil, fmt.Errorf("invalid ranked duration %d", duration)
+	}
 	var users []entity.User
 	err := d.db.WithContext(ctx).
-		Where("is_bot = ? AND games_played > 0", false).
-		Order("rating DESC, games_played DESC, username ASC").
+		Where(fmt.Sprintf("is_bot = ? AND %s > 0", gamesCol), false).
+		Order(fmt.Sprintf("%s DESC, %s DESC, username ASC, id ASC", ratingCol, gamesCol)).
 		Offset(offset).Limit(limit).Find(&users).Error
+	return users, err
+}
+
+// SearchLeaderboard returns ranked players whose username matches the query.
+// Callers attach the exact ladder position so search results are useful even
+// when they fall outside the top five.
+func (d *Database) SearchLeaderboard(ctx context.Context, duration int, query string, limit int) ([]entity.User, error) {
+	ratingCol, gamesCol, ok := eloColumns(duration)
+	if !ok {
+		return nil, fmt.Errorf("invalid ranked duration %d", duration)
+	}
+	var users []entity.User
+	err := d.db.WithContext(ctx).
+		Where(fmt.Sprintf("is_bot = ? AND %s > 0 AND LOWER(username) LIKE ?", gamesCol),
+			false, "%"+strings.ToLower(strings.TrimSpace(query))+"%").
+		Order(fmt.Sprintf("%s DESC, %s DESC, username ASC, id ASC", ratingCol, gamesCol)).
+		Limit(limit).Find(&users).Error
 	return users, err
 }
 
@@ -88,14 +123,41 @@ func (d *Database) RecordGameStats(ctx context.Context, uid uint32, won bool) er
 	return d.db.WithContext(ctx).Model(&entity.User{}).Where("id = ?", uid).Updates(updates).Error
 }
 
-func (d *Database) CountRatingAbove(ctx context.Context, rating int) (int64, error) {
-	var n int64
+// RankedPosition returns the player's 1-based position on one clock's ladder
+// using the same deterministic order as Leaderboard. Unranked players (bots
+// and people without a completed game on that clock) return 0.
+func (d *Database) RankedPosition(ctx context.Context, user entity.User, duration int) (int64, error) {
+	ratingCol, gamesCol, ok := eloColumns(duration)
+	if !ok {
+		return 0, fmt.Errorf("invalid ranked duration %d", duration)
+	}
+	if user.IsBot || user.GamesFor(duration) <= 0 {
+		return 0, nil
+	}
+	rating := user.RatingFor(duration)
+	games := user.GamesFor(duration)
+	var before int64
+	query := fmt.Sprintf(`is_bot = ? AND %s > 0 AND (
+			%s > ? OR
+			(%s = ? AND %s > ?) OR
+			(%s = ? AND %s = ? AND username < ?) OR
+			(%s = ? AND %s = ? AND username = ? AND id < ?)
+		)`, gamesCol, ratingCol, ratingCol, gamesCol, ratingCol, gamesCol, ratingCol, gamesCol)
 	err := d.db.WithContext(ctx).Model(&entity.User{}).
-		Where("is_bot = ? AND games_played > 0 AND rating > ?", false, rating).Count(&n).Error
-	return n, err
+		Where(query,
+			false,
+			rating,
+			rating, games,
+			rating, games, user.Username,
+			rating, games, user.Username, user.ID,
+		).Count(&before).Error
+	if err != nil {
+		return 0, err
+	}
+	return before + 1, nil
 }
 
-func (d *Database) GetBotForRating(ctx context.Context, rating int) (entity.User, error) {
+func (d *Database) GetBotForRating(ctx context.Context, rating, duration int) (entity.User, error) {
 	var bots []entity.User
 	if err := d.db.WithContext(ctx).Where("is_bot = ?", true).Find(&bots).Error; err != nil {
 		return entity.User{}, err
@@ -104,12 +166,12 @@ func (d *Database) GetBotForRating(ctx context.Context, rating int) (entity.User
 		return entity.User{}, gorm.ErrRecordNotFound
 	}
 	best := bots[0]
-	bestDiff := best.Rating - rating
+	bestDiff := best.RatingFor(duration) - rating
 	if bestDiff < 0 {
 		bestDiff = -bestDiff
 	}
 	for _, b := range bots[1:] {
-		diff := b.Rating - rating
+		diff := b.RatingFor(duration) - rating
 		if diff < 0 {
 			diff = -diff
 		}

@@ -58,7 +58,6 @@ type MemberView struct {
 	Username  string    `json:"username"`
 	AvatarURL string    `json:"avatar_url"`
 	Rating    int       `json:"rating"`
-	Rank      RankInfo  `json:"rank"`
 	Role      RoomRole  `json:"role"`
 	JoinedAt  time.Time `json:"joined_at"`
 	IsBot     bool      `json:"is_bot"`

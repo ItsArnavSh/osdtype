@@ -6,8 +6,8 @@
 	import { joinQueue, leaveQueue, queueStatus } from '$lib/core/api/queue';
 	import { onSocketEvent, sendSocket, socketConnected } from '$lib/core/api/socket';
 	import { errorMessage } from '$lib/core/api/client';
-	import type { LobbyDuration, QueueStatus } from '$lib/core/api/types';
-	import { LOBBY_DURATIONS } from '$lib/core/api/types';
+	import type { EloView, LobbyDuration, QueueStatus } from '$lib/core/api/types';
+	import { LOBBY_DURATIONS, userElo } from '$lib/core/api/types';
 
 	let selected = $state<LobbyDuration>(90);
 	let queue = $state<QueueStatus | null>(null);
@@ -22,6 +22,10 @@
 	let stateQueue = $derived(appState.state?.state === 'queue' ? appState.state.queue : null);
 	let activeQueue = $derived(queue ?? stateQueue ?? null);
 	let activeDuration = $derived((activeQueue?.duration ?? selected) as LobbyDuration);
+
+	function eloFor(duration: LobbyDuration): EloView {
+		return userElo(appState.user, duration);
+	}
 
 	function startPolling() {
 		if (pollTimer) clearInterval(pollTimer);
@@ -146,12 +150,19 @@
 		</div>
 		<div class="flex items-end gap-6 text-right">
 			<div>
-				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">rank</div>
-				<div class="mt-1 text-lg text-(--mer)">{appState.user?.rank.label ?? '—'}</div>
+				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
+					{activeDuration}s elo
+				</div>
+				<div class="mt-1 font-mono text-lg text-(--mer)">{eloFor(activeDuration).rating}</div>
 			</div>
 			<div>
-				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">rating</div>
-				<div class="mt-1 font-mono text-lg text-(--silver)">{appState.user?.rating ?? '—'}</div>
+				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">record</div>
+				<div class="mt-1 font-mono text-lg text-(--silver)">
+					{appState.user?.wins ?? 0}W · {Math.max(
+						0,
+						(appState.user?.games_played ?? 0) - (appState.user?.wins ?? 0)
+					)}L
+				</div>
 			</div>
 		</div>
 	</header>
@@ -215,15 +226,15 @@
 			{:else}
 				<div class="flex flex-1 flex-col justify-center px-8 py-10 md:px-14">
 					<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">
-						free-for-all elo
+						three clocks · three ladders
 					</div>
 					<h1 class="mt-3 max-w-xl text-3xl leading-tight text-(--silver) md:text-4xl">
-						Pick a clock.<br />The server handles the rest.
+						Pick a clock.<br />Build its Elo.
 					</h1>
 					<p class="mt-4 max-w-lg font-mono text-xs leading-relaxed text-(--silver)/45">
-						Everyone in a match types the same server-generated snippet. Ratings update after
-						the race, but flagged runs do not move Elo. If nobody is around, a bot can fill
-						the lobby.
+						Every clock has its own independent Elo. Everyone in a match types the same
+						server-generated snippet, ratings update after the race, and flagged runs do not
+						move Elo. If nobody is around, a bot can fill the lobby.
 					</p>
 
 					<div class="mt-8 grid gap-3 sm:grid-cols-3">
@@ -234,9 +245,15 @@
 								class:border-(--border)={selected !== duration}
 								onclick={() => (selected = duration)}
 							>
-								<div class="font-mono text-2xl text-(--silver)">{duration}s</div>
+								<div class="flex items-baseline justify-between gap-2">
+									<span class="font-mono text-2xl text-(--silver)">{duration}s</span>
+									<span class="font-mono text-sm text-(--mer)">{eloFor(duration).rating}</span>
+								</div>
 								<div class="mt-1 font-mono text-[10px] tracking-[0.12em] text-(--silver)/35 uppercase">
 									{duration === 30 ? 'sprint' : duration === 90 ? 'standard' : 'marathon'}
+								</div>
+								<div class="mt-2 font-mono text-[10px] text-(--silver)/25">
+									{eloFor(duration).games_played} ranked games
 								</div>
 							</button>
 						{/each}
@@ -250,7 +267,7 @@
 						>{busy ? 'joining…' : 'enter queue =>'}</button
 						>
 						<span class="font-mono text-[10px] text-(--silver)/30">
-							Elo starts at 1000 · bots after 20s
+							Everyone starts at 400 on each clock · bots after 20s
 						</span>
 					</div>
 				</div>
@@ -274,18 +291,22 @@
 			<div class="border border-(--border) bg-(--fbg) p-5">
 				<div class="flex items-center justify-between">
 					<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
-						tiers
+						your ladders
 					</div>
-					<span class="font-mono text-[10px] text-(--silver)/25">rating</span>
+					<span class="font-mono text-[10px] text-(--silver)/25">elo</span>
 				</div>
 				<div class="mt-3 flex flex-col gap-1.5 font-mono text-[11px]">
-					{#each [['Grandmaster', 1600], ['Master', 1200], ['Diamond', 800], ['Platinum', 600], ['Gold', 400], ['Silver', 200], ['Bronze', 0]] as [tier, rating] (tier)}
+					{#each LOBBY_DURATIONS as duration (duration)}
 						<div class="flex items-center justify-between border-b border-(--border)/40 pb-1.5">
-							<span class="text-(--silver)/55">{tier}</span>
-							<span class="text-(--silver)/30">{rating}+</span>
+							<span class="text-(--silver)/55">{duration}s</span>
+							<span class="text-(--mer)">{eloFor(duration).rating}</span>
 						</div>
 					{/each}
 				</div>
+				<p class="mt-3 font-mono text-[10px] leading-relaxed text-(--silver)/25">
+					Each ladder moves only when you finish a ranked race on that clock. The hub shows
+					your highest.
+				</p>
 			</div>
 
 			{#if error}

@@ -1,6 +1,6 @@
 import { api, newIdempotencyKey } from './client';
 import { ENDPOINTS } from './config';
-import type { ContestView, GameView, InviteView, LobbyDuration, RoomView } from './types';
+import type { GameView, InviteView, LobbyDuration, RoomView } from './types';
 
 export interface CreateRoomInput {
 	name: string;
@@ -84,18 +84,6 @@ export const promoteInRoom = (code: string, userID: number) =>
 	roomAction(ENDPOINTS.ROOM_PROMOTE(code), userID);
 export const demoteInRoom = (code: string, userID: number) =>
 	roomAction(ENDPOINTS.ROOM_DEMOTE(code), userID);
-
-export async function listContests(code: string): Promise<ContestView[]> {
-	const res = await api<{ contests: ContestView[] }>(ENDPOINTS.ROOM_CONTESTS(code));
-	return res.contests ?? [];
-}
-
-export function createContest(
-	code: string,
-	input: { title: string; description?: string; starts_at: string; duration: number; language: string }
-): Promise<ContestView> {
-	return api<ContestView>(ENDPOINTS.ROOM_CONTEST(code), { method: 'POST', body: input });
-}
 
 export async function listInvites(): Promise<InviteView[]> {
 	const res = await api<{ invites: InviteView[] }>(ENDPOINTS.INVITES);

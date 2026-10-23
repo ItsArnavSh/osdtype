@@ -29,10 +29,11 @@ func (s *ServiceLayer) JoinQueue(ctx context.Context, uid uint32, duration int) 
 	if st, ok, _ := s.rdb().GetState(ctx, uid); ok && st.Status == "queue" && st.QueueDuration != duration {
 		_ = s.mm().Remove(ctx, uid, st.QueueDuration)
 	}
-	if err := s.mm().Add(ctx, uid, user.Rating, duration); err != nil {
+	rating := user.RatingFor(duration)
+	if err := s.mm().Add(ctx, uid, rating, duration); err != nil {
 		return matchmaker.QueueStatus{}, err
 	}
-	status, ok, err := s.mm().Status(ctx, uid, user.Rating, duration)
+	status, ok, err := s.mm().Status(ctx, uid, rating, duration)
 	if err != nil {
 		return matchmaker.QueueStatus{}, err
 	}
@@ -54,7 +55,7 @@ func (s *ServiceLayer) QueueStatus(ctx context.Context, uid uint32, duration int
 	if err != nil {
 		return matchmaker.QueueStatus{}, false, err
 	}
-	return s.mm().Status(ctx, uid, user.Rating, duration)
+	return s.mm().Status(ctx, uid, user.RatingFor(duration), duration)
 }
 
 // StartRankedMatch is called by the matchmaker after it has claimed a group
@@ -91,7 +92,7 @@ func (s *ServiceLayer) StartRankedMatch(ctx context.Context, users []entity.User
 	botConfigs := map[uint32]entity.BotConfig{}
 	for _, u := range users {
 		userMap[u.ID] = u
-		players = append(players, entity.GamePlayer{UserID: u.ID, RatingBefore: u.Rating, IsBot: u.IsBot})
+		players = append(players, entity.GamePlayer{UserID: u.ID, RatingBefore: u.RatingFor(durationSec), IsBot: u.IsBot})
 		if u.IsBot {
 			if _, cfg, ok := s.bots().PersonaForUsername(u.Username); ok {
 				botConfigs[u.ID] = cfg
@@ -110,11 +111,11 @@ func (s *ServiceLayer) StartRankedMatch(ctx context.Context, users []entity.User
 	return s.g().Start(ctx, opts)
 }
 
-func (s *ServiceLayer) PickRankedBot(ctx context.Context, rating int) (entity.User, bool) {
+func (s *ServiceLayer) PickRankedBot(ctx context.Context, rating, duration int) (entity.User, bool) {
 	if err := s.Bootstrap(ctx); err != nil {
 		s.logger.Warnw("bot bootstrap failed", "error", err)
 	}
-	bot, err := s.db.GetBotForRating(ctx, rating)
+	bot, err := s.db.GetBotForRating(ctx, rating, duration)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return entity.User{}, false

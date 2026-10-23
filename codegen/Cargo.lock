@@ -354,9 +354,9 @@ dependencies = [
 
 [[package]]
 name = "resrap-rs"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad4d00b19ee022679c1122609eecedb53ff5ea8189b359dcea2fd98ae6243773"
+checksum = "2a86dff7ccda5fb809227b0477ab8689d624d1e8a273277ab2991920e1ff33e7"
 
 [[package]]
 name = "ryu"

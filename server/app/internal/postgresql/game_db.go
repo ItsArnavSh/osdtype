@@ -240,36 +240,93 @@ func (d *Database) SavePracticeRun(ctx context.Context, gameID, userID uint32) (
 	return saved, err
 }
 
+const matchHistorySelect = `SELECT g.id, gp.user_id, g.mode, COALESCE(r.code, ''), g.language, g.duration,
+	gp.wpm, gp.accuracy, gp.placement, gp.rating_after - gp.rating_before,
+	gp.flagged, (SELECT COUNT(*) FROM game_players x WHERE x.game_id = g.id),
+	g.finished_at, gp.run_name, gp.run_description, gp.pinned, gp.pinned_at
+	FROM game_players AS gp
+	JOIN games AS g ON g.id = gp.game_id
+	LEFT JOIN rooms AS r ON r.id = g.room_id`
+
+const matchHistoryVisible = ` AND g.status = ? AND (g.mode <> ? OR g.temporary = ?)`
+
 func (d *Database) UserGameHistory(ctx context.Context, uid uint32, limit int) ([]entity.MatchHistory, error) {
-	const query = `SELECT g.id, gp.user_id, g.mode, COALESCE(r.code, ''), g.language, g.duration,
-		gp.wpm, gp.accuracy, gp.placement, gp.rating_after - gp.rating_before,
-		gp.flagged, (SELECT COUNT(*) FROM game_players x WHERE x.game_id = g.id),
-		g.finished_at
-		FROM game_players AS gp
-		JOIN games AS g ON g.id = gp.game_id
-		LEFT JOIN rooms AS r ON r.id = g.room_id
-		WHERE gp.user_id = ? AND g.status = ? AND (g.mode <> ? OR g.temporary = ?)
-		ORDER BY g.finished_at DESC LIMIT ?`
-	rows, err := d.db.WithContext(ctx).Raw(query, uid, entity.GameFinished, entity.GamePractice, false, limit).Rows()
+	query := matchHistorySelect + ` WHERE gp.user_id = ?` + matchHistoryVisible +
+		` ORDER BY g.finished_at DESC LIMIT ?`
+	return d.queryMatchHistory(ctx, query, uid, entity.GameFinished, entity.GamePractice, false, limit)
+}
+
+func (d *Database) PinnedGameHistory(ctx context.Context, uid uint32, limit int) ([]entity.MatchHistory, error) {
+	query := matchHistorySelect + ` WHERE gp.user_id = ?` + matchHistoryVisible +
+		` AND gp.pinned = ? ORDER BY gp.pinned_at DESC, g.finished_at DESC LIMIT ?`
+	return d.queryMatchHistory(ctx, query, uid, entity.GameFinished, entity.GamePractice, false, true, limit)
+}
+
+func (d *Database) BestGameHistory(ctx context.Context, uid uint32) (*entity.MatchHistory, error) {
+	query := matchHistorySelect + ` WHERE gp.user_id = ?` + matchHistoryVisible +
+		` AND gp.left = ? AND gp.wpm > 0 ORDER BY gp.wpm DESC, g.finished_at DESC LIMIT 1`
+	rows, err := d.queryMatchHistory(ctx, query, uid, entity.GameFinished, entity.GamePractice, false, false)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return &rows[0], nil
+}
+
+func (d *Database) queryMatchHistory(ctx context.Context, query string, args ...any) ([]entity.MatchHistory, error) {
+	rows, err := d.db.WithContext(ctx).Raw(query, args...).Rows()
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := make([]entity.MatchHistory, 0, limit)
+	out := make([]entity.MatchHistory, 0)
 	for rows.Next() {
 		var item entity.MatchHistory
 		var playedAt any
+		var pinnedAt any
 		if err := rows.Scan(
 			&item.GameID, &item.UserID, &item.Mode, &item.RoomCode, &item.Language, &item.Duration,
 			&item.WPM, &item.Accuracy, &item.Rank, &item.RatingDelta,
 			&item.Flagged, &item.Players, &playedAt,
+			&item.RunName, &item.RunDescription, &item.Pinned, &pinnedAt,
 		); err != nil {
 			return nil, err
 		}
 		item.PlayedAt = anyTime(playedAt)
+		item.PinnedAt = anyTimePtr(pinnedAt)
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+// UpdateRunMeta changes the player's presentation for one finished run.
+func (d *Database) UpdateRunMeta(ctx context.Context, gameID, userID uint32, updates map[string]any) (bool, error) {
+	var count int64
+	query := `game_players.game_id = ? AND game_players.user_id = ? AND games.status = ? AND (games.mode <> ? OR games.temporary = ?)`
+	err := d.db.WithContext(ctx).Model(&entity.GamePlayer{}).
+		Joins("JOIN games ON games.id = game_players.game_id").
+		Where(query, gameID, userID, entity.GameFinished, entity.GamePractice, false).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	if count == 0 {
+		return false, nil
+	}
+	err = d.db.WithContext(ctx).Model(&entity.GamePlayer{}).
+		Where("game_id = ? AND user_id = ?", gameID, userID).
+		Updates(updates).Error
+	return err == nil, err
+}
+
+func anyTimePtr(v any) *time.Time {
+	if v == nil {
+		return nil
+	}
+	t := anyTime(v)
+	if t.IsZero() {
+		return nil
+	}
+	return &t
 }
 
 // anyTime normalises the raw value returned by different SQL drivers for a

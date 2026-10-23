@@ -124,7 +124,8 @@
 		try {
 			const next = await acknowledgeResults();
 			applyState(next);
-			if (next.state === 'room' && next.room) await goto(`/room/${next.room.code}`);
+			if (game?.contest_code) await goto(`/contests/${game.contest_code}`);
+			else if (next.state === 'room' && next.room) await goto(`/room/${next.room.code}`);
 			else if (next.state === 'game' && next.game) await goto(`/game/${next.game.id}`);
 			else if (next.state === 'results' && next.results) await goto(`/results/${next.results.id}`);
 			else await goto(resolve('/play'));
@@ -147,12 +148,20 @@
 		<div>
 			<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
 				{game?.mode ?? 'match'} results {game?.room_code ? `· ${game.room_code}` : ''}
+				{game?.contest_stage_name ? `· ${game.contest_stage_name}` : ''}
 			</div>
 			<div class="title-text text-7xl leading-none text-(--silver) md:text-8xl">RESULTS</div>
 			{#if game}
 				<div class="mt-2 font-mono text-[10px] text-(--silver)/30">
 					game {game.id} · {game.duration}s · {LANGUAGE_LABELS[game.language] ?? game.language} · seed {game.seed}
 				</div>
+				{#if game.contest_code}
+					<a
+						href={resolve(`/contests/${game.contest_code}`)}
+						class="mt-2 inline-block border border-(--border) px-2.5 py-1 font-mono text-[9px] tracking-[0.1em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer)"
+						>← contest funnel</a
+					>
+				{/if}
 			{/if}
 		</div>
 		{#if mine}
@@ -255,6 +264,8 @@
 				<div class="font-mono text-[10px] text-(--silver)/30">
 					{#if game.mode === 'ranked'}
 						elo updates are final once you continue. flagged players do not change rating.
+					{:else if game.mode === 'contest'}
+						contest run · no ranked rating change. return to the funnel for the next attempt.
 					{:else}
 						room match · no rating change
 					{/if}
@@ -263,7 +274,13 @@
 					class="cursor-pointer border border-(--mer) px-6 py-2.5 font-mono text-sm text-(--mer) hover:bg-(--mer)/10 disabled:opacity-40"
 					onclick={acknowledge}
 					disabled={busy}
-					>{busy ? 'continuing…' : appState.state?.state === 'results' && appState.state.room ? 'back to room =>' : 'continue =>'}</button
+					>{busy
+						? 'continuing…'
+						: game.contest_code
+							? 'back to contest =>'
+							: appState.state?.state === 'results' && appState.state.room
+								? 'back to room =>'
+								: 'continue =>'}</button
 				>
 			</div>
 		{/if}

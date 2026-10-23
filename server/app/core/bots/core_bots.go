@@ -15,9 +15,9 @@ type Manager struct {
 
 func New() *Manager {
 	defaults := map[entity.Persona]entity.BotConfig{
-		entity.LEWIS: {Accuracy: 95, RelativeSpeed: 1.2, Rating: 1150},
-		entity.MAX:   {Accuracy: 85, RelativeSpeed: 1.5, Rating: 1050},
-		entity.LANCE: {Accuracy: 75, RelativeSpeed: 1.8, Rating: 950},
+		entity.LEWIS: {Accuracy: 95, RelativeSpeed: 1.2, Rating: 600},
+		entity.MAX:   {Accuracy: 85, RelativeSpeed: 1.5, Rating: 500},
+		entity.LANCE: {Accuracy: 75, RelativeSpeed: 1.8, Rating: 400},
 	}
 	out := make(map[entity.Persona]entity.BotConfig, len(defaults))
 	for persona, cfg := range defaults {

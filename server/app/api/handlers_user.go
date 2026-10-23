@@ -149,20 +149,24 @@ func (s *Server) profile(c *gin.Context) {
 
 func (s *Server) leaderboard(c *gin.Context) {
 	uid, _ := auth.GetUserID(c)
+	duration, _ := strconv.Atoi(c.DefaultQuery("duration", "90"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	rows, err := s.services.Leaderboard(c, offset, limit)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "5"))
+	view, err := s.services.Leaderboard(c, uid, duration, offset, limit)
 	if err != nil {
 		s.fail(c, err)
 		return
 	}
-	myPos := int64(0)
-	if uid != 0 {
-		if user, err := s.services.GetUser(c, uid); err == nil {
-			if pos, err := s.db.CountRatingAbove(c, user.Rating); err == nil {
-				myPos = pos + 1
-			}
-		}
+	c.JSON(http.StatusOK, view)
+}
+
+func (s *Server) searchLeaderboard(c *gin.Context) {
+	duration, _ := strconv.Atoi(c.DefaultQuery("duration", "90"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	view, err := s.services.SearchLeaderboard(c, duration, c.Query("q"), limit)
+	if err != nil {
+		s.fail(c, err)
+		return
 	}
-	c.JSON(http.StatusOK, gin.H{"leaderboard": rows, "my_position": myPos})
+	c.JSON(http.StatusOK, view)
 }

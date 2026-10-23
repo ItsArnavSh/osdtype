@@ -5,7 +5,8 @@ import "time"
 type jobtyp string
 
 const (
-	CONTEST jobtyp = "contest"
+	CONTEST       jobtyp = "contest"
+	CONTEST_STAGE jobtyp = "contest_stage"
 )
 
 type Task struct {

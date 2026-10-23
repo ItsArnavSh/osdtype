@@ -107,7 +107,7 @@
 		<div class="flex items-center gap-3">
 			<div class="hidden text-right font-mono text-[10px] text-(--silver)/30 sm:block">
 				<div>{appState.user?.username}</div>
-				<div class="text-(--mer)">{appState.user?.rank.label}</div>
+				<div class="text-(--mer)">{appState.user?.rating ?? '—'} elo</div>
 			</div>
 			<button
 				class="cursor-pointer border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer) hover:bg-(--mer)/10"

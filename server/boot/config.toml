@@ -38,14 +38,14 @@ lobby_minutes = 2
 [Bots.LEWIS]
 accuracy = 95
 relative_speed = 1.2
-rating = 1150
+rating = 600
 
 [Bots.MAX]
 accuracy = 85
 relative_speed = 1.5
-rating = 1050
+rating = 500
 
 [Bots.LANCE]
 accuracy = 75
 relative_speed = 1.8
-rating = 950
+rating = 400

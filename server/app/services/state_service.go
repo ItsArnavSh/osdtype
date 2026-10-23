@@ -44,7 +44,7 @@ func (s *ServiceLayer) State(ctx context.Context, uid uint32) (StateView, error)
 
 	switch st.Status {
 	case "queue":
-		if status, ok, err := s.mm().Status(ctx, uid, user.Rating, st.QueueDuration); err == nil && ok {
+		if status, ok, err := s.mm().Status(ctx, uid, user.RatingFor(st.QueueDuration), st.QueueDuration); err == nil && ok {
 			out.State = "queue"
 			out.Queue = &status
 			return out, nil
@@ -178,7 +178,6 @@ func (s *ServiceLayer) roomView(ctx context.Context, room entity.Room, viewerID 
 				Username:  m.User.Username,
 				AvatarURL: m.User.AvatarURL,
 				Rating:    m.User.Rating,
-				Rank:      entity.RankFor(m.User.Rating),
 				Role:      m.Role,
 				JoinedAt:  m.JoinedAt,
 				IsBot:     m.User.IsBot,
@@ -199,6 +198,7 @@ func (s *ServiceLayer) GetGameView(ctx context.Context, uid, gameID uint32) (ent
 				view.RoomCode = room.Code
 			}
 		}
+		s.enrichContestGameView(ctx, &view)
 		return view, nil
 	}
 	game, err := s.db.GetGame(ctx, gameID)
@@ -225,20 +225,21 @@ func (s *ServiceLayer) gameViewFromDBFor(ctx context.Context, viewerID uint32, g
 	}
 	found := false
 	view := entity.GameView{
-		ID:          game.ID,
-		Mode:        game.Mode,
-		Status:      game.Status,
-		RoomID:      game.RoomID,
-		ContestID:   game.ContestID,
-		Duration:    game.Duration,
-		Language:    game.Language,
-		Seed:        strconv.FormatUint(game.Seed, 10),
-		Snippet:     game.Snippet,
-		StartOffset: game.StartOffset,
-		Temporary:   game.Temporary,
-		StartsAt:    game.StartsAt,
-		EndsAt:      game.EndsAt,
-		CreatedAt:   game.CreatedAt,
+		ID:             game.ID,
+		Mode:           game.Mode,
+		Status:         game.Status,
+		RoomID:         game.RoomID,
+		ContestID:      game.ContestID,
+		ContestStageID: game.ContestStageID,
+		Duration:       game.Duration,
+		Language:       game.Language,
+		Seed:           strconv.FormatUint(game.Seed, 10),
+		Snippet:        game.Snippet,
+		StartOffset:    game.StartOffset,
+		Temporary:      game.Temporary,
+		StartsAt:       game.StartsAt,
+		EndsAt:         game.EndsAt,
+		CreatedAt:      game.CreatedAt,
 	}
 	if game.RoomID != 0 {
 		if room, err := s.db.GetRoomByID(ctx, game.RoomID); err == nil {
@@ -294,7 +295,28 @@ func (s *ServiceLayer) gameViewFromDBFor(ctx context.Context, viewerID uint32, g
 		sortResults(results)
 		view.Leaderboard = results
 	}
+	s.enrichContestGameView(ctx, &view)
 	return view, nil
+}
+
+func (s *ServiceLayer) enrichContestGameView(ctx context.Context, view *entity.GameView) {
+	if view == nil || view.ContestID == 0 {
+		return
+	}
+	contest, err := s.db.GetContest(ctx, view.ContestID)
+	if err != nil {
+		return
+	}
+	view.ContestCode = contest.Code
+	if view.ContestStageID == 0 {
+		return
+	}
+	stage, err := s.db.GetContestStage(ctx, view.ContestStageID)
+	if err != nil {
+		return
+	}
+	view.ContestStageName = stage.Name
+	view.ContestStageIndex = stage.Position
 }
 
 func sortResults(results []entity.ResultView) {
