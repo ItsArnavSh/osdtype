@@ -40,17 +40,39 @@
 	const events = $derived(
 		[...run.events].sort((a, b) => (a.time_ms ?? 0) - (b.time_ms ?? 0))
 	);
+	const lines = $derived.by(() => {
+		const out: number[][] = [];
+		let current: number[] = [];
+		for (let index = 0; index < chars.length; index++) {
+			if (chars[index] === '\n') {
+				out.push(current);
+				current = [];
+			} else {
+				current.push(index);
+			}
+		}
+		out.push(current);
+		return out;
+	});
 
 	let currentMs = $state(0);
 	let playing = $state(true);
 	let speed = $state(1);
 	let copied = $state(false);
 	let codeEl = $state<HTMLDivElement | null>(null);
+	let lineRefs: (HTMLDivElement | undefined)[] = [];
 	let raf = 0;
 	let lastFrame = 0;
 
 	const typedChars = $derived(typedAt(events, currentMs));
 	const display = $derived(mapTypedToDisplay(snippet, startOffset, typedChars));
+	const currentLine = $derived.by(() => {
+		let line = 0;
+		for (let index = 0; index < display.cursor && index < chars.length; index++) {
+			if (chars[index] === '\n') line++;
+		}
+		return Math.min(line, Math.max(0, lines.length - 1));
+	});
 	const stats = $derived(statsAt(events, snippet, startOffset, currentMs));
 	const fullSamples = $derived(deriveSamples(events, snippet, startOffset, durationSec));
 	const liveSamples = $derived(fullSamples.filter((sample) => sample.t * 1000 <= currentMs + 1));
@@ -111,6 +133,16 @@
 		return 'text-(--silver)/35';
 	}
 
+	/** Registers rendered lines so the viewport can follow the active one. */
+	function trackLine(node: HTMLDivElement, index: number) {
+		lineRefs[index] = node;
+		return {
+			destroy() {
+				lineRefs[index] = undefined;
+			}
+		};
+	}
+
 	onMount(() => {
 		const tick = (now: number) => {
 			if (playing) {
@@ -129,9 +161,14 @@
 	});
 
 	$effect(() => {
-		void display.cursor;
-		const caret = codeEl?.querySelector<HTMLElement>('.replay-caret');
-		if (caret) caret.scrollIntoView({ block: 'nearest' });
+		const line = currentLine;
+		const code = codeEl;
+		const active = lineRefs[line];
+		if (!code || !active) return;
+		const lineHeight = Number.parseFloat(getComputedStyle(code).lineHeight) || 28;
+		// Keep three lines above the active line and four below it. Clamping
+		// at the start/end is intentional; the viewport cannot invent lines.
+		code.scrollTop = Math.max(0, active.offsetTop - lineHeight * 3);
 	});
 </script>
 
@@ -174,20 +211,28 @@
 				<span>typing simulation · {Math.round(currentMs / 1000)}s / {Math.round(durationSec)}s</span>
 				<span class="text-(--mer)">{Math.round(stats.net)} wpm live</span>
 			</div>
-			<div
-				bind:this={codeEl}
-				class="code-scroll min-h-[230px] flex-1 overflow-auto p-4 font-mono text-[15px] leading-7 whitespace-pre-wrap md:p-5 md:text-base"
-			>
-				{#each chars as char, index (index)}
-					{#if index >= startChar}
-						<span
-							class={charClass(index)}
-							class:replay-caret={index === display.cursor}>{char}</span
+			<div class="px-4 py-3">
+				<div
+					bind:this={codeEl}
+					class="replay-code relative overflow-hidden font-mono text-[15px] leading-7 md:text-base"
+				>
+					{#each lines as line, lineIndex (lineIndex)}
+						<div
+							class="code-line"
+							class:code-line-active={lineIndex === currentLine}
+							use:trackLine={lineIndex}
 						>
-					{:else}
-						<span class="text-(--silver)/10">{char}</span>
-					{/if}
-				{/each}
+							<span class="line-no">{lineIndex + 1}</span>
+							<span class="line-code">
+								{#each line as index (index)}
+									<span class={charClass(index)} class:replay-caret={index === display.cursor}
+										>{chars[index]}</span
+									>
+								{/each}
+							</span>
+						</div>
+					{/each}
+				</div>
 			</div>
 		</div>
 
@@ -254,7 +299,19 @@
 </div>
 
 <style>
-	.code-scroll :global(.replay-caret) {
+	.replay-code {
+		/* Eight code rows: three above the active line, four below. */
+		height: calc(1.75rem * 8);
+		scrollbar-width: none;
+	}
+	.replay-code :global(.code-line) {
+		align-items: flex-start;
+		min-height: 1.75rem;
+	}
+	.replay-code::-webkit-scrollbar {
+		display: none;
+	}
+	.replay-code :global(.replay-caret) {
 		background: color-mix(in srgb, var(--mer) 26%, transparent);
 		box-shadow: inset 0 -2px 0 var(--mer);
 	}
