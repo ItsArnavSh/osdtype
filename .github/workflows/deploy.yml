@@ -1,0 +1,155 @@
+name: Deploy production
+
+# OIDC is blocked by this AWS project's SCP, so this workflow uses the scoped
+# osdtype-github-deploy IAM user. The access key lives only in repository
+# secrets and can be rotated without touching the EC2 instance.
+#
+# Set the repository variable DEPLOY_ENABLED=true after /osdtype/prod/env
+# exists in SSM Parameter Store. Until then both jobs are skipped.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+  EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+  PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
+  PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL }}
+
+jobs:
+  build:
+    name: Build and push ARM64 images
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/osdtype-api:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/osdtype-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push web gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./deploy/aws/web.Dockerfile
+          platforms: linux/arm64
+          push: true
+          build-args: |
+            VITE_API_URL=${{ env.PUBLIC_API_URL }}
+            VITE_APP_VERSION=v0.0.1
+          tags: |
+            ${{ env.ECR_REGISTRY }}/osdtype-web:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/osdtype-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  deploy:
+    name: Deploy on EC2
+    if: vars.DEPLOY_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run deploy script through SSM
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg instance "$EC2_INSTANCE_ID" \
+            --arg cmd "cd /opt/osdtype && ./deploy/aws/deploy.sh ${GITHUB_SHA}" \
+            --arg comment "Deploy ${GITHUB_SHA}" \
+            '{InstanceIds: [$instance], DocumentName: "AWS-RunShellScript", Comment: $comment, Parameters: {commands: [$cmd]}, TimeoutSeconds: 900}' \
+            > /tmp/ssm-input.json
+
+          COMMAND_ID="$(aws ssm send-command \
+            --cli-input-json file:///tmp/ssm-input.json \
+            --query 'Command.CommandId' --output text)"
+          echo "SSM command: $COMMAND_ID"
+
+          STATUS="Pending"
+          for _ in $(seq 1 180); do
+            STATUS="$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$EC2_INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || echo Pending)"
+            case "$STATUS" in
+              Success) break ;;
+              Failed|Cancelled|TimedOut|Cancelling)
+                echo "SSM command ended with $STATUS" >&2
+                aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" --query 'StandardOutputContent' --output text >&2 || true
+                aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" --query 'StandardErrorContent' --output text >&2 || true
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+          if [ "$STATUS" != "Success" ]; then
+            echo "SSM command did not finish successfully (last status: $STATUS)" >&2
+            exit 1
+          fi
+          aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" --query 'StandardOutputContent' --output text || true
+
+      - name: Smoke test API and web fallback
+        run: |
+          set -euo pipefail
+          for url in "${PUBLIC_API_URL}/ping" "${PUBLIC_WEB_URL}/"; do
+            ok=0
+            for _ in $(seq 1 30); do
+              if curl -fsS --max-time 10 "$url" >/dev/null; then
+                ok=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ok" != "1" ]; then
+              echo "smoke test failed: $url" >&2
+              exit 1
+            fi
+            echo "smoke test passed: $url"
+          done
