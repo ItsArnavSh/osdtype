@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily OSDTYP PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 18:00:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=osdtype-backup.service
+
+[Install]
+WantedBy=timers.target

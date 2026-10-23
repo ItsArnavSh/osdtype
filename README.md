@@ -126,6 +126,27 @@ Environment overrides understood by the server include `PORT`, `JWTKEY`,
 `METRICS_TOKEN`, `ADMIN_USERNAME`, `GITHUB_KEY`, `GITHUB_AUTH` and
 `GITHUB_REDIRECT_URL`.
 
+## AWS (current production)
+
+For v0.0.1 the entire backend runs on one EC2 instance in `ap-southeast-2`
+while Vercel serves the public static frontend:
+
+- **API** — <https://api.15.134.14.153.sslip.io>
+- **AWS web fallback** — <https://app.15.134.14.153.sslip.io>
+- **Frontend** — <https://osdtype-w5vr-six.vercel.app/>
+- **Stack** — `docker-compose.aws.yml` runs the Go API, PostgreSQL 17, Redis 7
+  and Caddy on the instance. Postgres and Redis are private to the Compose
+  network and persist in Docker volumes.
+- **Images** — GitHub Actions builds ARM64 API/web images, pushes them to ECR,
+  and deploys through SSM. The workflow is gated by `DEPLOY_ENABLED=true`.
+- **Secrets** — `/osdtype/prod/env` in SSM Parameter Store. The local
+  `.env.prod` is gitignored; never commit it.
+
+The API is a single process because the hub, matchmaker, scheduler and active
+game state live in-process. Keep it at one instance until that state moves out.
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the current AWS runbook. The Render
+section below is legacy reference.
+
 ## Render
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ItsArnavSh/osdtype)

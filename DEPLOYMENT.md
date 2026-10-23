@@ -4,10 +4,67 @@
 > Keep the bug form and admin triage queue available, and tell users where to
 > report issues.
 
-This is the launch runbook for the Render + Supabase + managed Redis stack.
+This is the launch runbook for the current single-VM AWS deployment. The
+Render + Supabase instructions further down are retained as legacy reference.
 The API is a single always-on Go process; the web app is a static SvelteKit
-build. Do not scale the API horizontally until the hub/matchmaker state is
-moved out of process.
+build on Vercel. Do not scale the API horizontally until the hub/matchmaker
+state is moved out of process.
+
+## Current production: one AWS VM + Vercel frontend
+
+For v0.0.1 the whole backend runs on one EC2 instance in `ap-southeast-2`.
+Vercel serves the public frontend and CloudFront/WAF is not yet in front of the
+API because ACM cannot validate the temporary `sslip.io` hostnames.
+
+| Piece | Where |
+| --- | --- |
+| Frontend | <https://osdtype-w5vr-six.vercel.app/> (Vercel) |
+| API | <https://api.15.134.14.153.sslip.io> (Caddy → Go API) |
+| AWS web fallback | <https://app.15.134.14.153.sslip.io> (same static build) |
+| PostgreSQL 17 | Docker container on the EC2 instance, private Compose network |
+| Redis 7 | Docker container on the EC2 instance, AOF persistence, private network |
+| TLS / reverse proxy | Caddy in the `osdtype-web` image, automatic Let's Encrypt |
+| Images | ECR repos `osdtype-api` and `osdtype-web`, built by GitHub Actions |
+| Deploy | GitHub Actions → SSM Run Command → `deploy/aws/deploy.sh` |
+| Secrets | SSM SecureString `/osdtype/prod/env`; local `.env.prod` is gitignored |
+
+Instance: `i-0899b48fda9fa75f0`, `t4g.small`, Elastic IP `15.134.14.153`.
+The security group allows only inbound 80/443 and no SSH; access is through
+SSM. AWS Shield Standard is automatic for the public IP.
+
+### Deploy
+
+- Push to `main`. The workflow in `.github/workflows/deploy.yml` builds both
+  ARM64 images, pushes them to ECR, deploys through SSM, and smoke-tests the
+  API and AWS web fallback. It is gated by the repository variable
+  `DEPLOY_ENABLED=true`.
+- Manual deploy: run `./deploy/aws/upload-env.sh` from the repository root,
+  then run `cd /opt/osdtype && ./deploy/aws/deploy.sh latest` on the instance
+  through SSM.
+- Health endpoints: `/ping`, `/healthz`, `/readyz`, and token-protected
+  `/metrics`.
+
+### Operations
+
+```bash
+cd /opt/osdtype
+docker compose -f docker-compose.aws.yml --env-file .env.prod ps
+docker compose -f docker-compose.aws.yml --env-file .env.prod logs -f api
+docker compose -f docker-compose.aws.yml --env-file .env.prod stats
+```
+
+- Postgres data: Docker volume `osdtype_postgres_data`.
+- Redis data: Docker volume `osdtype_redis_data` with AOF enabled.
+- Postgres/Redis publish no host ports; only the Compose network can reach
+  them.
+- A systemd timer (`osdtype-backup.timer`) runs `pg_dump` daily at 18:00 UTC,
+  keeps 7 days locally in `/var/backups/osdtype`, and uploads gzip dumps to
+  `s3://osdtype-backups-309857583292-ap-southeast-2/postgres/` (SSE-S3,
+  private, 30-day lifecycle).
+- CloudFront + AWS WAF is the intended edge DDoS/WAF layer once a real custom
+  domain exists (or if the API moves to a stable `cloudfront.net` hostname).
+  At that point restrict the EC2 security group to the CloudFront origin-facing
+  prefix list.
 
 ## 0. Pre-flight
 

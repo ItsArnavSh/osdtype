@@ -1,0 +1,15 @@
+[Unit]
+Description=OSDTYP PostgreSQL backup to S3
+Documentation=https://github.com/ItsArnavSh/osdtype
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/osdtype
+Environment=AWS_REGION=ap-southeast-2
+Environment=AWS_DEFAULT_REGION=ap-southeast-2
+ExecStart=/opt/osdtype/deploy/aws/backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min

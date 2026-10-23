@@ -35,6 +35,13 @@ aws ecr get-login-password --region "$REGION" \
 docker compose -f docker-compose.aws.yml --env-file .env.prod pull
 docker compose -f docker-compose.aws.yml --env-file .env.prod up -d --remove-orphans
 
+# Keep the daily Postgres backup timer installed and enabled.
+chmod +x deploy/aws/backup.sh
+install -m 0644 deploy/aws/osdtype-backup.service /etc/systemd/system/osdtype-backup.service
+install -m 0644 deploy/aws/osdtype-backup.timer /etc/systemd/system/osdtype-backup.timer
+systemctl daemon-reload
+systemctl enable --now osdtype-backup.timer
+
 # Wait for the API healthcheck before declaring success.
 for _ in $(seq 1 30); do
   API_ID="$(docker compose -f docker-compose.aws.yml --env-file .env.prod ps -q api || true)"
