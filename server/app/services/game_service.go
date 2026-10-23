@@ -163,6 +163,11 @@ func (s *ServiceLayer) onGameFinished(ctx context.Context, g entity.Game, player
 		if !ok || user.IsBot {
 			continue
 		}
+		// Leaving a race is an explicit abandon: do not drag the player back
+		// onto a results screen after they have already exited.
+		if p.Left {
+			continue
+		}
 		s.state().SetResults(ctx, p.UserID, g.ID, roomCode)
 		if st, err := s.State(ctx, p.UserID); err == nil {
 			s.hub().SendToUser(p.UserID, hub.Ev("state", st))

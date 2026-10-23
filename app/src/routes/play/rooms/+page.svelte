@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { errorMessage } from '$lib/core/api/client';
 	import { createRoom, joinRoom, listRooms } from '$lib/core/api/rooms';
 	import type { LobbyDuration, RoomView } from '$lib/core/api/types';
@@ -12,9 +12,11 @@
 	let rooms = $state<RoomView[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let createError = $state('');
 	let showCreate = $state(false);
 	let busy = $state(false);
 	let joinCode = $state('');
+	let nameInput = $state<HTMLInputElement | null>(null);
 
 	let form = $state({
 		name: '',
@@ -38,10 +40,22 @@
 		}
 	}
 
+	async function openCreate() {
+		createError = '';
+		showCreate = true;
+		await tick();
+		nameInput?.focus();
+	}
+
+	function closeCreate() {
+		showCreate = false;
+		createError = '';
+	}
+
 	async function create() {
 		if (busy) return;
 		busy = true;
-		error = '';
+		createError = '';
 		try {
 			const room = await createRoom({
 				name: form.name.trim(),
@@ -55,7 +69,7 @@
 			await refreshState();
 			await goto(resolve(`/room/${room.code}`));
 		} catch (err) {
-			error = errorMessage(err);
+			createError = errorMessage(err);
 		} finally {
 			busy = false;
 		}
@@ -97,8 +111,8 @@
 			</div>
 			<button
 				class="cursor-pointer border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer) hover:bg-(--mer)/10"
-				onclick={() => (showCreate = !showCreate)}
-			>{showCreate ? 'close form' : '+ create room'}</button
+				onclick={openCreate}
+			>+ create room</button
 			>
 		</div>
 	</header>
@@ -136,7 +150,7 @@
 					<div class="text-xl text-(--silver)/60">No public rooms open.</div>
 					<button
 						class="cursor-pointer border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer)"
-						onclick={() => (showCreate = true)}>create the first one</button
+						onclick={openCreate}>create the first one</button
 					>
 				</div>
 			{:else}
@@ -175,120 +189,163 @@
 		</section>
 
 		<aside class="flex flex-col gap-3">
-			{#if showCreate}
-				<div class="border border-(--border) bg-(--fbg)" style="border-top-color: var(--mer);">
-					<div class="border-b border-(--border) px-5 py-3">
-						<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
-							new room
-						</div>
-						<div class="mt-1 text-lg text-(--silver)">Set the table.</div>
-					</div>
-					<form
-						class="flex flex-col gap-3 p-5"
-						onsubmit={(e) => {
-							e.preventDefault();
-							void create();
-						}}
-					>
-						<label class="flex flex-col gap-1">
-							<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
-								>name</span
-							>
-							<input
-								class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
-								bind:value={form.name}
-								maxlength="64"
-								required
-								placeholder="friday night sprint"
-							/>
-						</label>
-						<label class="flex flex-col gap-1">
-							<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
-								>description</span
-							>
-							<input
-								class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
-								bind:value={form.description}
-								maxlength="280"
-								placeholder="optional"
-							/>
-						</label>
-						<div class="grid grid-cols-2 gap-2">
-							<label class="flex flex-col gap-1">
-								<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
-									>players</span
-								>
-								<input
-									type="number"
-									min="2"
-									max="16"
-									class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
-									bind:value={form.max_players}
-								/>
-							</label>
-							<label class="flex flex-col gap-1">
-								<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
-									>duration</span
-								>
-								<select
-									class="border border-(--border) bg-(--bg) px-2 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
-									bind:value={form.duration}
-								>
-									{#each LOBBY_DURATIONS as d (d)}
-										<option value={d}>{d}s</option>
-									{/each}
-								</select>
-							</label>
-						</div>
-						<label class="flex flex-col gap-1">
-							<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
-								>language</span
-							>
-							<select
-								class="border border-(--border) bg-(--bg) px-2 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
-								bind:value={form.language}
-							>
-								{#each LANGUAGES as lang (lang)}
-									<option value={lang}>{LANGUAGE_LABELS[lang]}</option>
-								{/each}
-							</select>
-						</label>
-						<label class="flex items-center gap-2 font-mono text-[11px] text-(--silver)/55">
-							<input type="checkbox" bind:checked={form.is_public} /> public room
-						</label>
-						<label class="flex flex-col gap-1">
-							<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
-								>password (optional)</span
-							>
-							<input
-								type="password"
-								class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
-								bind:value={form.password}
-								placeholder="leave blank for none"
-							/>
-						</label>
-						<button
-							type="submit"
-							disabled={busy || !form.name.trim()}
-							class="mt-1 cursor-pointer border border-(--mer) px-4 py-2.5 font-mono text-xs text-(--mer) hover:bg-(--mer)/10 disabled:cursor-not-allowed disabled:opacity-40"
-						>{busy ? 'creating…' : 'create room =>'}</button
-						>
-					</form>
+			<div class="border border-(--border) bg-(--fbg) p-5">
+				<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
+					how rooms work
 				</div>
-			{:else}
-				<div class="border border-(--border) bg-(--fbg) p-5">
-					<div class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/35 uppercase">
-						how rooms work
-					</div>
-					<ul class="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-(--silver)/45">
-						<li>· 6-character code and optional password</li>
-						<li>· host and mods start the clock</li>
-						<li>· invite friends by username or link</li>
-						<li>· up to 16 players, bots allowed</li>
-						<li>· leaving is always explicit</li>
-					</ul>
-				</div>
-			{/if}
+				<ul class="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-(--silver)/45">
+					<li>· 6-character code and optional password</li>
+					<li>· host and mods start the clock</li>
+					<li>· invite friends by username or link</li>
+					<li>· up to 16 players, bots allowed</li>
+					<li>· leaving is always explicit</li>
+				</ul>
+			</div>
+
+			<button
+				class="cursor-pointer border border-(--border) px-4 py-2.5 font-mono text-xs text-(--silver)/55 hover:border-(--mer) hover:text-(--mer)"
+				onclick={openCreate}>+ create room =></button
+			>
 		</aside>
 	</main>
 </div>
+
+<svelte:window
+	onkeydown={(e) => {
+		if (showCreate && e.key === 'Escape') closeCreate();
+	}}
+/>
+
+{#if showCreate}
+	<div class="fixed inset-0 z-[80] overflow-y-auto p-4 sm:p-6">
+		<button
+			type="button"
+			class="fixed inset-0 cursor-default bg-(--bg)/80 backdrop-blur-sm"
+			aria-label="close create room form"
+			onclick={closeCreate}
+		></button>
+
+		<div
+			class="relative z-10 mx-auto my-4 w-full max-w-lg border border-(--border) bg-(--fbg) shadow-2xl sm:my-10"
+			style="border-top-color: var(--mer);"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="create-room-title"
+		>
+			<div class="flex items-start justify-between border-b border-(--border) px-5 py-4">
+				<div>
+					<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
+						new room
+					</div>
+					<div id="create-room-title" class="mt-1 text-xl text-(--silver)">Set the table.</div>
+				</div>
+				<button
+					type="button"
+					class="cursor-pointer px-2 py-1 font-mono text-sm text-(--silver)/35 hover:text-(--silver)"
+					onclick={closeCreate}
+					aria-label="close create room form">✕</button
+				>
+			</div>
+
+			<form
+				class="flex flex-col gap-3 p-5"
+				onsubmit={(e) => {
+					e.preventDefault();
+					void create();
+				}}
+			>
+				<label class="flex flex-col gap-1">
+					<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+						>name</span
+					>
+					<input
+						bind:this={nameInput}
+						class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
+						bind:value={form.name}
+						maxlength="64"
+						required
+						placeholder="friday night sprint"
+					/>
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+						>description</span
+					>
+					<input
+						class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
+						bind:value={form.description}
+						maxlength="280"
+						placeholder="optional"
+					/>
+				</label>
+				<div class="grid grid-cols-2 gap-2">
+					<label class="flex flex-col gap-1">
+						<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+							>players</span
+						>
+						<input
+							type="number"
+							min="2"
+							max="16"
+							class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
+							bind:value={form.max_players}
+						/>
+					</label>
+					<label class="flex flex-col gap-1">
+						<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+							>duration</span
+						>
+						<select
+							class="border border-(--border) bg-(--bg) px-2 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
+							bind:value={form.duration}
+						>
+							{#each LOBBY_DURATIONS as d (d)}
+								<option value={d}>{d}s</option>
+							{/each}
+						</select>
+					</label>
+				</div>
+				<label class="flex flex-col gap-1">
+					<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+						>language</span
+					>
+					<select
+						class="border border-(--border) bg-(--bg) px-2 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
+						bind:value={form.language}
+					>
+						{#each LANGUAGES as lang (lang)}
+							<option value={lang}>{LANGUAGE_LABELS[lang]}</option>
+						{/each}
+					</select>
+				</label>
+				<label class="flex items-center gap-2 font-mono text-[11px] text-(--silver)/55">
+					<input type="checkbox" bind:checked={form.is_public} /> public room
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+						>password (optional)</span
+					>
+					<input
+						type="password"
+						class="border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
+						bind:value={form.password}
+						placeholder="leave blank for none"
+					/>
+				</label>
+
+				{#if createError}
+					<div class="border border-(--red)/40 px-3 py-2 font-mono text-xs text-(--red)">
+						{createError}
+					</div>
+				{/if}
+
+				<button
+					type="submit"
+					disabled={busy || !form.name.trim()}
+					class="mt-1 cursor-pointer border border-(--mer) px-4 py-2.5 font-mono text-xs text-(--mer) hover:bg-(--mer)/10 disabled:cursor-not-allowed disabled:opacity-40"
+				>{busy ? 'creating…' : 'create room =>'}</button
+				>
+			</form>
+		</div>
+	</div>
+{/if}

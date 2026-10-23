@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import AuthGate from '$lib/components/AuthGate.svelte';
 	import { initTheme } from '$lib/core/theme.svelte';
 	import { page } from '$app/state';
 	import { afterNavigate, goto } from '$app/navigation';
@@ -17,11 +18,20 @@
 
 	let { children } = $props();
 
-	const PUBLIC_PATHS = ['/login'];
+	// These pages work without an account (and without the Go backend).
+	// Everything else stays renderable but is covered by a login gate for
+	// guests, so they can still see what unlocking an account adds.
+	const GUEST_PATHS = ['/', '/login', '/play', '/play/me', '/play/zen'];
 
-	function isPublic(path: string): boolean {
-		return path === '/' || PUBLIC_PATHS.includes(path);
+	function guestAllowed(path: string): boolean {
+		return GUEST_PATHS.includes(path);
 	}
+
+	let gated = $derived(
+		appState.booted &&
+			!appState.user &&
+			!guestAllowed(page.url.pathname)
+	);
 
 	function targetForCurrentState(): string {
 		return currentActive();
@@ -30,12 +40,20 @@
 	function enforce(path: string): void {
 		if (!appState.booted) return;
 		if (!appState.user) {
-			if (!isPublic(path)) {
-				void goto(`/login?next=${encodeURIComponent(path + page.url.search)}`, { replaceState: true });
-			}
+			// Guests may browse the hub and play offline modes. Protected
+			// paths are blurred behind an AuthGate rather than redirected, so
+			// an invite link can carry the login "next" destination.
 			return;
 		}
-		if (path === '/' || path === '/login') {
+		if (path === '/') {
+			void goto(targetForCurrentState(), { replaceState: true });
+			return;
+		}
+		if (path === '/login') {
+			// The login page owns redirects that carry a `next` destination;
+			// redirecting here first would discard the gated route the player
+			// came from.
+			if (page.url.searchParams.get('next')) return;
 			void goto(targetForCurrentState(), { replaceState: true });
 			return;
 		}
@@ -119,7 +137,16 @@
 		<div class="title-text text-6xl text-(--silver)/40">OSDTYP</div>
 	</div>
 {:else}
-	{@render children()}
+	<div
+		class={`relative min-h-screen ${gated ? 'pointer-events-none select-none opacity-40 blur-[6px]' : ''}`}
+		aria-hidden={gated}
+		inert={gated}
+	>
+		{@render children()}
+	</div>
+	{#if gated}
+		<AuthGate next={page.url.pathname + page.url.search} />
+	{/if}
 {/if}
 
 {#if appState.invites.length > 0}

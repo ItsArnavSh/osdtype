@@ -262,6 +262,36 @@ func TestRoomGameEndToEnd(t *testing.T) {
 	t.Fatalf("game did not finish, state=%+v", e.state(t, alice.ID))
 }
 
+func TestFinishHookDoesNotResurfaceResultsForPlayerWhoLeft(t *testing.T) {
+	e := newTestEnv(t, "")
+	ctx := context.Background()
+	alice := e.login(t, "alice")
+	bob := e.login(t, "bob")
+
+	g := entity.Game{
+		ID: e.svc.intGen.GenerateID(), Mode: entity.GameRanked, Duration: 30,
+		Language: "go", Seed: 42, Snippet: generatedSnippet(), Status: entity.GameCountdown,
+		CreatedAt: time.Now().UTC(),
+	}
+	players := []entity.GamePlayer{
+		{GameID: g.ID, UserID: alice.ID, RatingBefore: 1000, WPM: 20, Placement: 2, Left: true},
+		{GameID: g.ID, UserID: bob.ID, RatingBefore: 1000, WPM: 50, Placement: 1},
+	}
+	if err := e.db.CreateGame(ctx, &g, players); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.onGameFinished(ctx, g, players, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if st := e.state(t, alice.ID); st.State == "results" {
+		t.Fatalf("player who left was dragged back to results: %+v", st)
+	}
+	if st := e.state(t, bob.ID); st.State != "results" || st.Results == nil || st.Results.ID != g.ID {
+		t.Fatalf("remaining player did not get results: %+v", st)
+	}
+}
+
 func TestFinishHookAppliesEloAndFlags(t *testing.T) {
 	e := newTestEnv(t, "")
 	ctx := context.Background()

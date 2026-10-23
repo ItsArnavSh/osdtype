@@ -9,7 +9,7 @@
 	import { KeypressAction, LANGUAGE_LABELS } from '$lib/core/api/types';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import type { GameView, PlayerProgress, ResultView } from '$lib/core/api/types';
-	import { appState, refreshState } from '$lib/core/state/state.svelte';
+	import { appState, applyState, refreshState } from '$lib/core/state/state.svelte';
 
 	const gameID = $derived(Number(page.params.id ?? 0));
 
@@ -219,11 +219,13 @@
 		if (!confirm('Leave this race? Your run will be forfeited.')) return;
 		busy = true;
 		try {
-			await leaveGame(gameID);
-			await refreshState();
-			const snapshot = appState.state;
-			if (snapshot?.state === 'room' && snapshot.room) await goto(`/room/${snapshot.room.code}`);
-			else if (snapshot?.state === 'results' && snapshot.results) await goto(`/results/${snapshot.results.id}`);
+			const result = await leaveGame(gameID);
+			if (result.state) applyState(result.state);
+			// Keeping the race in the rear-view matters more than showing a
+			// forfeited result. Return to the room if one is still active,
+			// otherwise to the hub.
+			const next = result.state ?? appState.state;
+			if (next?.state === 'room' && next.room) await goto(resolve(`/room/${next.room.code}`));
 			else await goto(resolve('/play'));
 		} catch (err) {
 			error = errorMessage(err);

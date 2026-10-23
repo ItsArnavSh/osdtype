@@ -10,9 +10,14 @@
 	let busy = $state(false);
 	let error = $state('');
 
+	function nextDestination(): string {
+		const next = page.url.searchParams.get('next');
+		return next && next.startsWith('/') && !next.startsWith('//') ? next : '/play';
+	}
+
 	onMount(() => {
 		if (appState.user) {
-			void goto('/play');
+			void goto(nextDestination());
 			return;
 		}
 		username = `player-${Math.random().toString(36).slice(2, 6)}`;
@@ -26,9 +31,7 @@
 		try {
 			await devLogin(username.trim());
 			await refreshState();
-			const next = page.url.searchParams.get('next');
-			const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/play';
-			void goto(safeNext);
+			void goto(nextDestination());
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Could not sign in';
 		} finally {

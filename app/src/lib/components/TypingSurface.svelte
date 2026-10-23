@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
 	import ResultGraph from '$lib/components/ResultGraph.svelte';
 	import { initCodegen, generate, randomSeed, deriveSeed } from '$lib/core/codegen';
@@ -14,11 +15,15 @@
 	import type { WpmSample } from '$lib/core/stats';
 	import { highlightCode } from '$lib/core/syntax';
 	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
+	import { appState } from '$lib/core/state/state.svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { toPng } from 'html-to-image';
 
 	/** Zen: no timer, no results — just keep typing. */
 	let { zen = false }: { zen?: boolean } = $props();
+
+	let guest = $derived(!appState.user);
+	let loginHref = $derived(`/login?next=${encodeURIComponent(page.url.pathname)}`);
 
 	// ─── Config ──────────────────────────────────────────────────────────────
 	let lang = $state<Language>('go');
@@ -623,6 +628,14 @@
 						<span class="font-mono text-[11px] text-(--silver)/35">
 							<span class="kbd">tab</span> restart · <span class="kbd">esc</span> settings
 						</span>
+						{#if guest}
+							<a
+								href={loginHref}
+								class="mt-1 border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase transition-colors hover:border-(--mer) hover:text-(--mer)"
+							>
+								guest mode · sign up to save stats =>
+							</a>
+						{/if}
 					</div>
 				</div>
 			{/if}
@@ -643,5 +656,13 @@
 		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+T</span> theme</span>
 		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+L</span> language</span>
 		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+S</span> timer</span>
+		{#if guest}
+			<a
+				href={loginHref}
+				class="ml-auto text-(--mer)/70 transition-colors hover:text-(--mer)"
+			>
+				guest mode · sign up for ranked + saved stats =>
+			</a>
+		{/if}
 	</footer>
 </div>

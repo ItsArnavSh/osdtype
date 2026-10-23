@@ -50,6 +50,10 @@ cd app && npm install && npm run dev
 Open `http://localhost:5173`. Dev login is enabled by default; GitHub OAuth
 needs `GITHUB_KEY` and `GITHUB_AUTH` in the server environment.
 
+Guests can open the hub and play Practice or Zen without logging in. Those two
+modes also keep working when the Go backend is not running; ranked, rooms,
+contests, leaderboards and results are gated behind an account.
+
 Use `localhost` rather than `127.0.0.1` for the frontend: auth cookies are
 same-site and the dev server binds that origin.
 

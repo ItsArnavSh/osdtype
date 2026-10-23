@@ -42,16 +42,20 @@ let bootPromise: Promise<void> | null = null;
 export async function bootSession(): Promise<void> {
 	if (bootPromise) return bootPromise;
 	bootPromise = (async () => {
-		const user = await me();
-		if (!user) {
-			appState.user = null;
-			appState.state = null;
+		try {
+			const user = await me();
+			if (!user) {
+				appState.user = null;
+				appState.state = null;
+				return;
+			}
+			appState.user = user;
+			await refreshState();
+		} finally {
+			// A missing/unreachable backend must never trap the app on the
+			// boot screen: offline singleplayer and Zen still work.
 			appState.booted = true;
-			return;
 		}
-		appState.user = user;
-		await refreshState();
-		appState.booted = true;
 	})();
 	return bootPromise;
 }
