@@ -1,5 +1,7 @@
 docker_data
 .env
+.env.prod
+.env.aws
 .prod-secret
 app/build
 server/bin

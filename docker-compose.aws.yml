@@ -1,0 +1,69 @@
+name: osdtype
+
+# Production AWS compose file. Images are built by GitHub Actions and pushed
+# to ECR; the EC2 instance only pulls and runs them. PostgreSQL and Redis are
+# external managed services (Supabase + your Redis provider).
+#
+# Usage on the instance:
+#   docker compose -f docker-compose.aws.yml --env-file .env.prod pull
+#   docker compose -f docker-compose.aws.yml --env-file .env.prod up -d
+
+services:
+  api:
+    image: ${ECR_REGISTRY:-local}/osdtype-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    stop_grace_period: 60s
+    env_file:
+      - .env.prod
+    environment:
+      PORT: ":8080"
+      GIN_MODE: "release"
+      DEV_LOGIN: "false"
+      COOKIE_SECURE: "true"
+      COOKIE_SAMESITE: "${COOKIE_SAMESITE:-lax}"
+      FRONTEND_URL: "${PUBLIC_ORIGIN}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-ItsArnavSh}"
+      CODEGEN_URL: "disabled"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway:
+    image: ${ECR_REGISTRY:-local}/osdtype-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      WEB_DOMAIN: "${WEB_DOMAIN}"
+      API_DOMAIN: "${API_DOMAIN}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:

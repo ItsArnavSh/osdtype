@@ -1,0 +1,39 @@
+{
+	# Caddy stores certificates in /data. The compose file mounts a named volume there.
+	# Keep the admin API internal to the container network.
+	admin off
+}
+
+# Static SvelteKit build. The API is on a separate hostname so cookies stay
+# same-site (for example app.example.com + api.example.com).
+{$WEB_DOMAIN} {
+	root * /srv
+	try_files {path} /index.html
+	file_server
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}
+
+{$API_DOMAIN} {
+	reverse_proxy api:8080
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}
