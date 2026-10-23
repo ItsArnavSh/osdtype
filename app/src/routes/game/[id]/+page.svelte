@@ -47,9 +47,27 @@
 	let myID = $derived(appState.user?.id ?? 0);
 	let me = $derived(game?.players.find((p) => p.user_id === myID) ?? null);
 	let progressPct = $derived(totalProgress());
+	let totalBytes = $derived(
+		game ? Math.max(1, new TextEncoder().encode(game.snippet).length - game.start_offset) : 1
+	);
 
 	/** Stable, practice-style colours for server-side bots. */
 	const BOT_COLORS = ['#e8322e', '#3f7cff', '#24b47e', '#f59e0b'];
+
+	/**
+	 * Server progress arrives in 100ms snapshots. Interpolating the published
+	 * values on every animation frame makes ranked opponents (especially the
+	 * server-driven bots) move continuously, the same way local practice bots
+	 * do, instead of hopping between snapshots.
+	 */
+	interface SmoothedPlayer {
+		progress: number;
+		points: number;
+		wpm: number;
+	}
+	let smoothed = $state<Record<number, SmoothedPlayer>>({});
+	let progressFrame: number | null = null;
+	let lastProgressFrame = 0;
 
 	/** Each bot's caret position, keyed by character index. */
 	let botCarets = $derived.by(() => {
@@ -57,7 +75,8 @@
 		if (!game) return byIndex;
 		game.players.forEach((player, order) => {
 			if (!player.is_bot || player.finished) return;
-			const index = byteToChar(game!.snippet, player.current_points);
+			const points = smoothed[player.user_id]?.points ?? player.current_points;
+			const index = byteToChar(game!.snippet, points);
 			if (index < startChar || index >= chars.length) return;
 			const list = byIndex.get(index) ?? [];
 			list.push({ id: player.user_id, color: BOT_COLORS[order % BOT_COLORS.length] });
@@ -161,17 +180,69 @@
 			return Math.min(1, (pos - start) / total);
 		}
 		if (me) {
-			const totalBytes = Math.max(1, new TextEncoder().encode(game.snippet).length - game.start_offset);
-			return Math.min(1, (me.current_points - game.start_offset) / totalBytes);
+			return Math.min(1, Math.max(0, (me.current_points - game.start_offset) / totalBytes));
 		}
 		return 0;
 	}
 
+	function rawPlayerProgress(player: PlayerProgress): number {
+		if (!game) return 0;
+		if (player.user_id === myID) return progressPct;
+		return Math.min(
+			1,
+			Math.max(0, (player.current_points - game.start_offset) / totalBytes)
+		);
+	}
+
 	function playerProgress(player: PlayerProgress): number {
 		if (!game) return 0;
-		const total = Math.max(1, new TextEncoder().encode(game.snippet).length - game.start_offset);
 		if (player.user_id === myID) return progressPct;
-		return Math.min(1, Math.max(0, (player.current_points - game.start_offset) / total));
+		return smoothed[player.user_id]?.progress ?? rawPlayerProgress(player);
+	}
+
+	function playerWpm(player: PlayerProgress): number {
+		if (player.user_id === myID) return player.wpm;
+		return smoothed[player.user_id]?.wpm ?? player.wpm;
+	}
+
+	function animateProgress(timestamp: number) {
+		progressFrame = requestAnimationFrame(animateProgress);
+		if (!game) {
+			lastProgressFrame = timestamp;
+			return;
+		}
+		const delta = Math.min(120, Math.max(1, timestamp - (lastProgressFrame || timestamp)));
+		lastProgressFrame = timestamp;
+		const alpha = 1 - Math.exp(-delta / 85);
+		const next = { ...smoothed };
+		let changed = false;
+		for (const player of game.players) {
+			const target: SmoothedPlayer = {
+				progress: rawPlayerProgress(player),
+				points: player.current_points,
+				wpm: player.wpm
+			};
+			const current = next[player.user_id];
+			if (!current) {
+				next[player.user_id] = target;
+				changed = true;
+				continue;
+			}
+			const progress = current.progress + (target.progress - current.progress) * alpha;
+			const points = current.points + (target.points - current.points) * alpha;
+			const wpm = current.wpm + (target.wpm - current.wpm) * alpha;
+			if (
+				Math.abs(progress - target.progress) < 0.0001 &&
+				Math.abs(points - target.points) < 0.05 &&
+				Math.abs(wpm - target.wpm) < 0.05
+			) {
+				next[player.user_id] = target;
+			} else {
+				next[player.user_id] = { progress, points, wpm };
+				changed = true;
+			}
+		}
+		if (changed) smoothed = next;
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -279,6 +350,8 @@
 	});
 
 	onMount(() => {
+		lastProgressFrame = 0;
+		progressFrame = requestAnimationFrame(animateProgress);
 		clockTimer = setInterval(() => {
 			now = Date.now();
 			if (localFinished && phase === 'waiting' && results.length > 0) {
@@ -313,6 +386,7 @@
 			window.removeEventListener('keydown', onKeydown);
 			unsubscribe?.();
 			if (clockTimer) clearInterval(clockTimer);
+			if (progressFrame !== null) cancelAnimationFrame(progressFrame);
 		};
 	});
 
@@ -320,6 +394,7 @@
 		window.removeEventListener('keydown', onKeydown);
 		unsubscribe?.();
 		if (clockTimer) clearInterval(clockTimer);
+		if (progressFrame !== null) cancelAnimationFrame(progressFrame);
 	});
 </script>
 
@@ -450,13 +525,13 @@
 										{#if player.is_bot}<span class="font-mono text-[9px] text-(--silver)/25">bot</span>{/if}
 									</div>
 									<span class="shrink-0 font-mono text-[10px] text-(--silver)/35">
-										{Math.round(player.wpm)} wpm
+										{Math.round(playerWpm(player))} wpm
 									</span>
 								</div>
 								<div class="mt-2 h-1 w-full bg-(--border)">
 									<div
-										class={`h-1 transition-[width] duration-150 ease-linear ${player.finished ? 'bg-(--mer)' : 'bg-(--silver)/35'}`}
-										style={`width:${Math.round(playerProgress(player) * 100)}%`}
+										class={`h-1 ${player.finished ? 'bg-(--mer)' : 'bg-(--silver)/35'}`}
+										style={`width:${playerProgress(player) * 100}%`}
 									></div>
 								</div>
 								<div class="mt-1 flex justify-between font-mono text-[9px] text-(--silver)/25">

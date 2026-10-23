@@ -243,6 +243,9 @@ export type ContestAdvanceType = 'count' | 'percent' | 'all';
 export interface ContestParticipant {
 	user: UserView;
 	joined_at: string;
+	current_stage: number;
+	eliminated: boolean;
+	eliminated_at_stage: number;
 }
 
 export interface ContestStageStanding {

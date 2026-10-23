@@ -39,16 +39,18 @@ Anti-cheat flags are persisted and freeze the flagged player's rating change.
 
 ## Run locally
 
-Prerequisites: Go 1.26+, Node 22+, PostgreSQL 16 and Redis 7 on their default
-ports (`5432` and `6379`). Rust is optional; without the codegen service the
+Prerequisites: Go 1.26+ and Node 22+. PostgreSQL 16 and Redis 7 must be
+available on `5432` and `6379`; when Docker is installed, `make dev` starts
+both containers for you. Rust is optional; without the codegen service the
 server uses its built-in snippet fallback.
 
 ```sh
 make dev
 ```
 
-This starts the Go API on `http://localhost:8080` and the Vite dev server on
-`http://localhost:5173`. Dev login is enabled. Open `http://localhost:5173`.
+This starts PostgreSQL/Redis if needed, the Go API on
+`http://localhost:8080`, and the Vite dev server on `http://localhost:5173`.
+Dev login is enabled. Open `http://localhost:5173`.
 
 For a production-style run:
 
@@ -59,11 +61,12 @@ make prod
 This builds the SvelteKit app with `adapter-node`, compiles the Go API, and
 starts the web server on `http://localhost:3000` with the API on `:8080`.
 `DEV_LOGIN` is forced to `false`, so the login page only offers GitHub OAuth.
-Ports can be changed with `WEB_PORT` and `API_PORT`.
+Ports can be changed with `WEB_PORT` and `API_PORT`. When the API is not at
+`http://localhost:8080` for the browser, build with
+`PUBLIC_API_URL=https://api.example.com make prod`.
 
-If `make` is unavailable, run the scripts directly: `sh scripts/dev.sh`,
-`sh scripts/prod.sh`, or the matching PowerShell scripts on Windows. The
-manual path is still:
+If `make` is unavailable, run the scripts directly: `sh scripts/deps.sh`,
+`sh scripts/dev.sh` or `sh scripts/prod.sh`. The manual path is still:
 
 ```sh
 docker compose up -d postgres redis
@@ -90,10 +93,25 @@ same-site and the dev server binds that origin.
 
 ## Docker
 
-`docker compose up --build` starts PostgreSQL, Redis, the Rust code generator
-and the Go server. The SvelteKit app still runs separately with
-`cd app && npm run dev` (or build it with `make prod` / `npm run build` and
-`node build`).
+`make up` (or `docker compose up --build`) starts the whole application:
+PostgreSQL, Redis, the Rust code generator, the Go API, and the adapter-node
+SvelteKit web server. Open `http://localhost:3000`. The production-style stack
+has `DEV_LOGIN=false`, so only GitHub OAuth is offered.
+
+Set these variables for a real deployment:
+
+```sh
+PUBLIC_API_URL=https://api.example.com \
+PUBLIC_ORIGIN=https://example.com \
+FRONTEND_URL=https://example.com \
+JWTKEY="$(openssl rand -hex 32)" \
+GITHUB_KEY=... GITHUB_AUTH=... \
+docker compose up --build -d
+```
+
+`PUBLIC_API_URL` is baked into the browser bundle at build time; the others
+are runtime configuration. For local Docker development with the dev login
+button, run `DEV_LOGIN=true docker compose up --build`.
 
 Environment overrides understood by the server include `PORT`, `JWTKEY`,
 `FRONTEND_URL`, `DEV_LOGIN`, `COOKIE_SECURE`, `DB_HOST`, `DB_PORT`, `DB_USER`,

@@ -310,6 +310,31 @@ func stageAdvanceCount(stage entity.ContestStage, qualified int) int {
 	}
 }
 
+// finalResultStandings applies the final stage's advance settings to the
+// event result. A count or percent cut only classifies clean finishers and
+// re-ranks the trimmed board so the published result starts at #1.
+func finalResultStandings(stage entity.ContestStage, standings []ContestStageStanding) []ContestStageStanding {
+	if stage.AdvanceType == entity.ContestAdvanceAll {
+		return standings
+	}
+	qualified := make([]ContestStageStanding, 0, len(standings))
+	for _, standing := range standings {
+		if standing.Flagged || standing.Left || standing.WPM <= 0 {
+			continue
+		}
+		qualified = append(qualified, standing)
+	}
+	count := stageAdvanceCount(stage, len(qualified))
+	if count > len(qualified) {
+		count = len(qualified)
+	}
+	qualified = qualified[:count]
+	for i := range qualified {
+		qualified[i].Rank = i + 1
+	}
+	return qualified
+}
+
 func (s *ServiceLayer) buildStageStandings(stage entity.ContestStage, stages []entity.ContestStage, entries []entity.ContestEntry, perfs map[uint32]stagePerformance, eligible []entity.ContestEntry) []ContestStageStanding {
 	entryByUser := make(map[uint32]entity.ContestEntry, len(entries))
 	for _, entry := range entries {
@@ -605,7 +630,11 @@ func (s *ServiceLayer) finishContestStage(ctx context.Context, contest entity.Co
 
 	final := stage.Position == len(stages)
 	if final {
-		leaderboard := standingsToResults(standings)
+		// The last stage's advance settings are the event's result cut. "all"
+		// keeps the full classification; count/percent trim the final board
+		// and mark everyone outside the cut as eliminated at the final stage.
+		finalStandings := finalResultStandings(stage, standings)
+		leaderboard := standingsToResults(finalStandings)
 		raw, _ := json.Marshal(leaderboard)
 		contest.Status = entity.ContestEnded
 		contest.Leaderboard = raw
@@ -616,10 +645,27 @@ func (s *ServiceLayer) finishContestStage(ctx context.Context, contest entity.Co
 		if err := s.db.SaveContest(ctx, &contest); err != nil {
 			return err
 		}
+		if stage.AdvanceType != entity.ContestAdvanceAll {
+			classified := make(map[uint32]bool, len(finalStandings))
+			for _, standing := range finalStandings {
+				classified[standing.User.ID] = true
+			}
+			for i := range entries {
+				if entries[i].Eliminated || classified[entries[i].UserID] {
+					continue
+				}
+				entries[i].Eliminated = true
+				entries[i].EliminatedAtStage = stage.Position
+				if err := s.db.SaveContestEntry(ctx, &entries[i]); err != nil {
+					return err
+				}
+			}
+		}
 		s.notifyContest(ctx, contest, "contest_ended", map[string]any{
 			"contest_code":   contest.Code,
 			"title":          contest.Title,
 			"stage_position": stage.Position,
+			"classified":     len(finalStandings),
 		})
 		return nil
 	}

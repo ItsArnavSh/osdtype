@@ -188,6 +188,10 @@
 
 	function setFormat(stage: StageDraft, format: ContestStageFormat) {
 		stage.format = format;
+		if (format === 'practice') {
+			stage.advance_type = 'all';
+			stage.advance_value = 0;
+		}
 		if (isOpen(format)) {
 			if (stage.window_minutes <= 0) stage.window_minutes = 60;
 			if (format === 'hotlaps' || format === 'practice') {
@@ -424,7 +428,8 @@
 						competition funnel
 					</div>
 					<p class="mt-1 font-mono text-[10px] leading-relaxed text-(--silver)/30">
-						Every stage advances players into the next. The last stage produces the final standings.
+						Every stage advances players into the next. The last stage produces the final
+						standings, and its result cut decides who is classified.
 					</p>
 				</div>
 				<span class="shrink-0 border border-(--border) px-2 py-1 font-mono text-[9px] text-(--silver)/35">
@@ -664,24 +669,30 @@
 						<div class="grid gap-3 border-t border-(--border)/60 p-3 sm:grid-cols-[1fr_120px_120px]">
 							<label class="flex flex-col gap-1">
 								<span class="font-mono text-[9px] tracking-[0.1em] text-(--silver)/35 uppercase"
-									>{index === form.stages.length - 1 ? 'final ranking' : 'players advancing'}</span
+									>{index === form.stages.length - 1 ? 'funnel result cut' : 'players advancing'}</span
 								>
 								<select
 									class="border border-(--border) bg-(--bg) px-2.5 py-1.5 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
 									bind:value={stage.advance_type}
-									disabled={index === form.stages.length - 1 || stage.format === 'practice'}
+									disabled={stage.format === 'practice'}
 								>
 									<option value="all"
 										>{stage.format === 'practice'
 											? 'everyone advances'
-											: stage.format === 'qualifier'
-												? 'everyone above the cut'
-												: 'all finishers'}</option
+											: index === form.stages.length - 1
+												? 'all finishers classified'
+												: stage.format === 'qualifier'
+													? 'everyone above the cut'
+													: 'all finishers'}</option
 									>
-									<option value="count">fixed number</option>
-									<option value="percent">percentage</option>
+									<option value="count"
+										>{index === form.stages.length - 1 ? 'top fixed number' : 'fixed number'}</option
+									>
+									<option value="percent"
+										>{index === form.stages.length - 1 ? 'top percentage' : 'percentage'}</option
+									>
 								</select>
-								{#if index !== form.stages.length - 1 && stage.format !== 'practice'}
+								{#if stage.format !== 'practice'}
 									<div class="mt-1 flex flex-wrap gap-1">
 										{#each ADVANCE_PRESETS as preset (preset.label)}
 											<button
@@ -696,9 +707,16 @@
 											>
 										{/each}
 									</div>
+									{#if index === form.stages.length - 1}
+										<p class="mt-1 font-mono text-[8px] leading-relaxed text-(--silver)/20">
+											{stage.advance_type === 'all'
+												? 'The final leaderboard lists every finisher.'
+												: `Only the top ${stage.advance_type === 'percent' ? `${stage.advance_value}%` : stage.advance_value} appear in the final result.`}
+										</p>
+									{/if}
 								{/if}
 							</label>
-							{#if stage.advance_type !== 'all' && index !== form.stages.length - 1 && stage.format !== 'practice'}
+							{#if stage.advance_type !== 'all' && stage.format !== 'practice'}
 								<label class="flex flex-col gap-1">
 									<span class="font-mono text-[9px] tracking-[0.1em] text-(--silver)/35 uppercase"
 										>{stage.advance_type === 'percent' ? 'percent' : 'count'}</span

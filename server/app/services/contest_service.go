@@ -73,8 +73,11 @@ type UpdateContestRequest struct {
 }
 
 type ContestParticipant struct {
-	User     entity.UserView `json:"user"`
-	JoinedAt time.Time       `json:"joined_at"`
+	User              entity.UserView `json:"user"`
+	JoinedAt          time.Time       `json:"joined_at"`
+	CurrentStage      int             `json:"current_stage"`
+	Eliminated        bool            `json:"eliminated"`
+	EliminatedAtStage int             `json:"eliminated_at_stage"`
 }
 
 type ContestStageStanding struct {
@@ -672,8 +675,11 @@ func (s *ServiceLayer) contestView(ctx context.Context, c entity.Contest, viewer
 				continue
 			}
 			out.Participants = append(out.Participants, ContestParticipant{
-				User:     entity.NewUserView(*entry.User),
-				JoinedAt: entry.JoinedAt,
+				User:              entity.NewUserView(*entry.User),
+				JoinedAt:          entry.JoinedAt,
+				CurrentStage:      entry.CurrentStage,
+				Eliminated:        entry.Eliminated,
+				EliminatedAtStage: entry.EliminatedAtStage,
 			})
 		}
 	} else {

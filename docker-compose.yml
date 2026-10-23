@@ -57,10 +57,10 @@ services:
     restart: unless-stopped
     environment:
       PORT: ":8080"
-      FRONTEND_URL: "http://localhost:5173"
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:3000}"
       JWTKEY: "${JWTKEY:-dev-compose-change-me}"
-      DEV_LOGIN: "true"
-      COOKIE_SECURE: "false"
+      DEV_LOGIN: "${DEV_LOGIN:-false}"
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_USER: user
@@ -78,4 +78,23 @@ services:
       redis:
         condition: service_healthy
       codegen:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./app
+      args:
+        # This URL is baked into the browser bundle. Set PUBLIC_API_URL when
+        # the API is not reachable at localhost:8080 from the browser.
+        VITE_API_URL: "${PUBLIC_API_URL:-http://localhost:8080}"
+    container_name: osdtyp_web
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      ORIGIN: "${PUBLIC_ORIGIN:-http://localhost:3000}"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      server:
         condition: service_healthy

@@ -161,6 +161,43 @@ func TestContestPrivatePasswordAndVisibility(t *testing.T) {
 	}
 }
 
+func TestFinalResultStandingsCut(t *testing.T) {
+	standings := []ContestStageStanding{
+		{Rank: 1, User: entity.UserView{ID: 1, Username: "one"}, WPM: 120},
+		{Rank: 2, User: entity.UserView{ID: 2, Username: "two"}, WPM: 110},
+		{Rank: 3, User: entity.UserView{ID: 3, Username: "three"}, WPM: 100, Flagged: true},
+		{Rank: 4, User: entity.UserView{ID: 4, Username: "four"}, WPM: 90},
+		{Rank: 5, User: entity.UserView{ID: 5, Username: "five"}, WPM: 80, Left: true},
+		{Rank: 6, User: entity.UserView{ID: 6, Username: "six"}, WPM: 70},
+	}
+
+	full := finalResultStandings(entity.ContestStage{AdvanceType: entity.ContestAdvanceAll}, standings)
+	if len(full) != len(standings) {
+		t.Fatalf("all result cut = %d, want %d", len(full), len(standings))
+	}
+
+	topTwo := finalResultStandings(entity.ContestStage{
+		AdvanceType:  entity.ContestAdvanceCount,
+		AdvanceValue: 2,
+	}, standings)
+	if len(topTwo) != 2 || topTwo[0].User.ID != 1 || topTwo[1].User.ID != 2 {
+		t.Fatalf("top-two cut = %+v", topTwo)
+	}
+	if topTwo[0].Rank != 1 || topTwo[1].Rank != 2 {
+		t.Fatalf("top-two ranks not normalised: %+v", topTwo)
+	}
+
+	topHalf := finalResultStandings(entity.ContestStage{
+		AdvanceType:  entity.ContestAdvancePercent,
+		AdvanceValue: 50,
+	}, standings)
+	// Flagged/left finishers do not consume a result slot. Three clean
+	// finishers remain, so 50% rounds up to two.
+	if len(topHalf) != 2 || topHalf[0].User.ID != 1 || topHalf[1].User.ID != 2 {
+		t.Fatalf("top-half cut = %+v", topHalf)
+	}
+}
+
 func TestContestSchedulerStartsAndCancels(t *testing.T) {
 	e := newTestEnv(t, "")
 	ctx := context.Background()

@@ -9,16 +9,20 @@ API_PORT="${API_PORT:-8080}"
 
 if [ ! -f "$ROOT/.prod-secret" ]; then
 	# Keep sessions valid across restarts instead of regenerating on each boot.
+	umask 077
 	if command -v openssl >/dev/null 2>&1; then
 		openssl rand -hex 32 >"$ROOT/.prod-secret"
 	else
 		node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" >"$ROOT/.prod-secret"
 	fi
 fi
+chmod 600 "$ROOT/.prod-secret" 2>/dev/null || true
 JWTKEY="${JWTKEY:-$(cat "$ROOT/.prod-secret")}"
 
 echo "==> building frontend"
-(cd "$ROOT/app" && npm install && npm run build)
+# PUBLIC_API_URL is what the browser will call. Local prod defaults to the
+# API port above; remote deployments should set the public API origin.
+(cd "$ROOT/app" && npm install && VITE_API_URL="${PUBLIC_API_URL:-http://localhost:${API_PORT}}" npm run build)
 
 echo "==> building api"
 (cd "$ROOT/server" && go build -trimpath -o bin/osdtyp .)
@@ -31,6 +35,7 @@ echo "==> dev login disabled"
 	cd "$ROOT/app"
 	PORT="$WEB_PORT" \
 	ORIGIN="http://localhost:${WEB_PORT}" \
+	NODE_ENV="production" \
 	node build
 ) &
 APP_PID=$!

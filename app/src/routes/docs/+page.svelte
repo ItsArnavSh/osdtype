@@ -111,7 +111,7 @@
 		},
 		{
 			name: 'Ranked-style final',
-			copy: 'The last stage behaves like a ranked match. It uses the same live race rules and produces the final event leaderboard for the funnel.'
+			copy: 'The last stage behaves like a ranked match. It uses the same live race rules and produces the final event leaderboard. Its result cut can classify everyone, a fixed top N, or a percentage.'
 		}
 	];
 
@@ -417,8 +417,10 @@
 					position even when they are outside the top 10.
 				</p>
 				<p class="mt-3 text-sm leading-relaxed text-(--silver)/45">
-					The final stage produces the event leaderboard. The contest page keeps the full funnel
-					visible after the event, including each stage's standings and who advanced.
+					The final stage produces the event leaderboard. Its funnel-result cut decides whether
+					everyone is classified, or only the top count/percentage appears in the final result.
+					The contest page keeps the full funnel visible after the event, including each stage's
+					standings and who advanced.
 				</p>
 			</section>
 
@@ -437,7 +439,10 @@
 						For each stage, pick the game type, run clock, stage window or heat size, language,
 						tries and minimum WPM where relevant.
 					</li>
-					<li>Choose how many players advance. Keep the last stage as the final ranking.</li>
+					<li>
+						Choose how many players advance. The last stage also has a result cut: all
+						finishers, a fixed top N, or a percentage.
+					</li>
 					<li>Publish, share the link, and download the calendar file if you want a local reminder.</li>
 				</ol>
 				<p class="mt-4 text-sm leading-relaxed text-(--silver)/45">
@@ -583,7 +588,7 @@
 				</div>
 			</section>
 
-			<section id="about" class="border border-(--border) bg-(--fbg) p-5 md:p-7">
+			<footer id="about" class="border border-(--border) bg-(--fbg) p-5 md:p-7">
 				<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">
 					about the project
 				</div>
@@ -689,7 +694,7 @@
 						>start typing -></a
 					>
 				</div>
-			</section>
+			</footer>
 		</main>
 	</div>
 </div>

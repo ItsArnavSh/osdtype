@@ -16,7 +16,24 @@
 	let showCreate = $state(false);
 	let busy = $state(false);
 	let joinCode = $state('');
+	let roomQuery = $state('');
 	let nameInput = $state<HTMLInputElement | null>(null);
+
+	let filteredRooms = $derived.by(() => {
+		const needle = roomQuery.trim().toLowerCase();
+		if (!needle) return rooms;
+		return rooms.filter((room) =>
+			[
+				room.name,
+				room.description,
+				room.code,
+				room.language,
+				String(room.duration),
+				room.status,
+				room.has_password ? 'locked password' : 'open'
+			].some((value) => (value ?? '').toLowerCase().includes(needle))
+		);
+	});
 
 	let form = $state({
 		name: '',
@@ -137,6 +154,25 @@
 				>
 			</div>
 
+			<div class="flex flex-wrap items-center gap-2">
+				<input
+					class="min-w-0 flex-1 border border-(--border) bg-(--fbg) px-3 py-2 font-mono text-xs text-(--silver) outline-none placeholder:text-(--silver)/20 focus:border-(--mer)"
+					bind:value={roomQuery}
+					placeholder="search rooms: name, code, language, duration or status"
+					maxlength="80"
+				/>
+				<span class="font-mono text-[10px] text-(--silver)/25">
+					{filteredRooms.length} {roomQuery.trim() ? 'matching' : 'open'}
+				</span>
+				{#if roomQuery.trim()}
+					<button
+						type="button"
+						class="cursor-pointer border border-(--border) px-3 py-2 font-mono text-[10px] tracking-[0.08em] text-(--silver)/40 uppercase hover:border-(--mer)/50 hover:text-(--mer)"
+						onclick={() => (roomQuery = '')}>clear</button
+					>
+				{/if}
+			</div>
+
 			{#if error}
 				<div class="border border-(--red)/40 px-4 py-3 font-mono text-xs text-(--red)">{error}</div>
 			{/if}
@@ -145,17 +181,25 @@
 				<div class="flex flex-1 items-center justify-center border border-(--border) bg-(--fbg)">
 					<span class="font-mono text-xs text-(--silver)/35">loading rooms…</span>
 				</div>
-			{:else if rooms.length === 0}
+			{:else if filteredRooms.length === 0}
 				<div class="flex flex-1 flex-col items-center justify-center gap-3 border border-(--border) bg-(--fbg) py-20">
-					<div class="text-xl text-(--silver)/60">No public rooms open.</div>
-					<button
-						class="cursor-pointer border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer)"
-						onclick={openCreate}>create the first one</button
-					>
+					{#if rooms.length === 0}
+						<div class="text-xl text-(--silver)/60">No public rooms open.</div>
+						<button
+							class="cursor-pointer border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer)"
+							onclick={openCreate}>create the first one</button
+						>
+					{:else}
+						<div class="text-xl text-(--silver)/60">No rooms match “{roomQuery.trim()}”.</div>
+						<button
+							class="cursor-pointer border border-(--border) px-4 py-2 font-mono text-xs text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+							onclick={() => (roomQuery = '')}>clear search</button
+						>
+					{/if}
 				</div>
 			{:else}
 				<div class="grid gap-3 md:grid-cols-2">
-					{#each rooms as room (room.id)}
+					{#each filteredRooms as room (room.id)}
 						<a
 							href={resolve(`/room/${room.code}`)}
 							class="group flex flex-col justify-between border border-(--border) bg-(--fbg) p-5 transition-colors hover:border-(--mer)/60"

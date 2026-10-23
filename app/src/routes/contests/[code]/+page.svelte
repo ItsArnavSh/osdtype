@@ -68,6 +68,18 @@
 		if (!needle || !contest) return [];
 		const standings = timingStage?.standings ?? [];
 		const byUser = new Map(standings.map((row) => [row.user.id, row]));
+		const latest = new Map<
+			number,
+			{ row: (typeof standings)[number]; stage: ContestStageView }
+		>();
+		for (const stage of contest.stages ?? []) {
+			for (const row of stage.standings ?? []) {
+				const previous = latest.get(row.user.id);
+				if (!previous || stage.position > previous.stage.position) {
+					latest.set(row.user.id, { row, stage });
+				}
+			}
+		}
 		const seen = new Set<number>();
 		const out: {
 			user: { id: number; username: string; avatar_url?: string };
@@ -82,13 +94,11 @@
 			if (!name.includes(needle)) continue;
 			seen.add(participant.user.id);
 			const row = byUser.get(participant.user.id);
-			out.push({
-				user: participant.user,
-				rank: row?.rank ?? 0,
-				wpm: row?.wpm ?? 0,
-				accuracy: row?.accuracy ?? 0,
-				posted: Boolean(row),
-				status: row?.advanced
+			const last = latest.get(participant.user.id);
+			const shown = row ?? last?.row;
+			const status = participant.eliminated
+				? `out at stage ${participant.eliminated_at_stage}`
+				: row?.advanced
 					? 'advanced'
 					: row?.eliminated
 						? 'out'
@@ -96,7 +106,18 @@
 							? 'flagged'
 							: row
 								? 'racing'
-								: 'no time yet'
+								: participant.current_stage > (timingStage?.position ?? 0)
+									? `waiting · stage ${participant.current_stage}`
+									: last
+										? `last time · stage ${last.stage.position}`
+										: 'no time yet';
+			out.push({
+				user: participant.user,
+				rank: shown?.rank ?? 0,
+				wpm: shown?.wpm ?? 0,
+				accuracy: shown?.accuracy ?? 0,
+				posted: Boolean(shown),
+				status
 			});
 		}
 		for (const row of standings) {
@@ -155,7 +176,7 @@
 		if (!contest) return 0;
 		if (contest.status === 'upcoming') return contest.entry_count;
 		if (contest.status === 'cancelled') return 0;
-		if (contest.status === 'ended') return contest.leaderboard?.length ? 1 : 0;
+		if (contest.status === 'ended') return contest.leaderboard?.length ?? 0;
 		const active = contest.stages?.find((stage) => stage.status === 'active');
 		if (active) return active.entry_count;
 		const next = contest.stages?.find(
@@ -189,9 +210,9 @@
 			const left =
 				stage.status === 'completed'
 					? finalStage
-						? count > 0
-							? 1
-							: 0
+						? stage.advance_type === 'all'
+							? count
+							: stage.advance_count
 						: stage.advance_count
 					: count;
 			const advancing =
@@ -253,7 +274,11 @@
 
 	function stageAdvanceLabel(stage: ContestStageView, final: boolean): string {
 		if (stage.format === 'practice') return 'warm-up · everyone advances';
-		if (final) return 'final ranking';
+		if (final) {
+			if (stage.advance_type === 'count') return `top ${stage.advance_value} classified`;
+			if (stage.advance_type === 'percent') return `top ${stage.advance_value}% classified`;
+			return 'full final standings';
+		}
 		if (stage.advance_type === 'count') return `${stage.advance_value} advance`;
 		if (stage.advance_type === 'percent') return `top ${stage.advance_value}% advance`;
 		if (stage.format === 'qualifier') return `all above ${stage.min_wpm} wpm`;
@@ -851,9 +876,21 @@
 									<div class="text-right font-mono text-[8px] leading-tight text-(--silver)/30">
 										{#if row.stage.status === 'completed'}
 											<div class="text-(--silver)/50">
-												{row.finalStage ? 'champion' : `${row.left} advanced`}
+												{row.finalStage
+													? row.stage.advance_type === 'all'
+														? 'full result'
+														: row.stage.advance_type === 'count' && row.stage.advance_value === 1
+															? 'winner'
+															: `${row.left} classified`
+													: `${row.left} advanced`}
 											</div>
-											<div>{row.advancing > 0 ? `${row.advancing} survive` : 'no survivors'}</div>
+											<div>
+												{row.finalStage
+													? 'final standings'
+													: row.advancing > 0
+														? `${row.advancing} survive`
+														: 'no survivors'}
+											</div>
 										{:else if row.stage.status === 'active'}
 											<div class="text-(--mer)">in progress</div>
 											<div>{row.stage.qualified_count} qualified</div>
@@ -1218,7 +1255,10 @@
 											{/if}
 										</span>
 										<span class="mt-0.5 block font-mono text-[9px] text-(--silver)/25">
-											{participant.user.rating} elo
+											{participant.user.rating} elo ·
+											{participant.eliminated
+												? `out at stage ${participant.eliminated_at_stage}`
+												: `stage ${participant.current_stage}`}
 										</span>
 									</span>
 								</a>
