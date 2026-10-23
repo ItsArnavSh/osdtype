@@ -13,7 +13,10 @@ multiplayer rooms, contests, bots and anti-cheat.
 - **Rooms** — public or private 2–16 player lobbies, six-character codes and
   invite links, optional passwords, owner/mod controls, kicks and bans.
 - **Contests** — scheduled room events that open a lobby and start
-  automatically. Results and final standings are persisted.
+  automatically. Funnels can include qualifiers, practice/warm-up stages,
+  HotLaps and live finals. Enrolled players and spectators get a public
+  timing tower with the top 10 and a username lookup. Results and final
+  standings are persisted.
 - **Practice and Zen** — unranked single-player typing with the same generated
   snippets used in every other mode. Practice runs are recorded, can be saved
   to profile history and shared as simulated replay links, and logged-in
@@ -36,12 +39,36 @@ Anti-cheat flags are persisted and freeze the flagged player's rating change.
 
 ## Run locally
 
-Prerequisites: Go 1.26+, Node 22+, Rust 1.92+, Docker, PostgreSQL 16 and Redis 7.
+Prerequisites: Go 1.26+, Node 22+, PostgreSQL 16 and Redis 7 on their default
+ports (`5432` and `6379`). Rust is optional; without the codegen service the
+server uses its built-in snippet fallback.
+
+```sh
+make dev
+```
+
+This starts the Go API on `http://localhost:8080` and the Vite dev server on
+`http://localhost:5173`. Dev login is enabled. Open `http://localhost:5173`.
+
+For a production-style run:
+
+```sh
+make prod
+```
+
+This builds the SvelteKit app with `adapter-node`, compiles the Go API, and
+starts the web server on `http://localhost:3000` with the API on `:8080`.
+`DEV_LOGIN` is forced to `false`, so the login page only offers GitHub OAuth.
+Ports can be changed with `WEB_PORT` and `API_PORT`.
+
+If `make` is unavailable, run the scripts directly: `sh scripts/dev.sh`,
+`sh scripts/prod.sh`, or the matching PowerShell scripts on Windows. The
+manual path is still:
 
 ```sh
 docker compose up -d postgres redis
 
-# terminal 1: code generator
+# terminal 1: code generator (optional)
 cd codegen && cargo run
 
 # terminal 2: API and WebSocket server
@@ -65,7 +92,8 @@ same-site and the dev server binds that origin.
 
 `docker compose up --build` starts PostgreSQL, Redis, the Rust code generator
 and the Go server. The SvelteKit app still runs separately with
-`cd app && npm run dev` (or build it with your preferred adapter).
+`cd app && npm run dev` (or build it with `make prod` / `npm run build` and
+`node build`).
 
 Environment overrides understood by the server include `PORT`, `JWTKEY`,
 `FRONTEND_URL`, `DEV_LOGIN`, `COOKIE_SECURE`, `DB_HOST`, `DB_PORT`, `DB_USER`,

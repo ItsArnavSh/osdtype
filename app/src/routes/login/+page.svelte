@@ -79,6 +79,7 @@
 					Continue with GitHub <span class="float-right text-(--silver)/30">↗</span>
 				</button>
 
+				{#if import.meta.env.DEV}
 				<div class="flex items-center gap-3">
 					<div class="h-px flex-1 bg-(--border)"></div>
 					<span class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/30 uppercase"
@@ -115,6 +116,7 @@
 						{busy ? 'opening session…' : 'enter terminal =>'}
 					</button>
 				</form>
+				{/if}
 
 				{#if error}
 					<div class="border border-(--red)/40 px-3 py-2 font-mono text-xs text-(--red)">
@@ -122,10 +124,12 @@
 					</div>
 				{/if}
 
+				{#if import.meta.env.DEV}
 				<p class="font-mono text-[10px] leading-relaxed text-(--silver)/25">
 					GitHub OAuth needs GITHUB_KEY / GITHUB_AUTH on the server. Dev login is available while
 					DEV_LOGIN is enabled.
 				</p>
+				{/if}
 			</div>
 		</div>
 	</main>

@@ -1,2 +1,5 @@
 docker_data
 .env
+.prod-secret
+app/build
+server/bin

@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { flip } from 'svelte/animate';
 	import { onMount } from 'svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import {
@@ -46,6 +47,72 @@
 	);
 	let attemptBusy = $state(0);
 	let stageLanguage = $state<Record<number, string>>({});
+	let timingQuery = $state('');
+	let lastTimingUpdate = $state(0);
+	let refreshTicks = 0;
+
+	/** The stage that matters right now: live one, else the freshest result. */
+	let timingStage = $derived.by(() => {
+		const stages = contest?.stages ?? [];
+		return (
+			stages.find((stage) => stage.status === 'active') ??
+			[...stages].reverse().find((stage) => stage.status === 'completed') ??
+			stages[0] ??
+			null
+		);
+	});
+	let timingRows = $derived((timingStage?.standings ?? []).slice(0, 10));
+	let timingLeaderWpm = $derived(timingRows[0]?.wpm ?? 0);
+	let timingLookup = $derived.by(() => {
+		const needle = timingQuery.trim().toLowerCase();
+		if (!needle || !contest) return [];
+		const standings = timingStage?.standings ?? [];
+		const byUser = new Map(standings.map((row) => [row.user.id, row]));
+		const seen = new Set<number>();
+		const out: {
+			user: { id: number; username: string; avatar_url?: string };
+			rank: number;
+			wpm: number;
+			accuracy: number;
+			posted: boolean;
+			status: string;
+		}[] = [];
+		for (const participant of contest.participants ?? []) {
+			const name = participant.user.username.toLowerCase();
+			if (!name.includes(needle)) continue;
+			seen.add(participant.user.id);
+			const row = byUser.get(participant.user.id);
+			out.push({
+				user: participant.user,
+				rank: row?.rank ?? 0,
+				wpm: row?.wpm ?? 0,
+				accuracy: row?.accuracy ?? 0,
+				posted: Boolean(row),
+				status: row?.advanced
+					? 'advanced'
+					: row?.eliminated
+						? 'out'
+						: row?.flagged
+							? 'flagged'
+							: row
+								? 'racing'
+								: 'no time yet'
+			});
+		}
+		for (const row of standings) {
+			if (seen.has(row.user.id)) continue;
+			if (!row.user.username.toLowerCase().includes(needle)) continue;
+			out.push({
+				user: row.user,
+				rank: row.rank,
+				wpm: row.wpm,
+				accuracy: row.accuracy,
+				posted: true,
+				status: row.advanced ? 'advanced' : row.eliminated ? 'out' : 'racing'
+			});
+		}
+		return out.slice(0, 6);
+	});
 	let countdown = $derived.by(() => {
 		if (!contest) return '-';
 		if (contest.status === 'started') {
@@ -100,13 +167,14 @@
 		contest ? Math.max(0, contest.entry_count - survivors) : 0
 	);
 	let funnelRows = $derived.by(() => {
-		if (!contest) return [];
-		const stages = contest.stages ?? [];
-		const initial = Math.max(1, contest.entry_count);
+		const current = contest;
+		if (!current) return [];
+		const stages = current.stages ?? [];
+		const initial = Math.max(1, current.entry_count);
 		return stages.map((stage, index) => {
 			let count = stage.entry_count;
 			let projected = false;
-			if (index === 0 && count <= 0) count = contest.entry_count;
+			if (index === 0 && count <= 0) count = current.entry_count;
 			if (index > 0 && count <= 0) {
 				const previous = stages[index - 1];
 				count =
@@ -149,12 +217,17 @@
 	const STAGE_FORMAT_LABELS: Record<string, string> = {
 		qualifier: 'qualifier',
 		hotlaps: 'HotLaps',
+		practice: 'practice',
 		multiplayer: 'live race',
 		ranked: 'ranked final'
 	};
 
 	function isOpenStage(stage: ContestStageView): boolean {
-		return stage.format === 'qualifier' || stage.format === 'hotlaps';
+		return stage.format === 'qualifier' || stage.format === 'hotlaps' || stage.format === 'practice';
+	}
+
+	function isPracticeStage(stage: ContestStageView): boolean {
+		return stage.format === 'practice';
 	}
 
 	function formatLabel(stage: ContestStageView): string {
@@ -179,6 +252,7 @@
 	}
 
 	function stageAdvanceLabel(stage: ContestStageView, final: boolean): string {
+		if (stage.format === 'practice') return 'warm-up · everyone advances';
 		if (final) return 'final ranking';
 		if (stage.advance_type === 'count') return `${stage.advance_value} advance`;
 		if (stage.advance_type === 'percent') return `top ${stage.advance_value}% advance`;
@@ -220,6 +294,7 @@
 		error = '';
 		try {
 			contest = await getContest(code);
+			lastTimingUpdate = Date.now();
 		} catch (err) {
 			error = errorMessage(err);
 		} finally {
@@ -304,11 +379,15 @@
 	onMount(() => {
 		void load();
 		clockTimer = setInterval(() => (now = Date.now()), 1000);
+		// Live timing polls quickly; queued events only need an occasional
+		// refresh. This is what makes the public board feel like a timing
+		// tower instead of a page you have to reload.
 		refreshTimer = setInterval(() => {
-			if (contest && (contest.status === 'upcoming' || contest.status === 'started')) {
-				void load();
-			}
-		}, 20_000);
+			if (!contest) return;
+			refreshTicks += 1;
+			if (contest.status === 'started') void load();
+			else if (contest.status === 'upcoming' && refreshTicks % 5 === 0) void load();
+		}, 4_000);
 		unsubscribe = onSocketEvent((event) => {
 			if (
 				event.type === 'contest_started' ||
@@ -502,6 +581,177 @@
 			<div class="mt-3 border border-(--mer)/40 px-4 py-3 font-mono text-xs text-(--mer)">{notice}</div>
 		{/if}
 
+		{#if contest.status === 'started' || contest.status === 'ended'}
+			<section class="contest-panel live-timing mt-4 border border-(--border) bg-(--fbg)">
+				<div class="flex flex-wrap items-center justify-between gap-3 border-b border-(--border) px-5 py-3">
+					<div class="flex flex-wrap items-center gap-3">
+						<span
+							class="font-mono text-[10px] tracking-[0.16em] uppercase"
+							style={`color:${contest.accent}`}>live timing tower</span
+						>
+						<span class="font-mono text-[9px] text-(--silver)/25">
+							{timingStage ? `${timingStage.name} · top 10` : 'top 10'}
+						</span>
+					</div>
+					<div class="flex items-center gap-3">
+						{#if contest.status === 'started'}
+							<span
+								class="flex items-center gap-1.5 border border-(--mer)/40 px-2 py-0.5 font-mono text-[8px] tracking-[0.12em] text-(--mer) uppercase"
+							>
+								<span class="h-1.5 w-1.5 animate-pulse rounded-full bg-(--mer)"></span>
+								live
+							</span>
+						{:else}
+							<span
+								class="border border-(--border) px-2 py-0.5 font-mono text-[8px] tracking-[0.12em] text-(--silver)/30 uppercase"
+								>final</span
+							>
+						{/if}
+						<span class="font-mono text-[8px] text-(--silver)/20">
+							{#if lastTimingUpdate}
+								updated {new Date(lastTimingUpdate).toLocaleTimeString(undefined, {
+									hour: '2-digit',
+									minute: '2-digit',
+									second: '2-digit'
+								})}
+							{/if}
+						</span>
+					</div>
+				</div>
+
+				<div class="border-b border-(--border)/60 px-5 py-3">
+					<label class="flex flex-col gap-1">
+						<span class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase"
+							>find a racer</span
+						>
+						<input
+							class="w-full max-w-md border border-(--border) bg-(--bg) px-3 py-2 font-mono text-xs text-(--silver) outline-none placeholder:text-(--silver)/20 focus:border-(--event)"
+							bind:value={timingQuery}
+							placeholder="type a username to see their exact position"
+							maxlength="40"
+						/>
+					</label>
+					{#if timingQuery.trim()}
+						<div class="mt-2 flex flex-col gap-1">
+							{#if timingLookup.length === 0}
+								<p class="font-mono text-[10px] text-(--silver)/25">
+									No enrolled racer matches “{timingQuery.trim()}”.
+								</p>
+							{:else}
+								{#each timingLookup as entry (entry.user.id)}
+									<div
+										class="flex flex-wrap items-center gap-x-3 gap-y-1 border border-(--border)/60 bg-(--bg)/40 px-3 py-1.5 font-mono text-[10px]"
+									>
+										<span class="w-9 text-(--silver)/35">{entry.posted ? `#${entry.rank}` : '—'}</span>
+										<a
+											href={resolve(`/profile/${entry.user.username}`)}
+											class="text-(--silver)/70 hover:text-(--silver)">{entry.user.username}</a
+										>
+										<span class="text-(--silver)">{entry.posted ? `${Math.round(entry.wpm)} wpm` : 'no time yet'}</span>
+										<span class="text-(--silver)/25">{entry.status}</span>
+									</div>
+								{/each}
+							{/if}
+						</div>
+					{/if}
+				</div>
+
+				{#if timingRows.length === 0}
+					<div class="px-5 py-8 font-mono text-[11px] text-(--silver)/25">
+						No times on the board yet. The tower fills as runs finish.
+					</div>
+				{:else}
+					<div class="overflow-x-auto">
+						<table class="w-full border-collapse font-mono text-[11px]">
+							<thead>
+								<tr
+									class="border-b border-(--border) text-left text-[8px] tracking-[0.12em] text-(--silver)/25 uppercase"
+								>
+									<th class="w-12 px-4 py-2">pos</th>
+									<th class="px-3 py-2">racer</th>
+									<th class="px-3 py-2 text-right">best</th>
+									<th class="hidden px-3 py-2 text-right sm:table-cell">gap</th>
+									<th class="hidden px-3 py-2 text-right md:table-cell">acc</th>
+									<th class="hidden px-3 py-2 text-right md:table-cell">tries</th>
+									<th class="px-4 py-2 text-right">state</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each timingRows as row (row.user.id)}
+									{@const match =
+										timingQuery.trim().length > 0 &&
+										row.user.username.toLowerCase().includes(timingQuery.trim().toLowerCase())}
+									<tr
+										animate:flip={{ duration: 480 }}
+										class={`border-b border-(--border)/50 transition-colors ${match ? 'bg-(--event)/10' : row.user.id === appState.user?.id ? 'bg-(--mer)/5' : ''}`}
+									>
+										<td class="px-4 py-2.5">
+											<span
+												class={`inline-flex h-6 w-6 items-center justify-center border font-mono text-[10px] ${
+													row.rank === 1
+														? 'border-(--event)'
+														: 'border-(--border) text-(--silver)/40'
+												}`}
+												style={row.rank === 1 ? `color:${contest.accent}` : ''}
+												>{row.rank}</span
+											>
+										</td>
+										<td class="max-w-[220px] px-3 py-2.5">
+											<span class="flex min-w-0 items-center gap-2">
+												<Avatar
+													src={row.user.avatar_url}
+													name={row.user.username}
+													class="h-5 w-5 shrink-0"
+													text="text-[8px]"
+												/>
+												<a
+													href={resolve(`/profile/${row.user.username}`)}
+													class="truncate text-(--silver)/75 hover:text-(--silver)"
+													>{row.user.username}</a
+												>
+												{#if row.user.id === appState.user?.id}
+													<span class="text-[8px] tracking-[0.1em] text-(--mer)/60 uppercase">you</span>
+												{/if}
+											</span>
+											{#if row.rank <= 3}
+												<span
+													class="mt-1 block h-0.5"
+													style={`width:${Math.max(6, Math.round((row.wpm / Math.max(1, timingLeaderWpm)) * 100))}%;background:${contest.accent}`}
+												></span>
+											{/if}
+										</td>
+										<td class="px-3 py-2.5 text-right text-(--silver)">{Math.round(row.wpm)}</td>
+										<td class="hidden px-3 py-2.5 text-right text-(--silver)/35 sm:table-cell">
+											{row.rank === 1 ? 'leader' : `+${(timingLeaderWpm - row.wpm).toFixed(1)}`}
+										</td>
+										<td class="hidden px-3 py-2.5 text-right text-(--silver)/40 md:table-cell"
+											>{Math.round(row.accuracy)}%</td
+										>
+										<td class="hidden px-3 py-2.5 text-right text-(--silver)/30 md:table-cell"
+											>{row.attempts}</td
+										>
+										<td class="px-4 py-2.5 text-right">
+											{#if row.flagged}
+												<span class="text-(--red)/70">flagged</span>
+											{:else if row.advanced}
+												<span class="text-(--mer)">advanced</span>
+											{:else if row.eliminated}
+												<span class="text-(--red)/60">out</span>
+											{:else if contest.status === 'started'}
+												<span class="text-(--silver)/30">on track</span>
+											{:else}
+												<span class="text-(--silver)/30">classified</span>
+											{/if}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</section>
+		{/if}
+
 		{#if dashboardVisible}
 			<section class="contest-panel mt-4 border border-(--border) bg-(--fbg)">
 				<div class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-5 py-3">
@@ -645,7 +895,7 @@
 													<span class="w-4 text-(--silver)/25">{index + 1}</span>
 													<Avatar src={row.user.avatar_url} name={row.user.username} class="h-5 w-5" text="text-[8px]" />
 													<a
-														href={row.game_id ? resolve(`/replay/${row.game_id}`) : resolve(`/profile/${row.user.username}`)}
+														href={row.game_id ? resolve('/replay/[game]/[user]', { game: String(row.game_id), user: String(row.user.id) }) : resolve(`/profile/${row.user.username}`)}
 														class="min-w-0 flex-1 truncate text-(--silver)/60 hover:text-(--silver)"
 														>{row.user.username}</a
 													>
@@ -689,7 +939,7 @@
 												{#if run.flagged}<span class="text-(--red)/70">flag</span>{/if}
 												<span class="text-(--silver)/75">{Math.round(run.wpm)}</span>
 												<a
-													href={resolve(`/replay/${run.game_id}`)}
+													href={resolve('/replay/[game]/[user]', { game: String(run.game_id), user: String(run.user.id) })}
 													class="border border-(--border) px-1 text-(--silver)/25 hover:border-(--mer) hover:text-(--mer)"
 													title="watch replay"
 													>replay</a

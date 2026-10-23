@@ -7,9 +7,16 @@ type ContestStageFormat string
 const (
 	ContestStageQualifier   ContestStageFormat = "qualifier"
 	ContestStageHotLaps     ContestStageFormat = "hotlaps"
+	ContestStagePractice    ContestStageFormat = "practice"
 	ContestStageMultiplayer ContestStageFormat = "multiplayer"
 	ContestStageRanked      ContestStageFormat = "ranked"
 )
+
+// IsOpen reports whether a stage accepts asynchronous attempts during a
+// window instead of launching scheduled live heats.
+func (f ContestStageFormat) IsOpen() bool {
+	return f == ContestStageQualifier || f == ContestStageHotLaps || f == ContestStagePractice
+}
 
 type ContestStageStatus string
 

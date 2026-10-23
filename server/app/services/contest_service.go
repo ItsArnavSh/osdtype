@@ -269,6 +269,8 @@ func stageFormatName(format entity.ContestStageFormat) string {
 		return "Qualifier"
 	case entity.ContestStageHotLaps:
 		return "HotLaps"
+	case entity.ContestStagePractice:
+		return "Practice"
 	case entity.ContestStageRanked:
 		return "Ranked final"
 	default:
@@ -295,7 +297,7 @@ func (s *ServiceLayer) normalizeContestStages(inputs []ContestStageInput, starts
 		position := i + 1
 		in.Format = entity.ContestStageFormat(strings.ToLower(strings.TrimSpace(string(in.Format))))
 		switch in.Format {
-		case entity.ContestStageQualifier, entity.ContestStageHotLaps, entity.ContestStageMultiplayer, entity.ContestStageRanked:
+		case entity.ContestStageQualifier, entity.ContestStageHotLaps, entity.ContestStagePractice, entity.ContestStageMultiplayer, entity.ContestStageRanked:
 		default:
 			return nil, errf(ErrBadRequest, "stage %d has an unsupported game type", position)
 		}
@@ -329,7 +331,7 @@ func (s *ServiceLayer) normalizeContestStages(inputs []ContestStageInput, starts
 		if in.LanguageMode == entity.ContestLanguageChoice && in.Format != entity.ContestStageQualifier {
 			return nil, errf(ErrBadRequest, "only a qualifier can let each player choose a language")
 		}
-		if in.Format == entity.ContestStageHotLaps {
+		if in.Format == entity.ContestStageHotLaps || in.Format == entity.ContestStagePractice {
 			in.LanguageMode = entity.ContestLanguageFixed
 		}
 		in.DelayMinutes = max(0, in.DelayMinutes)
@@ -340,7 +342,7 @@ func (s *ServiceLayer) normalizeContestStages(inputs []ContestStageInput, starts
 			return nil, errf(ErrBadRequest, "stage delays must be seven days or less")
 		}
 		in.WindowMinutes = max(0, in.WindowMinutes)
-		if in.Format == entity.ContestStageQualifier || in.Format == entity.ContestStageHotLaps {
+		if in.Format.IsOpen() {
 			if in.WindowMinutes == 0 {
 				in.WindowMinutes = 60
 			}
@@ -354,9 +356,8 @@ func (s *ServiceLayer) normalizeContestStages(inputs []ContestStageInput, starts
 		if in.MaxTries > 1000 {
 			return nil, errf(ErrBadRequest, "stage try limits must be 1000 or lower")
 		}
-		if in.Format == entity.ContestStageHotLaps {
-			in.MaxTries = 0
-		}
+		// HotLaps and practice stages may be unlimited (0) or host-capped.
+		// Leaving the value untouched gives hosts that choice.
 		in.MinWPM = max(0, in.MinWPM)
 		if in.Format == entity.ContestStageQualifier {
 			if in.MinWPM == 0 {
@@ -369,6 +370,11 @@ func (s *ServiceLayer) normalizeContestStages(inputs []ContestStageInput, starts
 			in.MinWPM = 0
 		}
 		in.AdvanceType = entity.ContestAdvanceType(strings.ToLower(strings.TrimSpace(string(in.AdvanceType))))
+		if in.Format == entity.ContestStagePractice {
+			// A warm-up never cuts players, regardless of what the client sent.
+			in.AdvanceType = entity.ContestAdvanceAll
+			in.AdvanceValue = 0
+		}
 		if in.AdvanceType == "" {
 			in.AdvanceType = entity.ContestAdvanceAll
 		}

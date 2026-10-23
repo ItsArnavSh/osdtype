@@ -12,8 +12,52 @@
 		{ id: 'replays', label: 'Replays and graphs' },
 		{ id: 'resrap', label: 'Resrap snippets' },
 		{ id: 'how', label: 'How it works' },
-		{ id: 'troubleshooting', label: 'Troubleshooting' }
+		{ id: 'troubleshooting', label: 'Troubleshooting' },
+		{ id: 'about', label: 'About' }
 	];
+
+	const principles = [
+		{
+			title: 'Code first',
+			copy: 'Every run uses generated source code. Not quotes, not word lists. The point is to practise the shapes and symbols you actually type.'
+		},
+		{
+			title: 'Clean competition',
+			copy: 'The server owns the clock and the snippet. Ranked games, rooms and contest stages all score the same recorded run, so the board means something.'
+		},
+		{
+			title: 'Low noise',
+			copy: 'No coins, no daily streaks, no tier grind. Just a keyboard, a snippet, and a result you can replay and learn from.'
+		}
+	];
+
+	// A small, hand-written index keeps docs search usable without shipping a
+	// full-text index. Keywords cover the words people actually look for.
+	const searchIndex = [
+		{ id: 'start', label: 'Getting started', keywords: 'install setup run local dev prod make account guest' },
+		{ id: 'modes', label: 'Game modes', keywords: 'ranked practice zen rooms contest replay mode' },
+		{ id: 'ranked', label: 'Ranked and Elo', keywords: 'elo rating queue ladder bot 30 90 300 rating delta' },
+		{ id: 'practice', label: 'Practice and Zen', keywords: 'practice zen offline bots hotlap warmup' },
+		{ id: 'rooms', label: 'Rooms and friends', keywords: 'room invite friend follow private lobby password' },
+		{ id: 'contests', label: 'Contests', keywords: 'contest qualifier hotlaps practice stage funnel live timing top 10 lookup' },
+		{ id: 'hosting', label: 'Hosting an event', keywords: 'host contest create stage advance percent custom css banner' },
+		{ id: 'replays', label: 'Replays and graphs', keywords: 'replay graph speed keyboard share link result' },
+		{ id: 'resrap', label: 'Resrap snippets', keywords: 'resrap codegen snippet seed language rust wasm' },
+		{ id: 'how', label: 'How it works', keywords: 'stack architecture server websocket postgres redis svelte go' },
+		{ id: 'troubleshooting', label: 'Troubleshooting', keywords: 'error broken stuck queue contest attempt css' },
+		{ id: 'about', label: 'About', keywords: 'about arnav osdc github author project principles stack' }
+	];
+
+	let docQuery = $state('');
+
+	let searchResults = $derived.by(() => {
+		const needle = docQuery.trim().toLowerCase();
+		if (!needle) return [];
+		return searchIndex.filter(
+			(section) =>
+				section.label.toLowerCase().includes(needle) || section.keywords.includes(needle)
+		);
+	});
 
 	const modes = [
 		{
@@ -55,7 +99,11 @@
 		},
 		{
 			name: 'HotLaps',
-			copy: 'Everyone gets the same snippet and seed. Tries are unlimited inside the stage window. The fastest successful run rises to the top and the host decides how many advance.'
+			copy: 'Everyone gets the same snippet and seed. The host sets a try limit (0 means unlimited). The fastest successful run rises to the top and the host decides how many advance.'
+		},
+		{
+			name: 'Practice / warm-up',
+			copy: 'A shared-seed warm-up inside the event. Anyone eligible can post times on the board, but nobody is eliminated: every player advances to the next stage.'
 		},
 		{
 			name: 'Live multiplayer',
@@ -95,7 +143,7 @@
 				aria-current="page">docs</a
 			>
 			<a
-				href={resolve('/about')}
+				href="#about"
 				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
 				>about</a
 			>
@@ -136,6 +184,38 @@
 				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
 				>resrap</a
 			>
+		</div>
+
+		<div class="mt-5 max-w-md">
+			<label class="flex flex-col gap-1">
+				<span class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase"
+					>search the docs</span
+				>
+				<input
+					class="w-full border border-(--border) bg-(--fbg) px-3 py-2 font-mono text-xs text-(--silver) outline-none placeholder:text-(--silver)/20 focus:border-(--mer)"
+					bind:value={docQuery}
+					placeholder="ranked, contests, replays, hosting…"
+					maxlength="60"
+				/>
+			</label>
+			{#if docQuery.trim()}
+				<div class="mt-2 flex flex-col gap-1 border border-(--border) bg-(--fbg) p-2">
+					{#if searchResults.length === 0}
+						<p class="px-2 py-1 font-mono text-[10px] text-(--silver)/25">
+							No section matches “{docQuery.trim()}”.
+						</p>
+					{:else}
+						{#each searchResults as result (result.id)}
+							<a
+								href={`#${result.id}`}
+								class="border border-(--border)/60 px-2 py-1.5 font-mono text-[10px] text-(--silver)/50 hover:border-(--mer)/50 hover:text-(--mer)"
+								onclick={() => (docQuery = '')}
+								>{result.label}</a
+							>
+						{/each}
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</section>
 
@@ -325,9 +405,16 @@
 				</div>
 				<p class="mt-4 text-sm leading-relaxed text-(--silver)/45">
 					Advancement can be a fixed player count, a percentage, or every player who meets the
-					stage rule. Percentages round up so a small field still moves someone on. A stage window
-					closes at a fixed time, and all attempts inside it are aggregated. Live stages use
-					balanced heats, so a field of 27 with a heat size of 10 becomes three races.
+					stage rule. Quick presets cover top 1, top 3, top 10, top 10%, top 25% and top 50%, while
+					free count and percent values are still available. Percentages round up so a small field
+					still moves someone on. A stage window closes at a fixed time, and all attempts inside it
+					are aggregated. Live stages use balanced heats, so a field of 27 with a heat size of 10
+					becomes three races.
+				</p>
+				<p class="mt-3 text-sm leading-relaxed text-(--silver)/45">
+					Live events expose a public timing tower. It shows the current top 10 with animated
+					position changes every few seconds, and the lookup box finds any enrolled player's exact
+					position even when they are outside the top 10.
 				</p>
 				<p class="mt-3 text-sm leading-relaxed text-(--silver)/45">
 					The final stage produces the event leaderboard. The contest page keeps the full funnel
@@ -341,7 +428,11 @@
 					<li>Open the contest board and choose host contest.</li>
 					<li>Add a title, description and optional banner. Markdown is supported in the description.</li>
 					<li>Set the event start, total capacity, visibility and optional private password.</li>
-					<li>Build the funnel. Add up to 10 stages and order them.</li>
+					<li>
+						Build the funnel. Add up to 10 stages and order them. The centred + between stages
+						opens the stage picker, so a stage can be inserted before, between or after the
+						existing ones.
+					</li>
 					<li>
 						For each stage, pick the game type, run clock, stage window or heat size, language,
 						tries and minimum WPM where relevant.
@@ -492,28 +583,111 @@
 				</div>
 			</section>
 
-			<section class="border border-(--border) bg-(--fbg) p-5 md:p-7">
-				<div class="flex flex-wrap items-center justify-between gap-3">
-					<div>
-						<div class="font-mono text-[9px] tracking-[0.14em] text-(--mer) uppercase">more</div>
-						<p class="mt-1 text-sm text-(--silver)/45">
-							Read about the project and the people behind it.
+			<section id="about" class="border border-(--border) bg-(--fbg) p-5 md:p-7">
+				<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">
+					about the project
+				</div>
+				<h2 class="mt-3 text-3xl text-(--silver)">A typing arena for people who write code.</h2>
+				<p class="mt-3 max-w-3xl text-sm leading-relaxed text-(--silver)/50">
+					OSDTYP is a speedtyping game built around real source code. It has independent ranked
+					ladders, offline practice, multiplayer rooms, and contest events that can run as full
+					multi-stage competitions. It is made for the fun of typing fast without hiding the parts
+					that make code hard.
+				</p>
+
+				<div class="mt-5 grid gap-3 md:grid-cols-3">
+					{#each principles as principle (principle.title)}
+						<div class="border border-(--border) p-4">
+							<div class="font-mono text-[9px] tracking-[0.12em] text-(--mer) uppercase">
+								{principle.title}
+							</div>
+							<p class="mt-2 text-xs leading-relaxed text-(--silver)/45">{principle.copy}</p>
+						</div>
+					{/each}
+				</div>
+
+				<div class="mt-4 grid gap-3 md:grid-cols-2">
+					<div class="border border-(--border) p-4">
+						<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/35 uppercase">
+							what is inside
+						</div>
+						<ul class="mt-3 space-y-1.5 text-xs leading-relaxed text-(--silver)/45">
+							<li>Ranked queues at 30s, 90s and 300s with separate Elo ladders.</li>
+							<li>Practice, Zen, adaptive bots and local snippet generation.</li>
+							<li>Public and private rooms with invites, moderation and replayable results.</li>
+							<li>Contests with qualifiers, practice stages, HotLaps and live finals.</li>
+							<li>Profiles, follows, friends and a searchable leaderboard.</li>
+							<li>Speed graphs, input replays and share links.</li>
+						</ul>
+					</div>
+					<div class="border border-(--border) p-4">
+						<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/35 uppercase">
+							stack
+						</div>
+						<div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-(--silver)/45">
+							<span>SvelteKit + TypeScript</span>
+							<span>Go + Gin</span>
+							<span>PostgreSQL + Redis</span>
+							<span>Rust + WebAssembly</span>
+							<span>resrap-rs</span>
+						</div>
+						<p class="mt-3 text-xs leading-relaxed text-(--silver)/30">
+							The server is authoritative for clocks, scoring and match state. The browser owns
+							input, rendering and offline practice.
 						</p>
 					</div>
-					<div class="flex flex-wrap gap-2 font-mono text-[10px] uppercase">
-						<a
-							href={resolve('/about')}
-							class="border border-(--mer) px-3 py-1.5 text-(--mer) hover:bg-(--mer)/10"
-							>about OSDTYP</a
-						>
-						<a
-							href="https://osdc.dev/"
-							target="_blank"
-							rel="noreferrer"
-							class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
-							>osdc.dev</a
-						>
+				</div>
+
+				<div class="mt-4 border border-(--border) p-4">
+					<div class="flex flex-wrap items-start justify-between gap-4">
+						<div>
+							<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/35 uppercase">
+								built by
+							</div>
+							<div class="mt-1 text-lg text-(--silver)">Arnav Sharma</div>
+							<p class="mt-1 max-w-xl text-xs leading-relaxed text-(--silver)/40">
+								The project lives on GitHub and is maintained by Arnav. The links below cover the
+								developer community and the personal site.
+							</p>
+						</div>
+						<div class="flex flex-wrap gap-2 font-mono text-[9px] uppercase">
+							<a
+								href="https://osdc.dev/"
+								target="_blank"
+								rel="noreferrer"
+								class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+								>osdc.dev</a
+							>
+							<a
+								href="https://itsarnavsh.github.io/"
+								target="_blank"
+								rel="noreferrer"
+								class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+								>author site</a
+							>
+							<a
+								href="https://github.com/ItsArnavSh/osdtype"
+								target="_blank"
+								rel="noreferrer"
+								class="border border-(--mer) px-3 py-1.5 text-(--mer) hover:bg-(--mer)/10"
+								>github repository</a
+							>
+						</div>
 					</div>
+				</div>
+
+				<div
+					class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-(--border) pt-4"
+				>
+					<p class="max-w-xl text-xs leading-relaxed text-(--silver)/40">
+						If you want to get faster at typing code, open Practice. If you want a fair match,
+						queue Ranked. If you want to run an event, build a contest funnel.
+					</p>
+					<a
+						href={resolve('/play')}
+						class="border border-(--mer) px-3 py-1.5 font-mono text-[10px] tracking-[0.1em] text-(--mer) uppercase hover:bg-(--mer)/10"
+						>start typing -></a
+					>
 				</div>
 			</section>
 		</main>

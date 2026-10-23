@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onDestroy, onMount } from 'svelte';
+	import { flip } from 'svelte/animate';
 	import { errorMessage } from '$lib/core/api/client';
 	import { getGame, leaveGame } from '$lib/core/api/game';
 	import { onSocketEvent, sendSocket, socketConnected } from '$lib/core/api/socket';
@@ -46,6 +47,24 @@
 	let myID = $derived(appState.user?.id ?? 0);
 	let me = $derived(game?.players.find((p) => p.user_id === myID) ?? null);
 	let progressPct = $derived(totalProgress());
+
+	/** Stable, practice-style colours for server-side bots. */
+	const BOT_COLORS = ['#e8322e', '#3f7cff', '#24b47e', '#f59e0b'];
+
+	/** Each bot's caret position, keyed by character index. */
+	let botCarets = $derived.by(() => {
+		const byIndex = new Map<number, { id: number; color: string }[]>();
+		if (!game) return byIndex;
+		game.players.forEach((player, order) => {
+			if (!player.is_bot || player.finished) return;
+			const index = byteToChar(game!.snippet, player.current_points);
+			if (index < startChar || index >= chars.length) return;
+			const list = byIndex.get(index) ?? [];
+			list.push({ id: player.user_id, color: BOT_COLORS[order % BOT_COLORS.length] });
+			byIndex.set(index, list);
+		});
+		return byIndex;
+	});
 
 	function byteToChar(value: string, bytes: number): number {
 		const encoder = new TextEncoder();
@@ -371,7 +390,18 @@
 				>
 					{#each visibleChars as char, i (displayStart + i)}
 						{@const index = displayStart + i}
-						<span class={charClass(index)}>{char}</span>
+						{@const carets = botCarets.get(index) ?? []}
+						<span
+							class={charClass(index)}
+							class:bot-caret-host={carets.length > 0}
+							>{#if carets.length > 0}<span class="bot-caret-stack" aria-hidden="true"
+									>{#each carets as bot, depth (bot.id)}<span
+											class="bot-caret-mark"
+											style={`left:${depth * 3}px;background:${bot.color}`}
+										></span
+									>{/each}</span
+								>{/if}{char}</span
+						>
 					{/each}
 				</div>
 				{#if phase === 'countdown'}
@@ -410,7 +440,7 @@
 					</div>
 					<div class="divide-y divide-(--border)">
 						{#each [...game.players].sort((a, b) => playerProgress(b) - playerProgress(a)) as player (player.user_id)}
-							<div class="px-4 py-3">
+							<div class="px-4 py-3" animate:flip={{ duration: 300 }}>
 								<div class="flex items-center justify-between gap-2">
 									<div class="flex min-w-0 items-center gap-2">
 										<Avatar src={player.avatar_url} name={player.username} class="h-6 w-6" text="text-[9px]" />
@@ -425,7 +455,7 @@
 								</div>
 								<div class="mt-2 h-1 w-full bg-(--border)">
 									<div
-										class={`h-1 ${player.finished ? 'bg-(--mer)' : 'bg-(--silver)/35'}`}
+										class={`h-1 transition-[width] duration-150 ease-linear ${player.finished ? 'bg-(--mer)' : 'bg-(--silver)/35'}`}
 										style={`width:${Math.round(playerProgress(player) * 100)}%`}
 									></div>
 								</div>

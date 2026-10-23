@@ -114,7 +114,7 @@
 				>docs</a
 			>
 			<a
-				href={resolve('/about')}
+				href={`${resolve('/docs')}#about`}
 				class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer)"
 				>about</a
 			>

@@ -42,7 +42,15 @@
 			value: 'hotlaps',
 			label: 'HotLaps',
 			short: 'hotlaps',
-			description: 'One shared snippet. Unlimited tries inside the stage window. Fastest run advances.'
+			description:
+				'One shared snippet. Host-set try limit (0 = unlimited) inside the stage window. Fastest run advances.'
+		},
+		{
+			value: 'practice',
+			label: 'practice / warm-up',
+			short: 'practice',
+			description:
+				'A warm-up stage. Anyone eligible can post times, but nobody is eliminated. Every player moves on.'
 		},
 		{
 			value: 'multiplayer',
@@ -94,7 +102,7 @@
 	}
 
 	function isOpen(format: ContestStageFormat): boolean {
-		return format === 'qualifier' || format === 'hotlaps';
+		return format === 'qualifier' || format === 'hotlaps' || format === 'practice';
 	}
 
 	function stageDefaults(index: number, format: ContestStageFormat = 'multiplayer'): StageDraft {
@@ -167,6 +175,8 @@
 	let formError = $state('');
 	let preview = $state(false);
 	let cssGuide = $state(false);
+	/** Index where the insert popover is open (0 = before the first stage). */
+	let insertMenu = $state<number | null>(null);
 
 	$effect(() => {
 		if (seeded || !contest) return;
@@ -180,8 +190,7 @@
 		stage.format = format;
 		if (isOpen(format)) {
 			if (stage.window_minutes <= 0) stage.window_minutes = 60;
-			if (format === 'hotlaps') {
-				stage.max_tries = 0;
+			if (format === 'hotlaps' || format === 'practice') {
 				stage.language_mode = 'fixed';
 				stage.min_wpm = 0;
 			}
@@ -198,14 +207,22 @@
 		}
 	}
 
-	function addStage(format: ContestStageFormat) {
+	function insertStage(index: number, format: ContestStageFormat) {
 		if (form.stages.length >= 10) return;
-		const index = form.stages.length;
 		const stage = stageDefaults(index, format);
-		stage.delay_minutes = 10;
 		stage.language = form.stages[0]?.language ?? 'go';
 		stage.duration = form.stages[0]?.duration ?? 90;
-		form.stages.push(stage);
+		stage.delay_minutes = index === 0 ? 0 : Math.max(1, Number(form.stages[index]?.delay_minutes) || 10);
+		form.stages.splice(index, 0, stage);
+		form.stages.forEach((item, i) => {
+			if (i === 0) item.delay_minutes = 0;
+			else if (item.delay_minutes <= 0) item.delay_minutes = 10;
+		});
+		insertMenu = null;
+	}
+
+	function toggleInsertMenu(index: number) {
+		insertMenu = insertMenu === index ? null : index;
 	}
 
 	function removeStage(index: number) {
@@ -259,6 +276,25 @@
 		return Math.min(high, Math.max(low, Number(value) || low));
 	}
 
+	const ADVANCE_PRESETS = [
+		{ label: 'all', type: 'all' as const, value: 0 },
+		{ label: 'top 1', type: 'count' as const, value: 1 },
+		{ label: 'top 3', type: 'count' as const, value: 3 },
+		{ label: 'top 10', type: 'count' as const, value: 10 },
+		{ label: 'top 10%', type: 'percent' as const, value: 10 },
+		{ label: 'top 25%', type: 'percent' as const, value: 25 },
+		{ label: 'top 50%', type: 'percent' as const, value: 50 }
+	];
+
+	function applyPreset(stage: StageDraft, preset: (typeof ADVANCE_PRESETS)[number]) {
+		stage.advance_type = preset.type;
+		stage.advance_value = preset.value;
+	}
+
+	function presetActive(stage: StageDraft, preset: (typeof ADVANCE_PRESETS)[number]): boolean {
+		return stage.advance_type === preset.type && Number(stage.advance_value) === preset.value;
+	}
+
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
 		formError = '';
@@ -308,10 +344,17 @@
 			duration: Number(stage.duration) as LobbyDuration,
 			language_mode: stage.format === 'qualifier' ? stage.language_mode : 'fixed',
 			language: stage.language,
-			max_tries: stage.format === 'qualifier' ? clamp(Number(stage.max_tries), 0, 1000) : 0,
+			max_tries: isOpen(stage.format) ? clamp(Number(stage.max_tries), 0, 1000) : 0,
 			min_wpm: stage.format === 'qualifier' ? clamp(Number(stage.min_wpm), 1, 300) : 0,
 			advance_type: stage.advance_type,
-			advance_value: stage.advance_type === 'all' ? 0 : clamp(Number(stage.advance_value), 1, 512),
+			advance_value:
+				stage.advance_type === 'all'
+					? 0
+					: clamp(
+							Number(stage.advance_value),
+							1,
+							stage.advance_type === 'percent' ? 100 : 512
+						),
 			max_players: isOpen(stage.format)
 				? 2
 				: clamp(Number(stage.max_players), 2, 10)
@@ -391,6 +434,34 @@
 
 			<div class="mt-4 flex flex-col gap-3">
 				{#each form.stages as stage, index (stage)}
+					{#if form.stages.length < 10}
+						<div class="relative flex flex-col items-center">
+							<button
+								type="button"
+								class="flex h-7 w-7 cursor-pointer items-center justify-center border border-(--border) bg-(--fbg) font-mono text-sm leading-none text-(--silver)/35 transition-colors hover:border-(--mer) hover:text-(--mer)"
+								aria-label={`insert a stage ${index === 0 ? 'before the first stage' : 'here'}`}
+								aria-expanded={insertMenu === index}
+								onclick={() => toggleInsertMenu(index)}>+</button
+							>
+							{#if insertMenu === index}
+								<div
+									class="absolute top-9 left-1/2 z-20 flex w-max max-w-[88vw] -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 border border-(--mer)/40 bg-(--fbg) p-2 shadow-xl"
+								>
+									<span class="px-1 font-mono text-[8px] tracking-[0.14em] text-(--silver)/25 uppercase"
+										>insert stage</span
+									>
+									{#each STAGE_FORMATS as format (format.value)}
+										<button
+											type="button"
+											class="cursor-pointer border border-(--border) px-2 py-1 font-mono text-[9px] tracking-[0.08em] text-(--silver)/45 uppercase hover:border-(--mer)/60 hover:text-(--mer)"
+											onclick={() => insertStage(index, format.value)}
+											>+ {format.short}</button
+										>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/if}
 					<article
 						class={`border bg-(--bg)/60 ${stage.format === 'ranked' ? 'border-(--mer)/40' : 'border-(--border)'}`}
 					>
@@ -488,21 +559,13 @@
 									<span class="font-mono text-[9px] tracking-[0.1em] text-(--silver)/35 uppercase"
 										>tries · 0 = unlimited</span
 									>
-									{#if stage.format === 'hotlaps'}
-										<div
-											class="border border-(--border)/60 px-2.5 py-1.5 font-mono text-xs text-(--silver)/30"
-										>
-											unlimited
-										</div>
-									{:else}
-										<input
-											type="number"
-											min="0"
-											max="1000"
-											class="border border-(--border) bg-(--bg) px-2.5 py-1.5 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
-											bind:value={stage.max_tries}
-										/>
-									{/if}
+									<input
+										type="number"
+										min="0"
+										max="1000"
+										class="border border-(--border) bg-(--bg) px-2.5 py-1.5 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
+										bind:value={stage.max_tries}
+									/>
 								</label>
 							{:else}
 								<label class="flex flex-col gap-1">
@@ -563,7 +626,7 @@
 										bind:value={stage.min_wpm}
 									/>
 								</label>
-							{:else if stage.format === 'hotlaps'}
+							{:else if stage.format === 'hotlaps' || stage.format === 'practice'}
 								<div class="flex flex-col gap-1">
 									<span class="font-mono text-[9px] tracking-[0.1em] text-(--silver)/35 uppercase"
 										>snippet</span
@@ -606,14 +669,36 @@
 								<select
 									class="border border-(--border) bg-(--bg) px-2.5 py-1.5 font-mono text-xs text-(--silver) outline-none focus:border-(--mer)"
 									bind:value={stage.advance_type}
-									disabled={index === form.stages.length - 1}
+									disabled={index === form.stages.length - 1 || stage.format === 'practice'}
 								>
-									<option value="all">{stage.format === 'qualifier' ? 'everyone above the cut' : 'all finishers'}</option>
+									<option value="all"
+										>{stage.format === 'practice'
+											? 'everyone advances'
+											: stage.format === 'qualifier'
+												? 'everyone above the cut'
+												: 'all finishers'}</option
+									>
 									<option value="count">fixed number</option>
 									<option value="percent">percentage</option>
 								</select>
+								{#if index !== form.stages.length - 1 && stage.format !== 'practice'}
+									<div class="mt-1 flex flex-wrap gap-1">
+										{#each ADVANCE_PRESETS as preset (preset.label)}
+											<button
+												type="button"
+												class={`cursor-pointer border px-1.5 py-0.5 font-mono text-[8px] tracking-[0.06em] uppercase ${
+													presetActive(stage, preset)
+														? 'border-(--mer) text-(--mer)'
+														: 'border-(--border) text-(--silver)/35 hover:border-(--mer)/50 hover:text-(--mer)'
+												}`}
+												onclick={() => applyPreset(stage, preset)}
+												>{preset.label}</button
+											>
+										{/each}
+									</div>
+								{/if}
 							</label>
-							{#if stage.advance_type !== 'all' && index !== form.stages.length - 1}
+							{#if stage.advance_type !== 'all' && index !== form.stages.length - 1 && stage.format !== 'practice'}
 								<label class="flex flex-col gap-1">
 									<span class="font-mono text-[9px] tracking-[0.1em] text-(--silver)/35 uppercase"
 										>{stage.advance_type === 'percent' ? 'percent' : 'count'}</span
@@ -648,16 +733,34 @@
 			</div>
 
 			{#if form.stages.length < 10}
-				<div class="mt-3 flex flex-wrap items-center gap-2 border-t border-(--border) pt-3">
-					<span class="font-mono text-[9px] tracking-[0.1em] text-(--silver)/25 uppercase">add stage</span>
-					{#each STAGE_FORMATS as format (format.value)}
-						<button
-							type="button"
-							class="cursor-pointer border border-(--border) px-2.5 py-1 font-mono text-[9px] tracking-[0.08em] text-(--silver)/45 uppercase hover:border-(--mer)/50 hover:text-(--mer)"
-							onclick={() => addStage(format.value)}>+ {format.short}</button
+				<div class="relative flex flex-col items-center">
+					<button
+						type="button"
+						class="flex h-7 w-7 cursor-pointer items-center justify-center border border-(--border) bg-(--fbg) font-mono text-sm leading-none text-(--silver)/35 transition-colors hover:border-(--mer) hover:text-(--mer)"
+						aria-label="append a stage"
+						aria-expanded={insertMenu === form.stages.length}
+						onclick={() => toggleInsertMenu(form.stages.length)}>+</button
+					>
+					{#if insertMenu === form.stages.length}
+						<div
+							class="absolute top-9 left-1/2 z-20 flex w-max max-w-[88vw] -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 border border-(--mer)/40 bg-(--fbg) p-2 shadow-xl"
 						>
-					{/each}
+							<span class="px-1 font-mono text-[8px] tracking-[0.14em] text-(--silver)/25 uppercase"
+								>insert stage</span
+							>
+							{#each STAGE_FORMATS as format (format.value)}
+								<button
+									type="button"
+									class="cursor-pointer border border-(--border) px-2 py-1 font-mono text-[9px] tracking-[0.08em] text-(--silver)/45 uppercase hover:border-(--mer)/60 hover:text-(--mer)"
+									onclick={() => insertStage(form.stages.length, format.value)}
+									>{format.short}</button
+								>
+							{/each}
+						</div>
+					{/if}
 				</div>
+			{:else}
+				<p class="text-center font-mono text-[9px] text-(--silver)/20">ten stages is the limit</p>
 			{/if}
 		</div>
 

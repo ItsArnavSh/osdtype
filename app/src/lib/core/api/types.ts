@@ -230,7 +230,12 @@ export interface RunMetaInput {
 
 export type ContestStatus = 'upcoming' | 'lobby' | 'started' | 'ended' | 'cancelled';
 export type ContestVisibility = 'public' | 'private';
-export type ContestStageFormat = 'qualifier' | 'hotlaps' | 'multiplayer' | 'ranked';
+export type ContestStageFormat =
+	| 'qualifier'
+	| 'hotlaps'
+	| 'practice'
+	| 'multiplayer'
+	| 'ranked';
 export type ContestStageStatus = 'pending' | 'active' | 'completed' | 'cancelled';
 export type ContestLanguageMode = 'fixed' | 'choice';
 export type ContestAdvanceType = 'count' | 'percent' | 'all';

@@ -57,12 +57,10 @@ func projectedStageEnd(stage entity.ContestStage, startsAt time.Time) time.Time 
 	if stage.EndsAt != nil && !stage.EndsAt.IsZero() {
 		return stage.EndsAt.UTC()
 	}
-	switch stage.Format {
-	case entity.ContestStageQualifier, entity.ContestStageHotLaps:
+	if stage.Format.IsOpen() {
 		return startsAt.Add(time.Duration(stage.WindowMinutes) * time.Minute)
-	default:
-		return startsAt.Add(time.Duration(stage.Duration)*time.Second + 20*time.Second)
 	}
+	return startsAt.Add(time.Duration(stage.Duration)*time.Second + 20*time.Second)
 }
 
 func projectStageStart(c entity.Contest, stages []entity.ContestStage, index int) time.Time {
@@ -141,7 +139,7 @@ func (s *ServiceLayer) contestStageViews(ctx context.Context, c entity.Contest, 
 						view.ViewerAttemptsLeft = left
 					}
 					if stage.Status == entity.ContestStageActive &&
-						(stage.Format == entity.ContestStageQualifier || stage.Format == entity.ContestStageHotLaps) &&
+						stage.Format.IsOpen() &&
 						stageEntryEligible(entry, stage.Position) && !entry.Eliminated {
 						view.ViewerCanAttempt = s.canStartContestAttempt(ctx, c, stage, entry, view)
 					}
@@ -358,7 +356,7 @@ func (s *ServiceLayer) canStartContestAttempt(ctx context.Context, c entity.Cont
 	if c.Status != entity.ContestStarted || stage.Status != entity.ContestStageActive {
 		return false
 	}
-	if stage.Format != entity.ContestStageQualifier && stage.Format != entity.ContestStageHotLaps {
+	if !stage.Format.IsOpen() {
 		return false
 	}
 	if entry.Eliminated || entry.CurrentStage != stage.Position {
@@ -441,8 +439,8 @@ func (s *ServiceLayer) startContestStage(ctx context.Context, contest entity.Con
 	stage.UpdatedAt = now
 	stage.StartsAt = now
 
-	if stage.Format == entity.ContestStageQualifier || stage.Format == entity.ContestStageHotLaps {
-		if stage.Format == entity.ContestStageHotLaps && stage.Seed == 0 {
+	if stage.Format.IsOpen() {
+		if (stage.Format == entity.ContestStageHotLaps || stage.Format == entity.ContestStagePractice) && stage.Seed == 0 {
 			stage.Seed = randomSeed()
 		}
 		ends := now.Add(time.Duration(stage.WindowMinutes) * time.Minute)
@@ -645,6 +643,15 @@ func (s *ServiceLayer) finishContestStage(ctx context.Context, contest entity.Co
 		advance[qualified[i].User.ID] = true
 	}
 	eligible := stageEligibleEntries(entries, stage.Position)
+	// A practice stage is a warm-up: it reports times on the event board but
+	// never cuts anyone. Every eligible entry moves on, even without a run.
+	if stage.Format == entity.ContestStagePractice {
+		advance = make(map[uint32]bool, len(eligible))
+		for _, candidate := range eligible {
+			advance[candidate.UserID] = true
+		}
+		advanceCount = len(eligible)
+	}
 	nextPosition := stage.Position + 1
 	for i := range entries {
 		entry := entries[i]
@@ -767,7 +774,7 @@ func (s *ServiceLayer) StartContestAttempt(ctx context.Context, uid uint32, code
 	if stage.Status != entity.ContestStageActive {
 		return entity.GameView{}, errf(ErrConflict, "this stage is not open")
 	}
-	if stage.Format != entity.ContestStageQualifier && stage.Format != entity.ContestStageHotLaps {
+	if !stage.Format.IsOpen() {
 		return entity.GameView{}, errf(ErrBadRequest, "this stage starts as a live race")
 	}
 	entries, err := s.db.ListContestEntries(ctx, c.ID)

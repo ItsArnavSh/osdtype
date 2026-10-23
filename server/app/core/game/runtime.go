@@ -76,7 +76,10 @@ func newRuntime(m *Manager, opts StartOptions) *runtime {
 }
 
 func (r *runtime) run(ctx context.Context) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	// Ten progress ticks per second keep the ranked opponent bars moving at
+	// roughly the same cadence as the local practice bots. The old 500ms
+	// ticker made remote players, especially bots, visibly hop.
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	endTimer := time.NewTimer(time.Until(r.ends))
 	defer endTimer.Stop()
@@ -488,9 +491,13 @@ func (r *runtime) runBot(ctx context.Context, uid uint32, cfg entity.BotConfig) 
 		}
 	}
 
-	ticker := time.NewTicker(60 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	accum := 0.0
+	// A small pace wobble keeps a ranked bot from looking like a metronome.
+	// It averages out to the configured WPM, so matchmaking stays fair.
+	paceFactor := 1.0
+	wobbleLeft := 0
 
 	for {
 		select {
@@ -512,7 +519,12 @@ func (r *runtime) runBot(ctx context.Context, uid uint32, cfg entity.BotConfig) 
 				return
 			}
 
-			accum += charsPerSecond * 0.06
+			if wobbleLeft <= 0 {
+				paceFactor = 0.9 + rng.Float64()*0.2
+				wobbleLeft = 3 + rng.Intn(5)
+			}
+			wobbleLeft--
+			accum += charsPerSecond * 0.05 * paceFactor
 			if accum < 1 {
 				continue
 			}

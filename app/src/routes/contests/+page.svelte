@@ -7,7 +7,7 @@
 	import { errorMessage } from '$lib/core/api/client';
 	import { listContests } from '$lib/core/api/contests';
 	import { onSocketEvent } from '$lib/core/api/socket';
-	import type { ContestListView } from '$lib/core/api/types';
+	import type { ContestListView, ContestView } from '$lib/core/api/types';
 
 	let board = $state<ContestListView | null>(null);
 	let loading = $state(true);
@@ -19,13 +19,26 @@
 	let clockTimer: ReturnType<typeof setInterval> | null = null;
 	let unsubscribe: (() => void) | null = null;
 	let refreshing = false;
+	let query = $state('');
 
-	let live = $derived((board?.contests ?? []).filter((contest) => contest.status === 'started'));
-	let upcoming = $derived(
-		(board?.contests ?? []).filter((contest) => contest.status !== 'started')
-	);
-	let mine = $derived(board?.mine ?? []);
-	let trending = $derived(board?.trending ?? []);
+	function matches(contest: ContestView): boolean {
+		const needle = query.trim().toLowerCase();
+		if (!needle) return true;
+		return [
+			contest.title,
+			contest.description,
+			contest.code,
+			contest.language,
+			contest.status,
+			contest.host?.username
+		].some((value) => (value ?? '').toLowerCase().includes(needle));
+	}
+
+	let filtered = $derived((board?.contests ?? []).filter(matches));
+	let live = $derived(filtered.filter((contest) => contest.status === 'started'));
+	let upcoming = $derived(filtered.filter((contest) => contest.status !== 'started'));
+	let mine = $derived((board?.mine ?? []).filter(matches));
+	let trending = $derived((board?.trending ?? []).filter(matches));
 
 	async function load(silent = false) {
 		if (refreshing) return;
@@ -137,8 +150,24 @@
 					<h2 class="mt-1 text-3xl text-(--silver)">Public events</h2>
 				</div>
 				<span class="mb-1 font-mono text-[10px] text-(--silver)/25">
-					{board?.contests.length ?? 0} listed
+					{filtered.length} {query.trim() ? 'matching' : 'listed'}
 				</span>
+			</div>
+
+			<div class="mt-3 flex flex-wrap items-center gap-2">
+				<input
+					class="min-w-0 flex-1 border border-(--border) bg-(--fbg) px-3 py-2 font-mono text-xs text-(--silver) outline-none placeholder:text-(--silver)/20 focus:border-(--mer)"
+					bind:value={query}
+					placeholder="search events: title, code, host, language or status"
+					maxlength="80"
+				/>
+				{#if query.trim()}
+					<button
+						type="button"
+						class="cursor-pointer border border-(--border) px-3 py-2 font-mono text-[10px] tracking-[0.08em] text-(--silver)/40 uppercase hover:border-(--mer)/50 hover:text-(--mer)"
+						onclick={() => (query = '')}>clear</button
+					>
+				{/if}
 			</div>
 
 			{#if loading}
@@ -165,23 +194,42 @@
 					{/if}
 				</div>
 			{:else}
-				{#if live.length > 0}
-					<div class="mt-3">
-						<div class="mb-2 flex items-center gap-2 font-mono text-[9px] tracking-[0.14em] text-(--mer) uppercase">
-							<span class="h-1.5 w-1.5 animate-pulse bg-(--mer)"></span> racing now
+				{#if filtered.length === 0}
+					<div class="mt-3 border border-(--border) bg-(--fbg) p-8">
+						<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
+							no matches
 						</div>
-						<div class="grid gap-3 md:grid-cols-2">
-							{#each live as contest (contest.id)}
-								<ContestCard {contest} {now} />
-							{/each}
+						<p class="mt-2 max-w-lg font-mono text-xs leading-relaxed text-(--silver)/40">
+							No event matches “{query.trim()}”. Try a title, event code, host name or
+							language.
+						</p>
+						<button
+							type="button"
+							class="mt-4 cursor-pointer border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer) hover:bg-(--mer)/10"
+							onclick={() => (query = '')}>clear search</button
+						>
+					</div>
+				{:else}
+					{#if live.length > 0}
+						<div class="mt-3">
+							<div
+								class="mb-2 flex items-center gap-2 font-mono text-[9px] tracking-[0.14em] text-(--mer) uppercase"
+							>
+								<span class="h-1.5 w-1.5 animate-pulse bg-(--mer)"></span> racing now
+							</div>
+							<div class="grid gap-3 md:grid-cols-2">
+								{#each live as contest (contest.id)}
+									<ContestCard {contest} {now} />
+								{/each}
+							</div>
 						</div>
+					{/if}
+					<div class="mt-4 grid gap-3 md:grid-cols-2">
+						{#each upcoming as contest (contest.id)}
+							<ContestCard {contest} {now} />
+						{/each}
 					</div>
 				{/if}
-				<div class="mt-4 grid gap-3 md:grid-cols-2">
-					{#each upcoming as contest (contest.id)}
-						<ContestCard {contest} {now} />
-					{/each}
-				</div>
 			{/if}
 		</section>
 
