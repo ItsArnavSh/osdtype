@@ -49,7 +49,12 @@ curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSIO
   -o /usr/local/lib/docker/cli-plugins/docker-compose
 curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${ARCH}.sha256" \
   -o /tmp/docker-compose.sha256
-(cd /usr/local/lib/docker/cli-plugins && sha256sum -c /tmp/docker-compose.sha256)
+EXPECTED="$(cut -d' ' -f1 /tmp/docker-compose.sha256)"
+ACTUAL="$(sha256sum /usr/local/lib/docker/cli-plugins/docker-compose | cut -d' ' -f1)"
+if [ "$EXPECTED" != "$ACTUAL" ]; then
+  echo "docker compose checksum mismatch" >&2
+  exit 1
+fi
 chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # The deploy script fetches the real environment from SSM Parameter Store.
