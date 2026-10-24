@@ -14,12 +14,13 @@
 </script>
 
 <button
-	class="keycap fixed bottom-4 left-4 z-40 cursor-pointer border border-(--border) bg-(--fbg) px-3 py-2 font-mono text-[10px] tracking-[0.12em] text-(--silver)/55 uppercase transition-colors hover:border-(--mer) hover:text-(--mer)"
+	class="keycap fixed bottom-4 left-4 z-40 cursor-pointer border border-(--border) bg-(--fbg) px-3 py-2 font-mono text-[10px] tracking-[0.12em] text-(--silver)/55 uppercase transition-colors hover:border-(--mer) hover:text-(--mer) max-md:static max-md:mx-3 max-md:my-3 max-md:inline-block max-md:text-[9px]"
 	onclick={goBack}
 	aria-label="Go back"
 	title="Go back"
 >
-	<span class="text-(--mer)">←</span> {label}
+	<span class="text-(--mer)">←</span>
+	{label}
 </button>
 
 <style>

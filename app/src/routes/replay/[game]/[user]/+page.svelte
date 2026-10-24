@@ -45,11 +45,13 @@
 	<title>{bundle?.runs[0]?.username ?? 'shared'} replay · OSDTYP</title>
 </svelte:head>
 
-<div class="min-h-screen bg-(--bg) p-5 md:p-8">
+<div class="min-h-screen bg-(--bg) p-5 pb-8 md:p-8">
 	<header class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
 		<a href={resolve('/')} class="flex items-baseline gap-3">
 			<span class="title-text text-4xl leading-none text-(--silver)">OSDTYP</span>
-			<span class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">shared replay</span>
+			<span class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase"
+				>shared replay</span
+			>
 		</a>
 		<a
 			href={resolve('/play')}
@@ -60,19 +62,27 @@
 
 	<main class="mx-auto mt-6 max-w-6xl">
 		{#if loading}
-			<div class="border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35">
+			<div
+				class="border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35"
+			>
 				loading recording…
 			</div>
 		{:else if error || !bundle || bundle.runs.length === 0}
 			<div class="border border-(--border) bg-(--fbg) p-12 text-center">
-				<div class="font-mono text-[10px] tracking-[0.16em] text-(--red) uppercase">replay unavailable</div>
-				<p class="mt-2 font-mono text-xs text-(--silver)/40">{error || 'No recording is available for this run.'}</p>
+				<div class="font-mono text-[10px] tracking-[0.16em] text-(--red) uppercase">
+					replay unavailable
+				</div>
+				<p class="mt-2 font-mono text-xs text-(--silver)/40">
+					{error || 'No recording is available for this run.'}
+				</p>
 			</div>
 		{:else}
 			{@const game = bundle.game}
 			{@const run = bundle.runs[0]}
 			<div class="border border-(--border) bg-(--fbg) p-4 md:p-6">
-				<div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-(--border) pb-3">
+				<div
+					class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-(--border) pb-3"
+				>
 					<div class="font-mono text-[10px] text-(--silver)/35">
 						{game.mode} · {game.duration}s · {LANGUAGE_LABELS[game.language] ?? game.language}
 						{#if game.temporary}

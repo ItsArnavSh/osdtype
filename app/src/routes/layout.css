@@ -389,3 +389,21 @@ html[data-theme='crt'] body::after {
 		transform: translateY(160vh);
 	}
 }
+
+/* ── Phone companion ──────────────────────────────────────────────────────
+   The phone build is intentionally read-only. These rules only act below
+   the md breakpoint; desktop markup and spacing are left untouched.
+   ---------------------------------------------------------------------- */
+@media (max-width: 767px) {
+	html,
+	body {
+		max-width: 100%;
+		overflow-x: clip;
+	}
+
+	/* The replay keyboard is wider than a phone on purpose. Let it scroll
+	   inside its card instead of widening the page. */
+	.replay-keyboard-scroll {
+		overscroll-behavior-x: contain;
+	}
+}

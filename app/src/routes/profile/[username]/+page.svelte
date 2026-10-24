@@ -142,13 +142,16 @@
 <svelte:head><title>{username} · profile · OSDTYP</title></svelte:head>
 
 {#snippet runCard(match: MatchHistory)}
-	<div class="group border border-(--border) bg-(--fbg) p-4 transition-colors hover:border-(--mer)/45">
-		<div class="flex items-start gap-4">
+	<div
+		class="group border border-(--border) bg-(--fbg) p-4 transition-colors hover:border-(--mer)/45"
+	>
+		<div class="flex items-start gap-4 max-md:flex-col max-md:gap-3">
 			<a href={replayHref(match)} class="min-w-0 flex-1" title="open replay">
 				<div class="flex flex-wrap items-center gap-2">
 					<span class="truncate text-base text-(--silver)">{runTitle(match)}</span>
 					{#if match.pinned}
-						<span class="border border-(--mer)/35 px-1.5 py-0.5 font-mono text-[8px] tracking-[0.1em] text-(--mer)/70 uppercase"
+						<span
+							class="border border-(--mer)/35 px-1.5 py-0.5 font-mono text-[8px] tracking-[0.1em] text-(--mer)/70 uppercase"
 							>pinned</span
 						>
 					{/if}
@@ -158,7 +161,9 @@
 						{match.run_description}
 					</p>
 				{/if}
-				<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35">
+				<div
+					class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35"
+				>
 					<span class="text-(--silver)/50">{runMode(match)}</span>
 					<span>{fmtDate(match.played_at)}</span>
 					<span class="text-(--mer)/80">{fmtWpm(match.wpm)} wpm</span>
@@ -175,11 +180,13 @@
 						</span>
 					{/if}
 					{#if match.flagged}<span class="text-(--red)/70">flagged</span>{/if}
-					<span class="ml-auto text-(--mer)/35 group-hover:text-(--mer)/70">replay =></span>
+					<span class="ml-auto text-(--mer)/35 group-hover:text-(--mer)/70 max-md:ml-0"
+						>replay =></span
+					>
 				</div>
 			</a>
 			{#if isOwn}
-				<div class="flex shrink-0 flex-wrap justify-end gap-1">
+				<div class="flex shrink-0 flex-wrap justify-end gap-1 max-md:w-full max-md:justify-start">
 					<button
 						class="cursor-pointer border border-(--border) px-2 py-1 font-mono text-[9px] tracking-[0.08em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer) disabled:opacity-40"
 						onclick={() => togglePin(match)}
@@ -197,7 +204,7 @@
 	</div>
 {/snippet}
 
-<div class="flex min-h-screen flex-col bg-(--bg) p-5 md:p-8">
+<div class="flex min-h-screen flex-col bg-(--bg) p-5 pb-8 md:p-8">
 	<header class="flex flex-wrap items-end justify-between gap-4">
 		<div class="flex items-end gap-4">
 			<a
@@ -205,7 +212,7 @@
 				class="mb-2 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase hover:text-(--silver)"
 				>← leaderboard</a
 			>
-			<div class="title-text text-6xl leading-none text-(--silver) md:text-7xl">PROFILE</div>
+			<div class="title-text text-5xl leading-none text-(--silver) md:text-7xl">PROFILE</div>
 		</div>
 		<a
 			href={resolve('/play')}
@@ -215,14 +222,20 @@
 	</header>
 
 	{#if error}
-		<div class="mt-4 flex items-center justify-between gap-3 border border-(--red)/40 px-4 py-2 font-mono text-xs text-(--red)">
+		<div
+			class="mt-4 flex items-center justify-between gap-3 border border-(--red)/40 px-4 py-2 font-mono text-xs text-(--red)"
+		>
 			<span>{error}</span>
-			<button class="cursor-pointer text-(--red)/60 hover:text-(--red)" onclick={() => load()}>retry</button>
+			<button class="cursor-pointer text-(--red)/60 hover:text-(--red)" onclick={() => load()}
+				>retry</button
+			>
 		</div>
 	{/if}
 
 	{#if loading}
-		<div class="mt-6 border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35">
+		<div
+			class="mt-6 border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35"
+		>
 			loading profile…
 		</div>
 	{:else if data}
@@ -239,7 +252,8 @@
 						<div class="flex flex-wrap items-center gap-3">
 							<h1 class="truncate text-3xl text-(--silver)">{data.user.username}</h1>
 							{#if data.user.is_bot}
-								<span class="border border-(--border) px-2 py-0.5 font-mono text-[9px] text-(--silver)/30 uppercase"
+								<span
+									class="border border-(--border) px-2 py-0.5 font-mono text-[9px] text-(--silver)/30 uppercase"
 									>bot</span
 								>
 							{/if}
@@ -247,11 +261,13 @@
 								<span class="font-mono text-[9px] text-(--mer) uppercase">you</span>
 							{/if}
 							{#if data.is_friend}
-								<span class="border border-(--mer)/40 px-2 py-0.5 font-mono text-[9px] text-(--mer) uppercase"
+								<span
+									class="border border-(--mer)/40 px-2 py-0.5 font-mono text-[9px] text-(--mer) uppercase"
 									>friend</span
 								>
 							{:else if data.is_followed}
-								<span class="border border-(--border) px-2 py-0.5 font-mono text-[9px] text-(--silver)/35 uppercase"
+								<span
+									class="border border-(--border) px-2 py-0.5 font-mono text-[9px] text-(--silver)/35 uppercase"
 									>following</span
 								>
 							{/if}
@@ -259,31 +275,36 @@
 								<span class="font-mono text-[9px] text-(--silver)/30 lowercase">follows you</span>
 							{/if}
 						</div>
-						<div class="mt-2 flex flex-wrap items-center gap-4 font-mono text-[11px] text-(--silver)/45">
+						<div
+							class="mt-2 flex flex-wrap items-center gap-4 font-mono text-[11px] text-(--silver)/45"
+						>
 							<span class="text-(--mer)">{data.user.rating} best elo</span>
 							<span>highest of 30 / 90 / 300</span>
 							<span class="flex items-center gap-1">
-								<span class={`h-1.5 w-1.5 ${data.online ? 'bg-(--mer)' : 'bg-(--silver)/25'}`}></span>
+								<span class={`h-1.5 w-1.5 ${data.online ? 'bg-(--mer)' : 'bg-(--silver)/25'}`}
+								></span>
 								{data.online ? 'online' : 'offline'}
 							</span>
 						</div>
 					</div>
 					{#if !isOwn}
 						<button
-							class="cursor-pointer border border-(--border) px-4 py-2 font-mono text-xs text-(--silver)/55 hover:border-(--mer) hover:text-(--mer) disabled:opacity-40"
+							class="cursor-pointer border border-(--border) px-4 py-2 font-mono text-xs text-(--silver)/55 hover:border-(--mer) hover:text-(--mer) disabled:opacity-40 max-md:w-full max-md:text-center"
 							onclick={toggleFollow}
 							disabled={busy}>{data.is_followed ? 'unfollow' : 'follow'}</button
 						>
 					{:else}
 						<a
 							href={resolve('/play')}
-							class="border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer) hover:bg-(--mer)/10"
+							class="border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer) hover:bg-(--mer)/10 max-md:w-full max-md:text-center"
 							>play =></a
 						>
 					{/if}
 				</div>
 
-				<div class="grid grid-cols-2 divide-(--border) border-b border-(--border) sm:grid-cols-3 md:grid-cols-5 md:divide-x">
+				<div
+					class="grid grid-cols-2 divide-(--border) border-b border-(--border) sm:grid-cols-3 md:grid-cols-5 md:divide-x"
+				>
 					<div class="p-4">
 						<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase">
 							best elo
@@ -318,7 +339,9 @@
 					</div>
 				</div>
 
-				<div class="grid grid-cols-1 divide-y divide-(--border) border-b border-(--border) sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+				<div
+					class="grid grid-cols-1 divide-y divide-(--border) border-b border-(--border) sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+				>
 					{#each LOBBY_DURATIONS as duration (duration)}
 						<div class="p-4">
 							<div class="flex items-center justify-between gap-2">
@@ -379,11 +402,16 @@
 
 				<aside class="flex flex-col gap-3">
 					<section class="border border-(--border) bg-(--fbg)">
-						<div class="border-b border-(--border) px-5 py-3 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase">
+						<div
+							class="border-b border-(--border) px-5 py-3 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+						>
 							best run
 						</div>
 						{#if data.best}
-							<a href={replayHref(data.best)} class="block p-5 transition-colors hover:bg-(--mer)/5">
+							<a
+								href={replayHref(data.best)}
+								class="block p-5 transition-colors hover:bg-(--mer)/5"
+							>
 								<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase">
 									top wpm
 								</div>
@@ -393,11 +421,15 @@
 								</div>
 								<div class="mt-4 truncate text-base text-(--silver)">{runTitle(data.best)}</div>
 								{#if data.best.run_description}
-									<p class="mt-1 line-clamp-3 font-mono text-[11px] leading-relaxed text-(--silver)/40">
+									<p
+										class="mt-1 line-clamp-3 font-mono text-[11px] leading-relaxed text-(--silver)/40"
+									>
 										{data.best.run_description}
 									</p>
 								{/if}
-								<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35">
+								<div
+									class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35"
+								>
 									<span>{runMode(data.best)}</span>
 									<span>{fmtDate(data.best.played_at)}</span>
 									<span>{Math.round(data.best.accuracy * 100)}%</span>
@@ -459,7 +491,9 @@
 			</section>
 		</main>
 	{:else}
-		<div class="mt-6 border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35">
+		<div
+			class="mt-6 border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35"
+		>
 			Profile not found.
 		</div>
 	{/if}
@@ -493,7 +527,9 @@
 			{/if}
 
 			<label class="mt-5 block">
-				<span class="font-mono text-[10px] tracking-[0.12em] text-(--silver)/40 uppercase">name</span>
+				<span class="font-mono text-[10px] tracking-[0.12em] text-(--silver)/40 uppercase"
+					>name</span
+				>
 				<input
 					class="mt-2 w-full border border-(--border) bg-(--fbg) px-3 py-2 font-mono text-sm text-(--silver) outline-none focus:border-(--mer)"
 					maxlength="80"

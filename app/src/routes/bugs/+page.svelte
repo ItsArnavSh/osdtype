@@ -49,9 +49,10 @@
 	let submittedDuplicate = $state(false);
 
 	onMount(() => {
-		pageUrl = document.referrer && document.referrer.startsWith(window.location.origin)
-			? document.referrer
-			: window.location.href;
+		pageUrl =
+			document.referrer && document.referrer.startsWith(window.location.origin)
+				? document.referrer
+				: window.location.href;
 		userAgent = navigator.userAgent;
 		viewport = `${window.innerWidth}×${window.innerHeight}`;
 		appVersion = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? 'v0.0.1';
@@ -137,13 +138,10 @@
 
 <svelte:head>
 	<title>report a bug · OSDTYP</title>
-	<meta
-		name="description"
-		content="Report a bug, broken game, or interface issue in OSDTYP."
-	/>
+	<meta name="description" content="Report a bug, broken game, or interface issue in OSDTYP." />
 </svelte:head>
 
-<div class="min-h-screen bg-(--bg) p-5 md:p-8">
+<div class="min-h-screen bg-(--bg) p-5 pb-8 md:p-8">
 	<header class="flex flex-wrap items-center justify-between gap-3 border-b border-(--border) pb-3">
 		<div class="flex flex-wrap items-center gap-3">
 			<a href={resolve('/play')} class="title-text text-3xl leading-none text-(--silver)">OSDTYP</a>
@@ -151,8 +149,8 @@
 			<button
 				class="cursor-pointer border border-(--border) px-2 py-1 font-mono text-[10px] text-(--silver)/55 transition-colors hover:border-(--silver)/40 hover:text-(--silver)"
 				onclick={cycleTheme}
-				title="cycle theme"
-			>{themeState.current}</button>
+				title="cycle theme">{themeState.current}</button
+			>
 		</div>
 		<nav class="flex flex-wrap items-center gap-2 font-mono text-[10px] tracking-[0.1em] uppercase">
 			<a
@@ -167,7 +165,7 @@
 			>
 			<a
 				href={resolve('/contests')}
-				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer) max-md:hidden"
 				>contests</a
 			>
 		</nav>
@@ -181,10 +179,10 @@
 				</div>
 				<h1 class="mt-3 text-4xl leading-none text-(--silver) md:text-6xl">Report a bug.</h1>
 				<p class="mt-4 max-w-2xl text-sm leading-relaxed text-(--silver)/50">
-					OSDTYP is at <span class="text-(--red)">v0.0.1 experimental</span> — the first public
-					build. Bugs, broken layouts and rough edges are expected. Include the steps that led to
-					the problem and the page where it happened. Reports are reviewed by a human. Do not
-					paste passwords, cookies, API keys, or other secrets.
+					OSDTYP is at <span class="text-(--red)">v0.0.1 experimental</span> — the first public build.
+					Bugs, broken layouts and rough edges are expected. Include the steps that led to the problem
+					and the page where it happened. Reports are reviewed by a human. Do not paste passwords, cookies,
+					API keys, or other secrets.
 				</p>
 			</div>
 
@@ -197,8 +195,8 @@
 						<span class="font-mono text-xl text-(--silver)">{submitted.public_id}</span>
 						<button
 							class="cursor-pointer border border-(--border) px-2.5 py-1 font-mono text-[10px] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
-							onclick={copyId}
-						>{copied ? 'copied' : 'copy id'}</button>
+							onclick={copyId}>{copied ? 'copied' : 'copy id'}</button
+						>
 					</div>
 					<p class="mt-2 text-sm leading-relaxed text-(--silver)/45">
 						Keep this ID if you need to follow up. {submittedDuplicate
@@ -272,7 +270,7 @@
 
 				<label class="flex flex-col gap-1.5">
 					<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase"
-						>steps to reproduce <span class="normal-case text-(--silver)/25">(optional)</span></span
+						>steps to reproduce <span class="text-(--silver)/25 normal-case">(optional)</span></span
 					>
 					<textarea
 						class="min-h-24 w-full resize-y border border-(--border) bg-(--bg) px-3 py-2.5 font-mono text-sm leading-relaxed text-(--silver) outline-none focus:border-(--mer)"
@@ -285,7 +283,7 @@
 				<div class="grid gap-4 sm:grid-cols-2">
 					<label class="flex flex-col gap-1.5">
 						<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase"
-							>expected <span class="normal-case text-(--silver)/25">(optional)</span></span
+							>expected <span class="text-(--silver)/25 normal-case">(optional)</span></span
 						>
 						<textarea
 							class="min-h-20 w-full resize-y border border-(--border) bg-(--bg) px-3 py-2.5 font-mono text-sm leading-relaxed text-(--silver) outline-none focus:border-(--mer)"
@@ -295,7 +293,7 @@
 					</label>
 					<label class="flex flex-col gap-1.5">
 						<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase"
-							>actual <span class="normal-case text-(--silver)/25">(optional)</span></span
+							>actual <span class="text-(--silver)/25 normal-case">(optional)</span></span
 						>
 						<textarea
 							class="min-h-20 w-full resize-y border border-(--border) bg-(--bg) px-3 py-2.5 font-mono text-sm leading-relaxed text-(--silver) outline-none focus:border-(--mer)"
@@ -334,7 +332,7 @@
 						</label>
 						<label class="flex flex-col gap-1.5">
 							<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase"
-								>request id <span class="normal-case text-(--silver)/25">(optional)</span></span
+								>request id <span class="text-(--silver)/25 normal-case">(optional)</span></span
 							>
 							<input
 								class="w-full border border-(--border) bg-(--bg) px-3 py-2.5 font-mono text-sm text-(--silver) outline-none focus:border-(--mer)"
@@ -349,7 +347,7 @@
 				{#if !user}
 					<label class="flex flex-col gap-1.5">
 						<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase"
-							>contact email <span class="normal-case text-(--silver)/25">(optional)</span></span
+							>contact email <span class="text-(--silver)/25 normal-case">(optional)</span></span
 						>
 						<input
 							class="w-full border border-(--border) bg-(--bg) px-3 py-2.5 font-mono text-sm text-(--silver) outline-none focus:border-(--mer)"
@@ -422,9 +420,7 @@
 							{#each reports as report}
 								<li class="border border-(--border) px-3 py-2">
 									<div class="flex items-center justify-between gap-2">
-										<span class="font-mono text-[10px] text-(--silver)/35"
-											>{report.public_id}</span
-										>
+										<span class="font-mono text-[10px] text-(--silver)/35">{report.public_id}</span>
 										<span class="font-mono text-[9px] tracking-[0.1em] text-(--mer) uppercase"
 											>{report.status.replace('_', ' ')}</span
 										>
@@ -444,7 +440,9 @@
 				<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
 					before you send
 				</div>
-				<ul class="mt-3 flex list-disc flex-col gap-2 pl-4 text-sm leading-relaxed text-(--silver)/45">
+				<ul
+					class="mt-3 flex list-disc flex-col gap-2 pl-4 text-sm leading-relaxed text-(--silver)/45"
+				>
 					<li>Try a hard refresh and check whether the problem still happens.</li>
 					<li>Include the exact page and, if possible, a contest or room code.</li>
 					<li>Do not include passwords, session cookies, or API keys.</li>

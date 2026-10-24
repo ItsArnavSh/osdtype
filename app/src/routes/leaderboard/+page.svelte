@@ -178,7 +178,7 @@
 <svelte:head><title>leaderboard · OSDTYP</title></svelte:head>
 
 <div
-	class="flex min-h-screen flex-col bg-(--bg) p-5 md:p-8 lg:h-screen lg:min-h-0 lg:overflow-hidden"
+	class="flex min-h-screen flex-col bg-(--bg) p-5 pb-8 md:p-8 lg:h-screen lg:min-h-0 lg:overflow-hidden"
 >
 	<header class="flex shrink-0 flex-wrap items-end justify-between gap-4">
 		<div class="flex items-end gap-4">
@@ -187,7 +187,7 @@
 				class="mb-1 border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
 				>← hub</a
 			>
-			<div class="title-text text-6xl leading-none text-(--silver) md:text-8xl">LEADERBOARD</div>
+			<div class="title-text text-5xl leading-none text-(--silver) md:text-8xl">LEADERBOARD</div>
 		</div>
 		<div class="flex items-end gap-6 text-right">
 			<div>
@@ -210,8 +210,7 @@
 			class="mt-4 flex shrink-0 items-center justify-between gap-3 border border-(--red)/40 px-4 py-2 font-mono text-xs text-(--red)"
 		>
 			<span>{error}</span>
-			<button class="cursor-pointer text-(--red)/60 hover:text-(--red)" onclick={load}
-				>retry</button
+			<button class="cursor-pointer text-(--red)/60 hover:text-(--red)" onclick={load}>retry</button
 			>
 		</div>
 	{/if}
@@ -225,8 +224,8 @@
 							? 'bg-(--mer)/10 text-(--mer)'
 							: 'text-(--silver)/35 hover:text-(--silver)'
 					}`}
-					onclick={() => selectDuration(clock)}
-				>{clock}s</button>
+					onclick={() => selectDuration(clock)}>{clock}s</button
+				>
 			{/each}
 		</div>
 		<span class="font-mono text-[10px] text-(--silver)/25">
@@ -269,9 +268,7 @@
 							class="absolute top-full right-0 left-0 z-40 mt-1 max-h-72 overflow-y-auto border border-(--border) bg-(--bg) shadow-2xl"
 						>
 							{#if searching}
-								<div class="px-3 py-3 font-mono text-[11px] text-(--silver)/35">
-									searching…
-								</div>
+								<div class="px-3 py-3 font-mono text-[11px] text-(--silver)/35">searching…</div>
 							{:else if searchError}
 								<div class="px-3 py-3 font-mono text-[11px] text-(--red)/70">
 									{searchError}
@@ -326,8 +323,8 @@
 							No ranked players on the {duration}s clock yet.
 						</div>
 						<p class="max-w-md font-mono text-[11px] leading-relaxed text-(--silver)/30">
-							Everyone begins at 400 Elo on each clock. Finish a {duration}s ranked race to put
-							the first number on this ladder.
+							Everyone begins at 400 Elo on each clock. Finish a {duration}s ranked race to put the
+							first number on this ladder.
 						</p>
 						<a
 							href={resolve('/play/ranked')}
@@ -346,8 +343,7 @@
 						<div
 							class="flex items-center justify-between border-y border-(--border) bg-(--bg) px-5 py-2"
 						>
-							<span
-								class="font-mono text-[10px] tracking-[0.14em] text-(--mer)/70 uppercase"
+							<span class="font-mono text-[10px] tracking-[0.14em] text-(--mer)/70 uppercase"
 								>around your rank</span
 							>
 							<span class="font-mono text-[10px] text-(--silver)/25">±5 · exact position</span>
@@ -388,9 +384,7 @@
 		</section>
 
 		<aside class="flex min-h-[260px] flex-col border border-(--border) bg-(--fbg) lg:min-h-0">
-			<div
-				class="flex shrink-0 items-center justify-between border-b border-(--border) px-5 py-3"
-			>
+			<div class="flex shrink-0 items-center justify-between border-b border-(--border) px-5 py-3">
 				<div>
 					<div class="font-mono text-[10px] tracking-[0.14em] text-(--mer)/70 uppercase">
 						friends leaderboard
@@ -414,7 +408,9 @@
 						{friendsError}
 					</div>
 				{:else if friendRows.length === 0}
-					<div class="flex flex-col gap-3 p-5 font-mono text-[11px] leading-relaxed text-(--silver)/35">
+					<div
+						class="flex flex-col gap-3 p-5 font-mono text-[11px] leading-relaxed text-(--silver)/35"
+					>
 						<span>No mutual friends yet.</span>
 						<a href={resolve('/friends')} class="text-(--mer) hover:underline">find friends =></a>
 					</div>
@@ -428,8 +424,7 @@
 								<span
 									class={`w-5 shrink-0 font-mono text-[11px] ${
 										index < 3 ? 'text-(--mer)' : 'text-(--silver)/30'
-									}`}
-									>{index + 1}</span
+									}`}>{index + 1}</span
 								>
 								<Avatar
 									src={friend.user.avatar_url}

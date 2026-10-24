@@ -139,7 +139,8 @@
 	}
 	.legend {
 		display: flex;
-		gap: 1.25rem;
+		flex-wrap: wrap;
+		gap: 0.5rem 1.25rem;
 		justify-content: center;
 		margin-top: 0.25rem;
 		font-family: 'Fira Code', monospace;
@@ -169,5 +170,13 @@
 		height: 6px;
 		border-radius: 999px;
 		background: var(--red);
+	}
+	@media (max-width: 767px) {
+		.axis-label {
+			font-size: 18px;
+		}
+		.empty-label {
+			font-size: 18px;
+		}
 	}
 </style>

@@ -97,7 +97,7 @@
 
 <svelte:head><title>friends · OSDTYP</title></svelte:head>
 
-<div class="min-h-screen bg-(--bg) p-6 md:p-8">
+<div class="min-h-screen bg-(--bg) p-6 pb-8 md:p-8">
 	<header class="flex flex-wrap items-end justify-between gap-4">
 		<div>
 			<a
@@ -105,7 +105,7 @@
 				class="border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
 				>← hub</a
 			>
-			<div class="title-text mt-2 text-7xl leading-none text-(--silver) md:text-8xl">FRIENDS</div>
+			<div class="title-text mt-2 text-6xl leading-none text-(--silver) md:text-8xl">FRIENDS</div>
 		</div>
 		<div class="text-right">
 			<div class="font-mono text-3xl text-(--mer)">{onlineCount}</div>
@@ -116,11 +116,15 @@
 	</header>
 
 	{#if error}
-		<div class="mt-4 border border-(--red)/40 px-4 py-2 font-mono text-xs text-(--red)">{error}</div>
+		<div class="mt-4 border border-(--red)/40 px-4 py-2 font-mono text-xs text-(--red)">
+			{error}
+		</div>
 	{/if}
 
 	<section class="mx-auto mt-5 max-w-5xl border border-(--border) bg-(--fbg)">
-		<div class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-5 py-3">
+		<div
+			class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-5 py-3"
+		>
 			<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase">
 				find players
 			</div>
@@ -170,12 +174,7 @@
 						href={resolve(`/profile/${user.username}`)}
 						class="group flex items-center gap-3 border-b border-(--border) px-5 py-3 transition-colors hover:bg-(--mer)/5 sm:odd:border-r"
 					>
-						<Avatar
-							src={user.avatar_url}
-							name={user.username}
-							class="h-9 w-9"
-							text="text-[10px]"
-						/>
+						<Avatar src={user.avatar_url} name={user.username} class="h-9 w-9" text="text-[10px]" />
 						<div class="min-w-0 flex-1">
 							<div class="truncate text-sm text-(--silver)">{user.username}</div>
 							<div class="mt-0.5 font-mono text-[10px] text-(--silver)/35">
@@ -193,7 +192,9 @@
 
 	<main class="mx-auto mt-3 grid max-w-5xl gap-3 lg:grid-cols-2">
 		{#if loading}
-			<div class="border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35 lg:col-span-2">
+			<div
+				class="border border-(--border) bg-(--fbg) p-12 text-center font-mono text-xs text-(--silver)/35 lg:col-span-2"
+			>
 				loading friends…
 			</div>
 		{:else}

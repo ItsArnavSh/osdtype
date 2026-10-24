@@ -37,9 +37,7 @@
 	const syntaxKinds = $derived(highlightCode(snippet, language as Language));
 	const durationSec = $derived(Math.max(1, duration));
 	const durationMs = $derived(durationSec * 1000);
-	const events = $derived(
-		[...run.events].sort((a, b) => (a.time_ms ?? 0) - (b.time_ms ?? 0))
-	);
+	const events = $derived([...run.events].sort((a, b) => (a.time_ms ?? 0) - (b.time_ms ?? 0)));
 	const lines = $derived.by(() => {
 		const out: number[][] = [];
 		let current: number[] = [];
@@ -162,7 +160,7 @@
 		'?': '/',
 		'~': '`'
 	};
-	const DIRECT_KEYS = new Set(Array.from('`1234567890-=[]\\;\',./'));
+	const DIRECT_KEYS = new Set(Array.from("`1234567890-=[]\\;',./"));
 	const KEY_FLASH_MS = 180;
 
 	function keyForEvent(event: ClientKeypress): { id: string; shift: boolean } | null {
@@ -312,7 +310,9 @@
 <div class="flex flex-col gap-4">
 	<header class="flex flex-wrap items-center justify-between gap-3 border-b border-(--border) pb-3">
 		<div>
-			<div class="flex items-center gap-2 font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
+			<div
+				class="flex items-center gap-2 font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase"
+			>
 				<span class={`inline-block h-1.5 w-1.5 ${playing ? 'bg-(--mer)' : 'bg-(--red)'}`}></span>
 				simulated replay
 			</div>
@@ -322,7 +322,10 @@
 					{Math.round(run.accuracy * 100)}% acc · {Math.round(run.wpm)} wpm
 				</span>
 				{#if run.is_bot}
-					<span class="border border-(--border) px-1.5 py-0.5 font-mono text-[9px] text-(--silver)/35 uppercase">bot</span>
+					<span
+						class="border border-(--border) px-1.5 py-0.5 font-mono text-[9px] text-(--silver)/35 uppercase"
+						>bot</span
+					>
 				{/if}
 			</div>
 		</div>
@@ -344,8 +347,11 @@
 
 	<div class="grid gap-3 lg:grid-cols-[1fr_300px]">
 		<div class="flex min-h-0 flex-col border border-(--border) bg-(--fbg)">
-			<div class="flex items-center justify-between border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--silver)/35">
-				<span>typing simulation · {Math.round(currentMs / 1000)}s / {Math.round(durationSec)}s</span>
+			<div
+				class="flex items-center justify-between border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--silver)/35"
+			>
+				<span>typing simulation · {Math.round(currentMs / 1000)}s / {Math.round(durationSec)}s</span
+				>
 				<span class="text-(--mer)">{Math.round(stats.net)} wpm live</span>
 			</div>
 			<div class="px-4 py-3">
@@ -378,15 +384,25 @@
 				<div class="grid grid-cols-3 gap-2">
 					<div>
 						<div class="font-mono text-2xl text-(--mer)">{Math.round(stats.net)}</div>
-						<div class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/35 uppercase">wpm</div>
+						<div class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/35 uppercase">
+							wpm
+						</div>
 					</div>
 					<div>
-						<div class="font-mono text-2xl text-(--silver)">{Math.round(stats.accuracy * 100)}%</div>
-						<div class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/35 uppercase">acc</div>
+						<div class="font-mono text-2xl text-(--silver)">
+							{Math.round(stats.accuracy * 100)}%
+						</div>
+						<div class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/35 uppercase">
+							acc
+						</div>
 					</div>
 					<div>
-						<div class="font-mono text-2xl text-(--silver)">{Math.round((currentMs / durationMs) * 100)}%</div>
-						<div class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/35 uppercase">through</div>
+						<div class="font-mono text-2xl text-(--silver)">
+							{Math.round((currentMs / durationMs) * 100)}%
+						</div>
+						<div class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/35 uppercase">
+							through
+						</div>
 					</div>
 				</div>
 				<div class="mt-4 h-px w-full bg-(--border)">
@@ -402,7 +418,12 @@
 					live speed
 				</div>
 				<div class="mt-1">
-					<SpeedGraph {series} duration={durationSec} showLegend={false} emptyLabel="waiting for keystrokes" />
+					<SpeedGraph
+						{series}
+						duration={durationSec}
+						showLegend={false}
+						emptyLabel="waiting for keystrokes"
+					/>
 				</div>
 			</div>
 		</div>
@@ -424,10 +445,12 @@
 			</div>
 		</div>
 
-		<div class="mt-3 overflow-x-auto pb-1">
-			<div class="mx-auto flex w-full min-w-[620px] max-w-3xl flex-col gap-1.5">
+		<div class="replay-keyboard-scroll mt-3 overflow-x-auto pb-1">
+			<div
+				class="replay-keyboard mx-auto flex w-full max-w-3xl min-w-[620px] flex-col gap-1.5 max-md:min-w-0 max-md:gap-1"
+			>
 				{#each KEY_ROWS as row}
-					<div class="flex gap-1.5">
+					<div class="flex gap-1.5 max-md:gap-1">
 						{#each row as key}
 							{@const state = activeKeys.get(key.id)}
 							<div
@@ -542,5 +565,22 @@
 
 	.replay-key.is-primary .replay-key-alt {
 		color: color-mix(in srgb, var(--mer) 70%, transparent);
+	}
+
+	@media (max-width: 767px) {
+		.replay-key {
+			min-height: 1.8rem;
+			padding: 0.2rem 0.1rem;
+			font-size: 8px;
+		}
+		.replay-key.is-mod {
+			font-size: 7px;
+			letter-spacing: 0;
+		}
+		.replay-key-alt {
+			top: 0.12rem;
+			left: 0.15rem;
+			font-size: 6px;
+		}
 	}
 </style>

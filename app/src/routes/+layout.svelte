@@ -3,7 +3,10 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import AuthGate from '$lib/components/AuthGate.svelte';
 	import BackKey from '$lib/components/BackKey.svelte';
+	import MobileLock from '$lib/components/MobileLock.svelte';
 	import { initTheme } from '$lib/core/theme.svelte';
+	import { MOBILE_QUERY, mobileAllowed } from '$lib/core/mobile';
+	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -42,8 +45,14 @@
 		return GUEST_PATHS.includes(path) || GUEST_PREFIXES.some((prefix) => path.startsWith(prefix));
 	}
 
+	let mobile = $state(browser ? window.matchMedia(MOBILE_QUERY).matches : false);
+	let mobileBlocked = $derived(
+		appState.booted && mobile && page.status < 400 && !mobileAllowed(page.url.pathname)
+	);
+
 	let gated = $derived(
 		appState.booted &&
+			!mobileBlocked &&
 			page.status < 400 &&
 			!appState.user &&
 			!guestAllowed(page.url.pathname)
@@ -55,6 +64,12 @@
 
 	function enforce(path: string): void {
 		if (!appState.booted) return;
+		if (mobile) {
+			// Phones are a read-only companion. Do not let an active desktop
+			// game or queue pull a phone into a locked gameplay route.
+			if (path === '/') void goto('/play', { replaceState: true });
+			return;
+		}
 		if (!appState.user) {
 			// Guests may browse the hub and play offline modes. Protected
 			// paths are blurred behind an AuthGate rather than redirected, so
@@ -91,6 +106,15 @@
 			void goto('/play', { replaceState: true });
 		}
 	}
+
+	onMount(() => {
+		const media = window.matchMedia(MOBILE_QUERY);
+		const onChange = (event: MediaQueryListEvent) => {
+			mobile = event.matches;
+		};
+		media.addEventListener('change', onChange);
+		return () => media.removeEventListener('change', onChange);
+	});
 
 	onMount(() => {
 		initTheme();
@@ -157,9 +181,11 @@
 	<div class="flex min-h-screen items-center justify-center bg-(--bg)">
 		<div class="title-text text-6xl text-(--silver)/40">OSDTYP</div>
 	</div>
+{:else if mobileBlocked}
+	<MobileLock path={page.url.pathname} username={appState.user?.username ?? ''} />
 {:else}
 	<div
-		class={`relative min-h-screen ${gated ? 'pointer-events-none select-none opacity-40 blur-[6px]' : ''}`}
+		class={`relative min-h-screen ${gated ? 'pointer-events-none opacity-40 blur-[6px] select-none' : ''}`}
 		aria-hidden={gated}
 		inert={gated}
 	>
@@ -173,7 +199,7 @@
 	{/if}
 {/if}
 
-{#if appState.invites.length > 0}
+{#if !mobile && appState.invites.length > 0}
 	<div class="fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-2">
 		{#each appState.invites as invite (invite.id)}
 			<div class="border border-(--border) bg-(--fbg) p-4 shadow-none">
@@ -190,18 +216,18 @@
 					<button
 						class="cursor-pointer font-mono text-[10px] text-(--silver)/35 hover:text-(--silver)"
 						onclick={() => decline(invite.id)}
-						title="decline"
-					>✕</button>
+						title="decline">✕</button
+					>
 				</div>
 				<div class="mt-3 flex gap-2">
 					<button
 						class="flex-1 cursor-pointer border border-(--mer) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--mer) uppercase hover:bg-(--mer)/10"
-						onclick={() => accept(invite.id)}
-					>join</button>
+						onclick={() => accept(invite.id)}>join</button
+					>
 					<button
 						class="flex-1 cursor-pointer border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:text-(--silver)"
-						onclick={() => decline(invite.id)}
-					>ignore</button>
+						onclick={() => decline(invite.id)}>ignore</button
+					>
 				</div>
 			</div>
 		{/each}

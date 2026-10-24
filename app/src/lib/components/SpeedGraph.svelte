@@ -106,12 +106,7 @@
 			/>
 			{#if item.samples.length > 1}
 				{@const last = item.samples[item.samples.length - 1]}
-				<circle
-					cx={x(last.t)}
-					cy={y(last.net)}
-					r="2.6"
-					fill={colorFor(item, index)}
-				/>
+				<circle cx={x(last.t)} cy={y(last.net)} r="2.6" fill={colorFor(item, index)} />
 			{/if}
 		{/each}
 
@@ -187,10 +182,14 @@
 	}
 	.swatch.dashed {
 		opacity: 0.75;
-		background-image: repeating-linear-gradient(
-			90deg,
-			currentColor 0 4px,
-			transparent 4px 7px
-		);
+		background-image: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px);
+	}
+	@media (max-width: 767px) {
+		.axis-label {
+			font-size: 18px;
+		}
+		.empty-label {
+			font-size: 18px;
+		}
 	}
 </style>

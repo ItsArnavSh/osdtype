@@ -43,15 +43,15 @@
 
 <svelte:head><title>login · OSDTYP</title></svelte:head>
 
-<div class="flex min-h-screen flex-col bg-(--bg) p-8 md:p-12">
+<div class="flex min-h-screen flex-col bg-(--bg) p-5 pb-8 md:p-12">
 	<header class="flex items-start justify-between">
 		<div class="flex items-end gap-4">
-			<div class="title-text text-8xl leading-none text-(--silver) md:text-9xl">OSDTYP</div>
+			<div class="title-text text-6xl leading-none text-(--silver) md:text-9xl">OSDTYP</div>
 			<button
 				class="mb-3 cursor-pointer rounded border border-(--border) px-2.5 py-1 font-mono text-[11px] text-(--silver)/55 transition-colors hover:border-(--silver)/40 hover:text-(--silver)"
 				onclick={cycleTheme}
-				title="cycle theme"
-			>{themeState.current}</button>
+				title="cycle theme">{themeState.current}</button
+			>
 		</div>
 		<div class="hidden flex-col items-end gap-1 md:flex">
 			<span class="font-mono text-xs tracking-widest text-(--red) uppercase">terminal</span>
@@ -67,12 +67,19 @@
 		<div class="w-full max-w-md border border-(--border) bg-(--fbg)">
 			<div class="border-b border-(--border) px-6 py-4">
 				<div class="font-mono text-[10px] tracking-[0.18em] text-(--mer) uppercase">
-					ranked · rooms · practice
+					<span class="md:hidden">profile · replays · friends</span>
+					<span class="hidden md:inline">ranked · rooms · practice</span>
 				</div>
 				<h1 class="mt-2 text-2xl text-(--silver)">Punch in.</h1>
 				<p class="mt-1 font-mono text-xs leading-relaxed text-(--silver)/45">
-					Your rating, rooms and unfinished races are waiting when you return. Jump back in
-					wherever you left off.
+					<span class="md:hidden">
+						Your profile, shared replays and friends are waiting. Live typing modes stay on the
+						desktop build for now.
+					</span>
+					<span class="hidden md:inline">
+						Your rating, rooms and unfinished races are waiting when you return. Jump back in
+						wherever you left off.
+					</span>
 				</p>
 			</div>
 
@@ -85,42 +92,42 @@
 				</button>
 
 				{#if import.meta.env.DEV}
-				<div class="flex items-center gap-3">
-					<div class="h-px flex-1 bg-(--border)"></div>
-					<span class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/30 uppercase"
-						>or dev login</span
-					>
-					<div class="h-px flex-1 bg-(--border)"></div>
-				</div>
-
-				<form
-					class="flex flex-col gap-3"
-					onsubmit={(e) => {
-						e.preventDefault();
-						void signIn();
-					}}
-				>
-					<label class="flex flex-col gap-1">
-						<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase"
-							>username</span
+					<div class="flex items-center gap-3">
+						<div class="h-px flex-1 bg-(--border)"></div>
+						<span class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/30 uppercase"
+							>or dev login</span
 						>
-					<input
-						class="w-full border border-(--border) bg-(--bg) px-3 py-2.5 font-mono text-sm text-(--silver) outline-none focus:border-(--mer)"
-						bind:value={username}
-						autocomplete="username"
-						spellcheck="false"
-						maxlength="24"
-						placeholder="testuser"
-					/>
-					</label>
-					<button
-						type="submit"
-						disabled={busy || username.trim().length === 0}
-						class="cursor-pointer border border-(--mer) px-4 py-2.5 font-mono text-sm text-(--mer) transition-colors hover:bg-(--mer)/10 disabled:cursor-not-allowed disabled:opacity-40"
+						<div class="h-px flex-1 bg-(--border)"></div>
+					</div>
+
+					<form
+						class="flex flex-col gap-3"
+						onsubmit={(e) => {
+							e.preventDefault();
+							void signIn();
+						}}
 					>
-						{busy ? 'opening session…' : 'enter terminal =>'}
-					</button>
-				</form>
+						<label class="flex flex-col gap-1">
+							<span class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase"
+								>username</span
+							>
+							<input
+								class="w-full border border-(--border) bg-(--bg) px-3 py-2.5 font-mono text-sm text-(--silver) outline-none focus:border-(--mer)"
+								bind:value={username}
+								autocomplete="username"
+								spellcheck="false"
+								maxlength="24"
+								placeholder="testuser"
+							/>
+						</label>
+						<button
+							type="submit"
+							disabled={busy || username.trim().length === 0}
+							class="cursor-pointer border border-(--mer) px-4 py-2.5 font-mono text-sm text-(--mer) transition-colors hover:bg-(--mer)/10 disabled:cursor-not-allowed disabled:opacity-40"
+						>
+							{busy ? 'opening session…' : 'enter terminal =>'}
+						</button>
+					</form>
 				{/if}
 
 				{#if error}
@@ -130,10 +137,10 @@
 				{/if}
 
 				{#if import.meta.env.DEV}
-				<p class="font-mono text-[10px] leading-relaxed text-(--silver)/25">
-					GitHub sign-in is unavailable in this environment. Use the developer login below to
-					test the app.
-				</p>
+					<p class="font-mono text-[10px] leading-relaxed text-(--silver)/25">
+						GitHub sign-in is unavailable in this environment. Use the developer login below to test
+						the app.
+					</p>
 				{/if}
 			</div>
 		</div>
