@@ -87,6 +87,34 @@ func TestSnippetStartOffsetShortSnippets(t *testing.T) {
 	}
 }
 
+func TestSnippetStartOffsetShortGeneratedSQL(t *testing.T) {
+	// A real 120-token SQL generation. SQL output is comfortably below the
+	// 1400-byte tail-room threshold, so it takes the same short-snippet path
+	// as the fallbacks. This must start at zero rather than on the final,
+	// empty line.
+	text := `SELECT price FROM refunds;
+SELECT * FROM tickets ORDER BY city ASC LIMIT 5;
+SELECT * FROM tickets WHERE priority = TRUE OR category_id = FALSE LIMIT 5;
+SELECT * FROM reviews WHERE shipping >= 23.92 ORDER BY score DESC LIMIT 93;
+INSERT INTO categories (user_id) VALUES (94.36) RETURNING id;
+UPDATE reviews SET priority = 6.6, count = 3.91 WHERE created_at < 'succeeded' OR title != FALSE;
+SELECT * FROM regions WHERE end_date LIKE 25 OR position LIKE 9 LIMIT 1;
+SELECT members.region, transactions.billing FROM uploads JOIN permissions ON images.id = suppliers.id WHERE weight >= 'refunded';
+
+`
+
+	if len(text) >= 1400 {
+		t.Fatalf("sample unexpectedly long: %d", len(text))
+	}
+	offset := SnippetStartOffset(1311768467463790320, text)
+	if offset != 0 {
+		t.Fatalf("offset = %d, want 0", offset)
+	}
+	if len(text)-offset < 100 {
+		t.Fatalf("target too short: %d bytes", len(text)-offset)
+	}
+}
+
 func TestSnippetStartOffset(t *testing.T) {
 	var b strings.Builder
 	for i := 0; i < 80; i++ {

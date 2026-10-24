@@ -144,7 +144,7 @@
 	async function load() {
 		try {
 			const view = await getGame(gameID);
-			initialize(view);
+			applyGame(view);
 			results = view.leaderboard ?? [];
 		} catch (err) {
 			error = errorMessage(err);
@@ -164,8 +164,17 @@
 	async function resync() {
 		try {
 			const view = await getGame(gameID);
-			initialized = false;
-			initialize(view);
+			if (!initialized) {
+				initialize(view);
+			} else {
+				// A reconnect can arrive while a player is ahead of the last
+				// server snapshot. Never move their caret backwards just to
+				// match an older progress tick.
+				const mine = view.players.find((p) => p.user_id === (appState.user?.id ?? 0));
+				const serverPos = byteToChar(view.snippet, mine?.current_points ?? view.start_offset);
+				if (serverPos > pos) initialize(view);
+				else applyGame(view);
+			}
 			await refreshState();
 		} catch {
 			// The layout will retry state on the next socket reconnect.

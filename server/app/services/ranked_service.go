@@ -90,11 +90,32 @@ func (s *ServiceLayer) StartRankedMatch(ctx context.Context, users []entity.User
 	players := make([]entity.GamePlayer, 0, len(users))
 	userMap := make(map[uint32]entity.User, len(users))
 	botConfigs := map[uint32]entity.BotConfig{}
+
+	// A bot plays at the pace of the humans it was matched with. The bot's
+	// persisted rating still drives matchmaking and Elo, but using the match
+	// rating for speed avoids a 600-rated bot feeling sluggish to a much
+	// stronger player, or a low-Elo bot feeling superhuman.
+	matchRating := 0
+	humans := 0
+	for _, u := range users {
+		if u.IsBot {
+			continue
+		}
+		matchRating += u.RatingFor(durationSec)
+		humans++
+	}
+	if humans > 0 {
+		matchRating /= humans
+	}
+
 	for _, u := range users {
 		userMap[u.ID] = u
 		players = append(players, entity.GamePlayer{UserID: u.ID, RatingBefore: u.RatingFor(durationSec), IsBot: u.IsBot})
 		if u.IsBot {
 			if _, cfg, ok := s.bots().PersonaForUsername(u.Username); ok {
+				if matchRating > 0 {
+					cfg.Rating = matchRating
+				}
 				botConfigs[u.ID] = cfg
 			}
 		}

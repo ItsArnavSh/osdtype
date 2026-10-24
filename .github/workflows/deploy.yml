@@ -68,6 +68,19 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
+      - name: Build and push codegen image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./codegen/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/osdtype-codegen:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/osdtype-codegen:latest
+          cache-from: type=gha,scope=codegen
+          cache-to: type=gha,mode=max,scope=codegen
+
       - name: Build and push web gateway image
         uses: docker/build-push-action@v6
         with:

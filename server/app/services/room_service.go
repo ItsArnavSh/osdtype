@@ -611,6 +611,20 @@ func (s *ServiceLayer) createRoomGame(ctx context.Context, room entity.Room, mod
 	users := make(map[uint32]entity.User, len(members))
 	players := make([]entity.GamePlayer, 0, len(members))
 	botConfigs := map[uint32]entity.BotConfig{}
+
+	roomRating := 0
+	humans := 0
+	for _, m := range members {
+		if m.User == nil || m.User.IsBot {
+			continue
+		}
+		roomRating += m.User.Rating
+		humans++
+	}
+	if humans > 0 {
+		roomRating /= humans
+	}
+
 	for _, m := range members {
 		if m.User == nil {
 			continue
@@ -619,6 +633,9 @@ func (s *ServiceLayer) createRoomGame(ctx context.Context, room entity.Room, mod
 		players = append(players, entity.GamePlayer{UserID: m.UserID, RatingBefore: m.User.Rating, IsBot: m.User.IsBot, User: m.User})
 		if m.User.IsBot {
 			if _, cfg, ok := s.bots().PersonaForUsername(m.User.Username); ok {
+				if roomRating > 0 {
+					cfg.Rating = roomRating
+				}
 				botConfigs[m.UserID] = cfg
 			}
 		}

@@ -76,6 +76,28 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  codegen:
+    image: ${ECR_REGISTRY:-local}/osdtype-codegen:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    expose:
+      - "8081"
+    environment:
+      CODEGEN_BIND: "0.0.0.0:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   api:
     image: ${ECR_REGISTRY:-local}/osdtype-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -85,6 +107,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      codegen:
+        condition: service_started
     env_file:
       - .env.prod
     environment:
@@ -95,7 +119,7 @@ services:
       COOKIE_SAMESITE: "${COOKIE_SAMESITE:-lax}"
       FRONTEND_URL: "${PUBLIC_ORIGIN}"
       ADMIN_USERNAME: "${ADMIN_USERNAME:-ItsArnavSh}"
-      CODEGEN_URL: "disabled"
+      CODEGEN_URL: "http://codegen:8081/generate"
       DATABASE_URL: "postgres://osdtype:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}@postgres:5432/osdtype?sslmode=disable"
       REDIS_URL: "redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.prod}@redis:6379/0"
       DB_SSLMODE: "disable"

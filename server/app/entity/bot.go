@@ -16,7 +16,22 @@ type BotConfig struct {
 	Rating        int     `mapstructure:"rating"`
 }
 
-// BotWPM is the base speed scaled by the persona multiplier.
+// BotWPM keeps a server bot close to the pace of a human at the same Elo.
+// The base curve is deliberately gentle: 30 WPM at 400 Elo and about one
+// extra WPM for every 20 rating points. Persona multipliers only add a small
+// amount of variety around that target, instead of making a low-Elo bot
+// unnaturally fast.
 func (c BotConfig) BotWPM() float64 {
-	return 70 * c.RelativeSpeed
+	base := 30 + (float64(c.Rating)-400)*0.05
+	if base < 20 {
+		base = 20
+	}
+	spread := 0.94 + (c.RelativeSpeed-1.2)*0.2
+	if spread < 0.9 {
+		spread = 0.9
+	}
+	if spread > 1.1 {
+		spread = 1.1
+	}
+	return base * spread
 }
