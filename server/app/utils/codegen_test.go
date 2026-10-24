@@ -71,6 +71,22 @@ func TestDeriveSeedMatchesBrowser(t *testing.T) {
 	}
 }
 
+func TestSnippetStartOffsetShortSnippets(t *testing.T) {
+	for _, language := range []string{"c", "cpp", "go", "haskell", "html", "java", "js", "python", "rust", "sql"} {
+		text := FallbackSnippet(language)
+		offset := SnippetStartOffset(99, text)
+		if offset < 0 || offset >= len(text) {
+			t.Fatalf("%s: offset = %d, len = %d", language, offset, len(text))
+		}
+		if text[offset] == ' ' || text[offset] == '\n' || text[offset] == '\t' {
+			t.Fatalf("%s: offset points at whitespace", language)
+		}
+		if len(text)-offset < 40 {
+			t.Fatalf("%s: target too short: %d bytes", language, len(text)-offset)
+		}
+	}
+}
+
 func TestSnippetStartOffset(t *testing.T) {
 	var b strings.Builder
 	for i := 0; i < 80; i++ {

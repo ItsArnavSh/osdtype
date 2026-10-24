@@ -67,7 +67,7 @@
 			>
 				loading recording…
 			</div>
-		{:else if error || !bundle || bundle.runs.length === 0}
+		{:else if error || !bundle || !bundle.runs[0]?.events?.length}
 			<div class="border border-(--border) bg-(--fbg) p-12 text-center">
 				<div class="font-mono text-[10px] tracking-[0.16em] text-(--red) uppercase">
 					replay unavailable

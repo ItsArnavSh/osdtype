@@ -37,7 +37,9 @@
 	const syntaxKinds = $derived(highlightCode(snippet, language as Language));
 	const durationSec = $derived(Math.max(1, duration));
 	const durationMs = $derived(durationSec * 1000);
-	const events = $derived([...run.events].sort((a, b) => (a.time_ms ?? 0) - (b.time_ms ?? 0)));
+	const events = $derived(
+		[...(run.events ?? [])].sort((a, b) => (a.time_ms ?? 0) - (b.time_ms ?? 0))
+	);
 	const lines = $derived.by(() => {
 		const out: number[][] = [];
 		let current: number[] = [];
@@ -440,7 +442,7 @@
 				</div>
 			</div>
 			<div class="flex items-center gap-3 font-mono text-[10px] text-(--silver)/30">
-				<span>{run.events.length} keystrokes</span>
+				<span>{events.length} keystrokes</span>
 				<span class="hidden sm:inline">backspace flashes ⌫</span>
 			</div>
 		</div>

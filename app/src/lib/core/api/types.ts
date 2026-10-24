@@ -418,7 +418,7 @@ export interface ReplayRun {
 	wrong: number;
 	is_bot: boolean;
 	final: string;
-	events: ClientKeypress[];
+	events: ClientKeypress[] | null;
 }
 
 export interface ReplayBundle {

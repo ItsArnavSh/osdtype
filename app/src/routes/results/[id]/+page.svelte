@@ -55,9 +55,9 @@
 		return results.map((result) => {
 			const run = runFor(result.user_id);
 			const samples =
-				run && run.events.length > 0
+				run && (run.events?.length ?? 0) > 0
 					? deriveSamples(
-							run.events,
+							run.events ?? [],
 							currentGame.snippet,
 							currentGame.start_offset,
 							currentGame.duration
@@ -104,12 +104,12 @@
 
 	function canReplay(result: ResultView): boolean {
 		const run = runFor(result.user_id);
-		return Boolean(run && run.events.length > 0);
+		return Boolean(run && (run.events?.length ?? 0) > 0);
 	}
 
 	function openReplay(result: ResultView) {
 		const run = runFor(result.user_id);
-		if (run && run.events.length > 0) selectedRun = run;
+		if (run && (run.events?.length ?? 0) > 0) selectedRun = run;
 	}
 
 	function shareURLFor(run: ReplayRun): string {

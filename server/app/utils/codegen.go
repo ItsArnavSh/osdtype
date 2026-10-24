@@ -100,7 +100,7 @@ func (c *CodeGen) GenerateSnippet(ctx context.Context, language string, seed uin
 }
 
 // SnippetStartOffset reproduces the browser's "skip the imports" rule. Both
-// sides must agree on where a run begins or results will not comparable.
+// sides must agree on where a run begins or results will not be comparable.
 func SnippetStartOffset(seed uint64, text string) int {
 	const skipLines = 15
 	const tailRoom = 1400
@@ -128,15 +128,17 @@ func SnippetStartOffset(seed uint64, text string) int {
 	if len(candidates) > 0 {
 		pick := DeriveSeed(seed, 1)
 		startLine = candidates[pick%uint64(len(candidates))]
-	} else if len(parts) > 0 {
-		startLine = min(skipLines, len(parts)-1)
 	}
 
 	cursorAt := offsets[startLine]
 	for cursorAt < len(text) && strings.ContainsRune(" \n\t", rune(text[cursorAt])) {
 		cursorAt++
 	}
-	if cursorAt > len(text) {
+	// Short snippets (notably the bundled fallbacks) have no line that
+	// leaves 1400 bytes of tail room. Starting at the offset of their last
+	// line can point at the final newline and produce an empty target. Fall
+	// back to the beginning so the run always has something to type.
+	if cursorAt >= len(text) {
 		return 0
 	}
 	return cursorAt

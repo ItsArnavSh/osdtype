@@ -518,10 +518,11 @@
 		// the whole generated program instead of favouring early lines.
 		const pick = deriveSeed(seed, 1);
 
+		// Short fallback snippets have no candidate with a long enough tail.
+		// Starting at their last line can point at the final newline, which
+		// makes the target empty. Begin at the top instead.
 		const startLine =
-			candidates.length > 0
-				? candidates[Number(pick % BigInt(candidates.length))]
-				: Math.min(SKIP_LINES, Math.max(0, parts.length - 1));
+			candidates.length > 0 ? candidates[Number(pick % BigInt(candidates.length))] : 0;
 
 		let cursorAt = offsets[startLine];
 		while (cursorAt < text.length && ' \n\t'.includes(text[cursorAt])) cursorAt++;
