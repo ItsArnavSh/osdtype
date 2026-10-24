@@ -126,7 +126,9 @@
 	 * the right place on the replay timeline.
 	 */
 	function keypressTime(): number {
-		return startsAt ? Math.max(0, Math.round(serverNow - startsAt)) : 0;
+		// Use the clock directly rather than the 100ms UI tick, otherwise
+		// several fast keystrokes share a timestamp and look batched.
+		return startsAt ? Math.max(0, Math.round(Date.now() + serverOffset - startsAt)) : 0;
 	}
 
 	function initialize(view: GameView) {
