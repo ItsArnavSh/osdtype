@@ -13,6 +13,18 @@ let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let retryDelay = 800;
 const handlers = new Set<Handler>();
 
+interface OutboundMessage {
+	type: string;
+	data?: unknown;
+}
+
+// Keystrokes typed while the socket is between reconnects must not be
+// silently lost: losing them makes the local caret and the server's typed
+// buffer disagree, which corrupts the live result and the replay. Hold
+// keypresses until the next open, then flush them in order.
+const outbound: OutboundMessage[] = [];
+const MAX_QUEUED_KEYPRESSES = 2048;
+
 function emit(event: SocketEvent) {
 	for (const handler of handlers) handler(event);
 }
@@ -39,6 +51,24 @@ function wsURL(): string {
 	return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
+function flushOutbound(ws: WebSocket): void {
+	while (outbound.length > 0 && ws.readyState === WebSocket.OPEN) {
+		const message = outbound[0];
+		try {
+			ws.send(JSON.stringify(message));
+			outbound.shift();
+		} catch {
+			// The socket closed between the readyState check and send. Leave
+			// the message queued for the next connection.
+			return;
+		}
+	}
+}
+
+export function clearQueuedKeypresses(): void {
+	outbound.length = 0;
+}
+
 export function connectSocket(): Promise<void> {
 	if (socket?.readyState === WebSocket.OPEN) return Promise.resolve();
 	if (connecting) return connecting;
@@ -54,6 +84,9 @@ export function connectSocket(): Promise<void> {
 			if (retryTimer) clearTimeout(retryTimer);
 			retryTimer = null;
 			startHeartbeat(ws);
+			// Send anything typed while reconnecting before the page asks for
+			// authoritative state, so that resync sees the new input.
+			flushOutbound(ws);
 			emit({ type: 'socket_open' });
 			resolve();
 		};
@@ -98,13 +131,25 @@ export function onSocketEvent(handler: Handler): () => void {
 }
 
 export function sendSocket(type: string, data?: unknown): boolean {
-	if (!socket || socket.readyState !== WebSocket.OPEN) return false;
-	socket.send(JSON.stringify({ type, data }));
-	return true;
+	const message = { type, data };
+	if (socket?.readyState === WebSocket.OPEN) {
+		try {
+			socket.send(JSON.stringify(message));
+			return true;
+		} catch {
+			// Fall through and queue the keypress for the next connection.
+		}
+	}
+	if (type === 'keypress') {
+		if (outbound.length >= MAX_QUEUED_KEYPRESSES) outbound.shift();
+		outbound.push(message);
+	}
+	return false;
 }
 
 export function disconnectSocket(): void {
 	intentionalClose = true;
+	clearQueuedKeypresses();
 	stopHeartbeat();
 	if (retryTimer) clearTimeout(retryTimer);
 	retryTimer = null;

@@ -37,7 +37,7 @@ type Hub struct {
 	instanceID string
 
 	mu      sync.RWMutex
-	clients map[uint32]*Client
+	clients map[uint32]map[*Client]struct{}
 
 	onMessage    func(userID uint32, payload []byte)
 	onConnect    func(userID uint32)
@@ -58,7 +58,7 @@ func New(logger *zap.SugaredLogger, rdb *redis.Client) *Hub {
 		logger:     logger,
 		rdb:        rdb,
 		instanceID: fmt.Sprintf("%s-%d", host, time.Now().UnixNano()),
-		clients:    make(map[uint32]*Client),
+		clients:    make(map[uint32]map[*Client]struct{}),
 	}
 	if rdb != nil {
 		go h.subscribe()
@@ -84,12 +84,14 @@ func (h *Hub) Serve(userID uint32, conn *websocket.Conn) {
 	}
 
 	h.mu.Lock()
-	if old := h.clients[userID]; old != nil {
-		h.mu.Unlock()
-		old.close(false)
-		h.mu.Lock()
+	if h.clients[userID] == nil {
+		h.clients[userID] = make(map[*Client]struct{})
 	}
-	h.clients[userID] = client
+	// A user may legitimately have more than one tab or device open. Keep
+	// every connection and fan events out to all of them instead of closing
+	// the previous socket. Closing the old socket made two tabs continually
+	// reconnect and knock each other offline, which also dropped keystrokes.
+	h.clients[userID][client] = struct{}{}
 	h.mu.Unlock()
 
 	go client.writeLoop()
@@ -124,7 +126,7 @@ func (h *Hub) SendToUsers(userIDs []uint32, ev Event) {
 func (h *Hub) IsOnline(userID uint32) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	return h.clients[userID] != nil
+	return len(h.clients[userID]) > 0
 }
 
 func (h *Hub) OnlineCount() int {
@@ -137,7 +139,7 @@ func (h *Hub) deliverLocal(userIDs []uint32, ev Event) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for _, id := range userIDs {
-		if c := h.clients[id]; c != nil {
+		for c := range h.clients[id] {
 			c.enqueue(ev)
 		}
 	}
@@ -159,15 +161,20 @@ func (h *Hub) subscribe() {
 	}
 }
 
-func (h *Hub) remove(c *Client) {
+func (h *Hub) remove(c *Client) bool {
 	h.mu.Lock()
-	if cur := h.clients[c.UserID]; cur == c {
+	conns := h.clients[c.UserID]
+	if _, ok := conns[c]; !ok {
+		h.mu.Unlock()
+		return false
+	}
+	delete(conns, c)
+	last := len(conns) == 0
+	if last {
 		delete(h.clients, c.UserID)
 	}
 	h.mu.Unlock()
-	if h.onDisconnect != nil {
-		h.onDisconnect(c.UserID)
-	}
+	return last
 }
 
 func (c *Client) enqueue(ev Event) {
@@ -212,7 +219,7 @@ func (c *Client) readLoop() {
 	for {
 		_, payload, err := c.conn.ReadMessage()
 		if err != nil {
-			c.close(false)
+			c.close(true)
 			return
 		}
 		if c.hub.onMessage != nil {
@@ -221,19 +228,15 @@ func (c *Client) readLoop() {
 	}
 }
 
-// close is idempotent. notify controls whether the disconnect callback runs;
-// replacing an old socket should not mark the user offline.
+// close is idempotent. notify controls whether the disconnect callback runs.
+// The callback only runs when the user's last connection is gone, so closing
+// one of several tabs does not mark the account offline.
 func (c *Client) close(notify bool) {
 	c.once.Do(func() {
 		close(c.done)
 		c.conn.Close()
-		c.hub.mu.Lock()
-		wasCurrent := c.hub.clients[c.UserID] == c
-		if wasCurrent {
-			delete(c.hub.clients, c.UserID)
-		}
-		c.hub.mu.Unlock()
-		if notify && wasCurrent && c.hub.onDisconnect != nil {
+		last := c.hub.remove(c)
+		if notify && last && c.hub.onDisconnect != nil {
 			c.hub.onDisconnect(c.UserID)
 		}
 	})

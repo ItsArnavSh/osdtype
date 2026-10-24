@@ -6,7 +6,12 @@
 	import { flip } from 'svelte/animate';
 	import { errorMessage } from '$lib/core/api/client';
 	import { getGame, leaveGame } from '$lib/core/api/game';
-	import { onSocketEvent, sendSocket, socketConnected } from '$lib/core/api/socket';
+	import {
+		clearQueuedKeypresses,
+		onSocketEvent,
+		sendSocket,
+		socketConnected
+	} from '$lib/core/api/socket';
 	import { KeypressAction, LANGUAGE_LABELS } from '$lib/core/api/types';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import type { GameView, PlayerProgress, ResultView } from '$lib/core/api/types';
@@ -113,6 +118,15 @@
 		let i = Math.min(chars.length - 1, index - 1);
 		while (i > 0 && /\s/.test(chars[i])) i--;
 		return i;
+	}
+
+	/**
+	 * The socket may reconnect several seconds after a key was pressed. Send
+	 * the original match-relative time so a queued keystroke still lands in
+	 * the right place on the replay timeline.
+	 */
+	function keypressTime(): number {
+		return startsAt ? Math.max(0, Math.round(serverNow - startsAt)) : 0;
 	}
 
 	function initialize(view: GameView) {
@@ -271,7 +285,12 @@
 				typed = copy;
 			}
 			pos = previous;
-			sendSocket('keypress', { value: '', action: KeypressAction.BACKSPACE, time_ms: 0 });
+			sendSocket('keypress', {
+				value: '',
+				action: KeypressAction.BACKSPACE,
+				time_ms: keypressTime(),
+				game_id: gameID
+			});
 			return;
 		}
 
@@ -288,7 +307,12 @@
 		typed = copy;
 		const next = nextReal(expected + 1);
 		pos = next;
-		sendSocket('keypress', { value: event.key, action: KeypressAction.KEYPRESS, time_ms: 0 });
+		sendSocket('keypress', {
+			value: event.key,
+			action: KeypressAction.KEYPRESS,
+			time_ms: keypressTime(),
+			game_id: gameID
+		});
 		if (next >= chars.length) {
 			localFinished = true;
 		}
@@ -377,7 +401,10 @@
 				results = event.data as ResultView[];
 				if (game) game = { ...game, leaderboard: results, status: 'finished' };
 			}
-			if (event.type === 'socket_open') void resync();
+			// Only hydrate a page that has no local state yet. Reinitializing
+			// during a reconnect would overwrite keys that are still queued or
+			// move the caret away from what the player has already typed.
+			if (event.type === 'socket_open' && !initialized) void resync();
 			if (event.type === 'state' && event.data) {
 				const state = event.data as { state: string; game?: GameView; results?: GameView };
 				if (state.state === 'game' && state.game) applyGame(state.game);
@@ -402,6 +429,7 @@
 	onDestroy(() => {
 		window.removeEventListener('keydown', onKeydown);
 		unsubscribe?.();
+		clearQueuedKeypresses();
 		if (clockTimer) clearInterval(clockTimer);
 		if (progressFrame !== null) cancelAnimationFrame(progressFrame);
 	});

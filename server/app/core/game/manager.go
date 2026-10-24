@@ -82,6 +82,11 @@ func (m *Manager) HandleInput(userID uint32, kp entity.Keypress) bool {
 	if !ok || rt == nil {
 		return false
 	}
+	// Queued keypresses include the game they were typed in. Reject stale
+	// input instead of appending it to whatever match is active now.
+	if kp.GameID != 0 && kp.GameID != id {
+		return false
+	}
 	rt.applyInput(userID, kp)
 	return true
 }

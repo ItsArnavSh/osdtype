@@ -131,9 +131,17 @@ func (r *runtime) applyInput(userID uint32, kp entity.Keypress) {
 	if delta < 0 {
 		delta = 0
 	}
+	// A key typed while the socket is reconnecting is delivered late. Keep
+	// its original match-relative time for the replay, but clamp it to the
+	// actual arrival time so it can never be in the future.
+	eventTime := int64(delta)
+	if kp.TimeMS > 0 && kp.TimeMS < eventTime {
+		eventTime = kp.TimeMS
+	}
 	// Record bot keystrokes too, so their run appears on the combined graph
-	// and can be replayed. Anti-cheat timestamps stay human-only.
-	ps.events = append(ps.events, entity.Keypress{Value: kp.Value, Action: kp.Action, TimeMS: int64(delta)})
+	// and can be replayed. Anti-cheat timestamps stay human-only and always
+	// use the server's receipt time.
+	ps.events = append(ps.events, entity.Keypress{Value: kp.Value, Action: kp.Action, TimeMS: eventTime})
 	if !ps.isBot && len(ps.timestamps) < 20000 {
 		ps.timestamps = append(ps.timestamps, delta)
 	}
