@@ -529,7 +529,7 @@
 				<h2 class="text-2xl text-(--silver)">Resrap snippets</h2>
 				<p class="mt-3 text-sm leading-relaxed text-(--silver)/55">
 					Resrap is the Rust snippet generator behind every run. The project ships
-					<code class="border border-(--border) bg-(--bg) px-1">resrap-rs 1.0.1</code> in the HTTP service
+					<code class="border border-(--border) bg-(--bg) px-1">resrap-rs 1.0.2</code> in the HTTP service
 					and in the browser WASM wrapper. Both builds get the same language, seed and token count, so
 					the server and the browser produce byte-identical text.
 				</p>

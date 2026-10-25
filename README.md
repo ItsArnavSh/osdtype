@@ -39,7 +39,7 @@ Anti-cheat flags are persisted and freeze the flagged player's rating change.
 - **Backend:** Go, Gin, WebSockets
 - **State and queueing:** Redis
 - **Durable storage:** PostgreSQL
-- **Code generation:** Rust (`resrap-rs` 1.0.0), served over HTTP and browser WASM
+- **Code generation:** Rust (`resrap-rs` 1.0.2), served over HTTP and browser WASM
 
 ## Run locally
 

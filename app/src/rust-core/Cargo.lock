@@ -40,9 +40,9 @@ dependencies = [
 
 [[package]]
 name = "resrap-rs"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a86dff7ccda5fb809227b0477ab8689d624d1e8a273277ab2991920e1ff33e7"
+checksum = "5a14ee5653d59c40637eeda76d80c537dca058f3c49a5f477157e42bc07e0a03"
 
 [[package]]
 name = "rust-core"
