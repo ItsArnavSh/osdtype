@@ -3,7 +3,6 @@
 	import { resolve } from '$app/paths';
 	import ModeIcon from '$lib/components/ModeIcon.svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
-	import VersionNotice from '$lib/components/VersionNotice.svelte';
 	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
 	import { appState, resetSession } from '$lib/core/state/state.svelte';
 	import { logout } from '$lib/core/api/auth';
@@ -13,7 +12,6 @@
 
 	let user = $derived(appState.user);
 	let guest = $derived(!user);
-	let inviteCount = $derived(appState.invites.length);
 	let friendList = $state<FriendView[]>([]);
 	let friendError = $state('');
 	let onlineFriends = $derived(friendList.filter((friend) => friend.online).length);
@@ -25,7 +23,7 @@
 					Number(b.is_friend) - Number(a.is_friend) ||
 					a.user.username.localeCompare(b.user.username)
 			)
-			.slice(0, 5)
+			.slice(0, 4)
 	);
 
 	onMount(async () => {
@@ -37,29 +35,23 @@
 		}
 	});
 
-	function loginHref(next: string): string {
-		return `/login?next=${encodeURIComponent(next)}`;
-	}
-
-	let profileHref = $derived(user ? resolve(`/profile/${user.username}`) : loginHref('/play'));
-	let friendsHref = $derived(user ? resolve('/friends') : loginHref('/friends'));
-	let ladderHref = $derived(user ? resolve('/leaderboard') : loginHref('/leaderboard'));
-
 	async function signOut() {
 		await logout().catch(() => {});
 		resetSession();
-		void goto('/login');
+		void goto(resolve('/login'));
 	}
 
+	// Practice is the primary action, so it gets its own hero. The rest of
+	// the modes share one consistent card treatment.
 	const modes = [
 		{
 			name: 'Ranked',
 			icon: 'ranked',
-			desc: 'Timed head-to-head races with Elo on the line.',
+			desc: 'Head-to-head code races with Elo on the line.',
 			href: '/play/ranked',
-			cta: 'find match',
+			cta: 'find a match',
 			meta: '30 / 90 / 300s',
-			locked: true
+			account: true
 		},
 		{
 			name: 'Rooms',
@@ -68,16 +60,7 @@
 			href: '/play/rooms',
 			cta: 'open rooms',
 			meta: '2–16 players',
-			locked: true
-		},
-		{
-			name: 'Practice',
-			icon: 'practice',
-			desc: 'Solo runs with adaptive rivals chasing your pace.',
-			href: '/play/me',
-			cta: 'start',
-			meta: 'solo · adaptive bots',
-			locked: false
+			account: true
 		},
 		{
 			name: 'Zen',
@@ -86,455 +69,308 @@
 			href: '/play/zen',
 			cta: 'drift',
 			meta: 'no timer · no stats',
-			locked: false
+			account: false
 		}
 	] as const;
+
+	function modeCta(mode: (typeof modes)[number]): string {
+		return guest && mode.account ? 'sign in' : mode.cta;
+	}
+
+	function modeMeta(mode: (typeof modes)[number]): string {
+		if (mode.name === 'Ranked' && user) return `best ${user.rating} elo`;
+		return mode.meta;
+	}
 </script>
 
 <svelte:head><title>play · OSDTYP</title></svelte:head>
 
-<div class="flex min-h-screen flex-col bg-(--bg) p-5 pb-8 md:p-8">
-	<header class="flex flex-wrap items-center justify-between gap-4">
-		<div class="flex items-center gap-3">
-			<a
-				href={resolve('/play')}
-				class="title-text text-4xl leading-none text-(--silver) md:text-7xl"
-			>
-				OSDTYP
-			</a>
-			<button
-				class="cursor-pointer border border-(--border) px-2 py-1 font-mono text-[10px] text-(--silver)/55 transition-colors hover:border-(--silver)/40 hover:text-(--silver)"
-				onclick={cycleTheme}
-				title="cycle theme">{themeState.current}</button
-			>
-			<span
-				class="hidden border border-(--red)/40 bg-(--red)/5 px-2 py-1 font-mono text-[9px] tracking-[0.12em] text-(--red) uppercase sm:inline-block"
-				>v0.0.1 · experimental</span
-			>
-		</div>
-
-		<nav class="flex flex-wrap items-center gap-2">
-			<a
-				href={resolve('/contests')}
-				class="hidden border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer) md:inline-block"
-				>contests</a
-			>
-			<a
-				href={resolve('/docs')}
-				class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer)"
-				>docs</a
-			>
-			<a
-				href={resolve('/bugs')}
-				class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer)"
-				>report bug</a
-			>
-			{#if user?.is_admin}
+<div class="flex min-h-screen flex-col bg-(--bg)">
+	<header class="border-b border-(--border)">
+		<div
+			class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-8"
+		>
+			<div class="flex items-center gap-3">
 				<a
-					href={resolve('/admin')}
-					class="hidden border border-(--red)/40 px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--red) uppercase hover:bg-(--red)/10 md:inline-block"
-					>admin</a
+					href={resolve('/play')}
+					class="title-text text-3xl leading-none text-(--silver) md:text-4xl"
 				>
-			{/if}
-			{#if user}
-				<a
-					href={resolve('/leaderboard')}
-					class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--silver)/40 hover:text-(--silver)"
-					>leaderboard</a
-				>
-				<a
-					href={resolve('/friends')}
-					class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase hover:border-(--silver)/40 hover:text-(--silver)"
-					>friends</a
-				>
-				<a
-					href={resolve(`/profile/${user.username}`)}
-					class="flex max-w-[12rem] min-w-0 items-center gap-2 border border-(--border) px-2 py-1 hover:border-(--silver)/40 sm:max-w-none"
-				>
-					<Avatar
-						src={user.avatar_url}
-						name={user.username}
-						class="h-6 w-6 shrink-0"
-						text="text-[9px]"
-					/>
-					<span class="truncate font-mono text-[11px] text-(--silver)">{user.username}</span>
+					OSDTYP
 				</a>
-				<button
-					class="cursor-pointer border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/35 uppercase hover:border-(--silver)/40 hover:text-(--silver)"
-					onclick={signOut}>log out</button
-				>
-			{:else}
-				<a
-					href={loginHref('/play')}
-					class="border border-(--mer) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--mer) uppercase transition-colors hover:bg-(--mer)/10"
-					>sign up / log in =></a
-				>
-			{/if}
-		</nav>
+				<span class="ui-eyebrow hidden sm:inline">code typing arena</span>
+			</div>
+
+			<nav class="flex flex-wrap items-center gap-2" aria-label="Main navigation">
+				<a href={resolve('/contests')} class="ui-btn ui-btn-sm hidden md:inline-flex">contests</a>
+				<a href={resolve('/docs')} class="ui-btn ui-btn-sm">docs</a>
+				<a href={resolve('/bugs')} class="ui-btn ui-btn-sm">report bug</a>
+				<button class="ui-btn ui-btn-sm" onclick={cycleTheme} title="Cycle theme">
+					theme: {themeState.current}
+				</button>
+				{#if user?.is_admin}
+					<a
+						href={resolve('/admin')}
+						class="ui-btn ui-btn-sm hidden border-(--red)/40 text-(--red) md:inline-flex">admin</a
+					>
+				{/if}
+				{#if user}
+					<a href={resolve('/leaderboard')} class="ui-btn ui-btn-sm">leaderboard</a>
+					<a href={resolve('/friends')} class="ui-btn ui-btn-sm">friends</a>
+					<a
+						href={resolve(`/profile/${user.username}`)}
+						class="ui-btn ui-btn-sm flex max-w-48 items-center gap-2 normal-case"
+					>
+						<Avatar
+							src={user.avatar_url}
+							name={user.username}
+							class="h-5 w-5 shrink-0"
+							text="text-[9px]"
+						/>
+						<span class="truncate text-[11px] tracking-normal">{user.username}</span>
+					</a>
+					<button class="ui-btn ui-btn-sm" onclick={signOut}>log out</button>
+				{:else}
+					<a
+						href={resolve(`/login?next=${encodeURIComponent('/play')}` as '/login')}
+						class="ui-btn ui-btn-sm ui-btn-primary">sign in</a
+					>
+				{/if}
+			</nav>
+		</div>
 	</header>
 
-	<div class="mt-4">
-		<VersionNotice />
-	</div>
-
-	<div class="mt-6 flex flex-wrap items-end justify-between gap-4 border-b border-(--border) pb-4">
-		<div>
-			<div class="font-mono text-[10px] tracking-[0.18em] text-(--red) uppercase">hub</div>
-			<div class="title-text mt-1 text-5xl leading-none text-(--silver) md:text-6xl">
-				<span class="md:hidden">MOBILE</span>
-				<span class="hidden md:inline">PICK A MODE</span>
-			</div>
-		</div>
-		<div class="flex items-center gap-2 font-mono text-[10px] text-(--silver)/35">
-			<span class={`h-1.5 w-1.5 ${appState.state ? 'bg-(--mer)' : 'bg-(--silver)/25'}`}></span>
-			{#if guest}
-				guest session
-			{:else if inviteCount > 0}
-				{inviteCount} pending invite{inviteCount === 1 ? '' : 's'}
-			{:else}
-				session live
-			{/if}
-		</div>
-	</div>
-
-	<section class="mt-4">
+	<main class="mx-auto w-full max-w-6xl flex-1 px-5 py-6 md:px-8">
 		{#if user}
-			<div
-				class="grid grid-cols-2 divide-(--border) border border-(--border) bg-(--fbg) sm:grid-cols-4 sm:divide-x"
+			<section
+				class="mb-4 grid grid-cols-2 divide-(--border) border border-(--border) bg-(--fbg) sm:grid-cols-4 sm:divide-x"
 			>
 				<div class="p-4">
-					<div class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
-						best elo
-					</div>
+					<div class="ui-label">best elo</div>
 					<div class="mt-1 flex items-baseline gap-2">
 						<span class="font-mono text-2xl text-(--mer)">{user.rating}</span>
-						<span class="font-mono text-[9px] text-(--silver)/25">of 3 clocks</span>
+						<span class="font-mono text-[9px] text-(--silver)/40">of 3 clocks</span>
 					</div>
 				</div>
 				<div class="border-t border-(--border) p-4 sm:border-t-0">
-					<div class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
-						peak elo
-					</div>
+					<div class="ui-label">peak elo</div>
 					<div class="mt-1 font-mono text-2xl text-(--silver)">{user.peak_rating}</div>
 				</div>
 				<div class="border-t border-(--border) p-4 sm:border-t-0">
-					<div class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
-						record
-					</div>
+					<div class="ui-label">record</div>
 					<div class="mt-1 font-mono text-2xl text-(--silver)">
-						{user.wins}<span class="text-sm text-(--silver)/30">W</span>
-						{Math.max(0, user.games_played - user.wins)}<span class="text-sm text-(--silver)/30"
+						{user.wins}<span class="text-sm text-(--silver)/40">W</span>
+						{Math.max(0, user.games_played - user.wins)}<span class="text-sm text-(--silver)/40"
 							>L</span
 						>
 					</div>
 				</div>
 				<div class="border-t border-(--border) p-4 sm:border-t-0">
-					<div class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
-						games
-					</div>
+					<div class="ui-label">games</div>
 					<div class="mt-1 font-mono text-2xl text-(--silver)">{user.games_played}</div>
 				</div>
-			</div>
-		{:else}
-			<div
-				class="flex flex-wrap items-center justify-between gap-4 border border-(--border) bg-(--fbg) px-5 py-4"
-			>
-				<div class="flex items-start gap-3">
-					<span class="mt-1 h-2 w-2 shrink-0 bg-(--mer)"></span>
-					<div>
-						<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
-							guest mode
-						</div>
-						<p class="mt-1 font-mono text-xs leading-relaxed text-(--silver)/50">
-							<span class="md:hidden">
-								Profiles, shared replays, friends and leaderboards are open on phones. Ranked,
-								rooms, practice and Zen need a desktop.
-							</span>
-							<span class="hidden md:inline">
-								Practice and Zen are open. Sign in for Elo ranked races, rooms, friends and saved
-								runs.
-							</span>
-						</p>
-					</div>
-				</div>
-				<a
-					href={loginHref('/play')}
-					class="border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/55 uppercase hover:border-(--mer) hover:text-(--mer)"
-					>create account =></a
-				>
-			</div>
+			</section>
 		{/if}
-	</section>
 
-	<main class="mt-4 grid flex-1 content-start gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
-		<section class="border border-(--border) bg-(--fbg) p-5 md:hidden">
-			<div class="flex items-start justify-between gap-3">
-				<div>
-					<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
-						phone build
+		<div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+			<div class="flex min-w-0 flex-col gap-4">
+				<!-- Primary action: the one thing a new visitor should do. -->
+				<section class="ui-card p-6 md:p-8" style="border-top-color: var(--mer);">
+					<div class="ui-eyebrow">practice · free</div>
+					<div class="mt-2 flex flex-wrap items-start justify-between gap-4">
+						<div class="min-w-0">
+							<h1 class="title-text text-5xl leading-[0.9] text-(--silver) md:text-7xl">
+								START TYPING.
+							</h1>
+							<p class="mt-3 max-w-xl text-sm leading-relaxed text-(--silver)/65">
+								Jump into a real code snippet right away. The timer starts with your first keystroke
+								— no account, no setup.
+							</p>
+						</div>
+						<ModeIcon name="practice" class="hidden h-16 w-16 shrink-0 text-(--mer)/55 sm:block" />
 					</div>
-					<div class="mt-1 text-2xl text-(--silver)">Companion mode.</div>
-				</div>
-				<span
-					class="shrink-0 border border-(--border) px-2 py-1 font-mono text-[9px] tracking-[0.12em] text-(--silver)/35 uppercase"
-					>read only</span
-				>
-			</div>
-			<p class="mt-3 font-mono text-[11px] leading-relaxed text-(--silver)/45">
-				Typing modes need a keyboard and a wider screen. Profiles, shared replays, friends,
-				leaderboards, docs and bug reports are available here.
-			</p>
-			<div class="mt-4 grid grid-cols-2 gap-2 font-mono text-[10px] tracking-[0.1em] uppercase">
-				<a
-					href={profileHref}
-					class="border border-(--mer)/60 px-3 py-2.5 text-center text-(--mer) hover:bg-(--mer)/10"
-					>{user ? 'your profile' : 'sign in'} =></a
-				>
-				<a
-					href={friendsHref}
-					class="border border-(--border) px-3 py-2.5 text-center text-(--silver)/55 hover:border-(--mer) hover:text-(--mer)"
-					>friends =></a
-				>
-				<a
-					href={ladderHref}
-					class="border border-(--border) px-3 py-2.5 text-center text-(--silver)/55 hover:border-(--mer) hover:text-(--mer)"
-					>leaderboard =></a
-				>
-				<a
-					href={resolve('/docs')}
-					class="border border-(--border) px-3 py-2.5 text-center text-(--silver)/55 hover:border-(--mer) hover:text-(--mer)"
-					>docs =></a
-				>
-				<a
-					href={resolve('/bugs')}
-					class="col-span-2 border border-(--border) px-3 py-2.5 text-center text-(--silver)/55 hover:border-(--mer) hover:text-(--mer)"
-					>report a bug =></a
-				>
-			</div>
-			<p class="mt-3 font-mono text-[10px] leading-relaxed text-(--silver)/25">
-				Replays open from a profile's recent runs. The desktop build is required for live games.
-			</p>
-		</section>
 
-		<section class="hidden min-w-0 md:block">
-			<div class="mb-2 font-mono text-[10px] tracking-[0.16em] text-(--silver)/30 uppercase">
-				play
-			</div>
-			<div class="grid gap-3 sm:grid-cols-2">
-				{#each modes as mode (mode.name)}
-					<div class="relative">
-						<button
-							class={`group flex h-full min-h-52 w-full cursor-pointer flex-col justify-between border border-(--border) bg-(--fbg) p-5 text-left transition-colors hover:border-(--mer)/60 ${
-								mode.locked && guest ? 'pointer-events-none opacity-30 blur-[1.5px]' : ''
-							}`}
-							onclick={() => goto(resolve(mode.href))}
-							disabled={mode.locked && guest}
-							aria-hidden={mode.locked && guest}
-							tabindex={mode.locked && guest ? -1 : 0}
+					<div class="mt-6 flex flex-wrap items-center gap-2">
+						<a href={resolve('/play/me')} class="ui-btn ui-btn-primary px-5 py-3 text-xs">
+							start practice →
+						</a>
+						<a href={resolve('/play/zen')} class="ui-btn px-4 py-3 text-xs">zen · no timer</a>
+						<span
+							class="ml-auto font-mono text-[9px] tracking-[0.1em] text-(--silver)/40 uppercase"
 						>
-							<div class="flex w-full items-start justify-between gap-3">
-								<div class="text-3xl text-(--silver)">{mode.name}</div>
-								<ModeIcon name={mode.icon} class="h-11 w-11 shrink-0 text-(--mer)/75" />
+							solo · adaptive bots{#if guest}
+								· guest{/if}
+						</span>
+					</div>
+				</section>
+
+				<section aria-label="Other modes" class="grid gap-3 sm:grid-cols-3">
+					{#each modes as mode (mode.name)}
+						<a
+							href={resolve(
+								(guest && mode.account
+									? `/login?next=${encodeURIComponent(mode.href)}`
+									: mode.href) as '/play'
+							)}
+							class="ui-card group flex min-h-44 flex-col p-5 transition-colors hover:border-(--mer)/60"
+							aria-label={`${mode.name}${guest && mode.account ? ' — account required' : ''}`}
+						>
+							<div class="flex items-start justify-between gap-3">
+								<h2 class="text-2xl leading-none text-(--silver)">{mode.name}</h2>
+								<ModeIcon name={mode.icon} class="h-10 w-10 shrink-0 text-(--mer)/70" />
 							</div>
-							<p class="mt-3 max-w-[28ch] font-mono text-[11px] leading-relaxed text-(--silver)/50">
+							<p class="mt-3 flex-1 text-[11px] leading-relaxed text-(--silver)/55">
 								{mode.desc}
 							</p>
-							<div class="mt-6 flex items-end justify-between gap-3">
-								<span class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase">
-									{#if mode.name === 'Ranked' && user}
-										best {user.rating} elo
-									{:else}
-										{mode.meta}
-									{/if}
+							<div class="mt-5 flex items-end justify-between gap-2">
+								<span class="font-mono text-[9px] tracking-[0.12em] text-(--silver)/40 uppercase">
+									{modeMeta(mode)}
 								</span>
-								<span
-									class="border border-(--mer) px-3 py-1.5 font-mono text-[11px] text-(--mer) transition-colors group-hover:bg-(--mer)/10"
-									>{mode.cta} =></span
-								>
+								<span class="font-mono text-[10px] tracking-[0.08em] text-(--mer) uppercase">
+									{modeCta(mode)} →
+								</span>
 							</div>
-						</button>
-						{#if mode.locked && guest}
-							<a
-								href={loginHref(mode.href)}
-								class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-(--bg)/30 p-4 text-center transition-colors hover:bg-(--bg)/10"
-							>
-								<span class="font-mono text-[10px] tracking-[0.16em] text-(--silver)/45 uppercase">
-									login to continue
-								</span>
-								<span
-									class="border border-(--mer) bg-(--bg)/80 px-4 py-1.5 font-mono text-xs text-(--mer)"
-								>
-									sign in for {mode.name.toLowerCase()} =>
-								</span>
-							</a>
-						{/if}
+						</a>
+					{/each}
+				</section>
+
+				<a
+					href={resolve('/contests')}
+					class="ui-card group flex flex-wrap items-center justify-between gap-3 px-5 py-4 transition-colors hover:border-(--mer)/60"
+				>
+					<div class="flex flex-wrap items-center gap-3">
+						<span class="ui-eyebrow">events</span>
+						<span class="text-lg text-(--silver)">Contests</span>
+						<span class="hidden font-mono text-[10px] text-(--silver)/45 sm:inline">
+							scheduled races · public or invite-only
+						</span>
 					</div>
-				{/each}
+					<span class="ui-btn ui-btn-sm">contest board →</span>
+				</a>
 			</div>
 
-			<a
-				href={resolve('/contests')}
-				class="group mt-3 flex flex-wrap items-center justify-between gap-3 border border-(--border) bg-(--fbg) px-5 py-4 transition-colors hover:border-(--mer)"
-			>
-				<div class="flex items-center gap-3">
-					<span class="font-mono text-[9px] tracking-[0.16em] text-(--red) uppercase">events</span>
-					<span class="text-lg text-(--silver)">Contests</span>
-					<span class="hidden font-mono text-[10px] text-(--silver)/35 sm:inline"
-						>standalone scheduled races · public or invite-only</span
-					>
-				</div>
-				<span
-					class="border border-(--mer) px-3 py-1.5 font-mono text-[10px] text-(--mer) transition-colors group-hover:bg-(--mer)/10"
-					>contest board =></span
-				>
-			</a>
-		</section>
-
-		<aside class="hidden flex-col gap-3 md:flex lg:mt-[23px]">
-			{#if user}
-				<div class="border border-(--border) bg-(--fbg)">
-					<div class="flex items-center justify-between border-b border-(--border) px-5 py-3">
-						<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase">
-							friends
+			<aside class="flex flex-col gap-3" aria-label="Account and social">
+				{#if user}
+					<div class="ui-card">
+						<div class="flex items-center justify-between border-b border-(--border) px-4 py-2.5">
+							<div class="ui-label">friends</div>
+							<a href={resolve('/friends')} class="ui-btn-quiet font-mono text-[10px]">manage</a>
 						</div>
-						<a
-							href={resolve('/friends')}
-							class="font-mono text-[10px] text-(--silver)/40 hover:text-(--silver)"
-						>
-							manage
-						</a>
+						{#if friendError}
+							<p class="p-4 font-mono text-[11px] text-(--red)/80">{friendError}</p>
+						{:else if visibleFriends.length === 0}
+							<p class="p-4 font-mono text-[11px] leading-relaxed text-(--silver)/40">
+								No friends yet. Follow players from a profile or the leaderboard.
+							</p>
+						{:else}
+							<div class="divide-y divide-(--border)">
+								{#each visibleFriends as friend (friend.user.id)}
+									<a
+										href={resolve(`/profile/${friend.user.username}`)}
+										class="flex items-center gap-2.5 px-4 py-2.5 font-mono text-xs transition-colors hover:bg-(--mer)/5"
+									>
+										<span
+											class={`h-1.5 w-1.5 shrink-0 ${friend.online ? 'bg-(--mer)' : 'bg-(--silver)/25'}`}
+										></span>
+										<span class="truncate text-(--silver)/75">{friend.user.username}</span>
+										<span class="ml-auto text-[10px] text-(--silver)/40">{friend.user.rating}</span>
+									</a>
+								{/each}
+							</div>
+							<div
+								class="border-t border-(--border) px-4 py-2 font-mono text-[10px] text-(--silver)/35"
+							>
+								{onlineFriends} online now
+							</div>
+						{/if}
 					</div>
-					{#if friendError}
-						<p class="p-5 font-mono text-[11px] text-(--red)/70">{friendError}</p>
-					{:else if visibleFriends.length === 0}
-						<p class="p-5 font-mono text-[11px] leading-relaxed text-(--silver)/30">
-							No friends yet. Follow players from a profile or the leaderboard.
+
+					<div class="ui-card">
+						<div class="flex items-center justify-between border-b border-(--border) px-4 py-2.5">
+							<div class="ui-label">invites</div>
+							<a href={resolve('/invites')} class="ui-btn-quiet font-mono text-[10px]">view all</a>
+						</div>
+						{#if appState.invites.length === 0}
+							<p class="p-4 font-mono text-[11px] text-(--silver)/40">No pending room invites.</p>
+						{:else}
+							<div class="divide-y divide-(--border)">
+								{#each appState.invites.slice(0, 3) as invite (invite.id)}
+									<div
+										class="flex items-center justify-between gap-3 px-4 py-2.5 font-mono text-xs"
+									>
+										<span class="truncate text-(--silver)/75">{invite.room_name}</span>
+										<span class="shrink-0 text-(--silver)/40">{invite.from}</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<div class="ui-card flex flex-1 flex-col p-5">
+						<div class="ui-label">competitive</div>
+						<p class="mt-2 font-mono text-[11px] leading-relaxed text-(--silver)/50">
+							Three clocks, three independent Elos. Everyone starts at 400 on each ladder, and the
+							number above is your highest.
 						</p>
-					{:else}
-						<div class="divide-y divide-(--border)">
-							{#each visibleFriends as friend (friend.user.id)}
-								<a
-									href={resolve(`/profile/${friend.user.username}`)}
-									class="flex items-center gap-2.5 px-5 py-2.5 font-mono text-xs transition-colors hover:bg-(--mer)/5"
-								>
-									<span
-										class={`h-1.5 w-1.5 shrink-0 ${friend.online ? 'bg-(--mer)' : 'bg-(--silver)/20'}`}
-									></span>
-									<span class="truncate text-(--silver)/70">{friend.user.username}</span>
-									{#if friend.is_friend}
-										<span class="text-[9px] tracking-[0.1em] text-(--mer)/50 uppercase">friend</span
-										>
-									{:else}
-										<span class="text-[9px] tracking-[0.1em] text-(--silver)/25 uppercase"
-											>following</span
-										>
-									{/if}
-									<span class="ml-auto text-[10px] text-(--silver)/30">{friend.user.rating}</span>
-								</a>
-							{/each}
-						</div>
-						<div
-							class="border-t border-(--border) px-5 py-2 font-mono text-[10px] text-(--silver)/25"
-						>
-							{onlineFriends} online now
-						</div>
-					{/if}
-				</div>
-
-				<div class="border border-(--border) bg-(--fbg)">
-					<div class="flex items-center justify-between border-b border-(--border) px-5 py-3">
-						<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase">
-							invites
-						</div>
-						<a
-							href={resolve('/invites')}
-							class="font-mono text-[10px] text-(--silver)/40 hover:text-(--silver)"
-						>
-							view all
+						<a href={resolve('/leaderboard')} class="ui-btn ui-btn-sm mt-auto pt-2">
+							view leaderboard →
 						</a>
 					</div>
-					{#if appState.invites.length === 0}
-						<p class="p-5 font-mono text-[11px] text-(--silver)/30">No pending room invites.</p>
-					{:else}
-						<div class="divide-y divide-(--border)">
-							{#each appState.invites.slice(0, 3) as invite (invite.id)}
-								<div class="flex items-center justify-between gap-3 px-5 py-2.5 font-mono text-xs">
-									<span class="truncate text-(--silver)/70">{invite.room_name}</span>
-									<span class="shrink-0 text-(--silver)/30">{invite.from}</span>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
-
-				<div class="flex flex-1 flex-col border border-(--border) bg-(--fbg) p-5">
-					<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase">
-						competitive
-					</div>
-					<p class="mt-2 font-mono text-[11px] leading-relaxed text-(--silver)/40">
-						Three clocks, three independent Elos. Everyone starts at 400 on each ladder, and the
-						number above is your highest.
-					</p>
-					<a
-						href={resolve('/leaderboard')}
-						class="mt-auto flex justify-center border border-(--border) px-3 py-2 pt-2 font-mono text-[10px] tracking-[0.12em] text-(--silver)/50 uppercase hover:border-(--mer) hover:text-(--mer)"
-						>view leaderboard =></a
-					>
-				</div>
-			{:else}
-				<div class="border border-(--border) bg-(--fbg) p-5" style="border-top-color: var(--mer);">
-					<div class="font-mono text-[10px] tracking-[0.16em] text-(--mer) uppercase">
-						with an account
-					</div>
-					<div class="mt-1 text-2xl text-(--silver)">Unlock the rest.</div>
-					<ul
-						class="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-(--silver)/45"
-					>
-						<li>· Elo ranked and the leaderboard</li>
-						<li>· rooms, invites and contests</li>
-						<li>· saved runs, pins and replay links</li>
-					</ul>
-					<a
-						href={loginHref('/play')}
-						class="mt-4 flex justify-center border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer) hover:bg-(--mer)/10"
-						>sign up free =></a
-					>
-				</div>
-			{/if}
-		</aside>
+				{:else}
+					<section class="ui-card p-5" style="border-top-color: var(--mer);">
+						<div class="ui-eyebrow">with an account</div>
+						<h2 class="mt-1 text-2xl leading-tight text-(--silver)">Keep your progress.</h2>
+						<ul
+							class="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-(--silver)/55"
+						>
+							<li class="flex gap-2">
+								<span class="text-(--mer)">·</span>Ranked Elo and the leaderboard
+							</li>
+							<li class="flex gap-2">
+								<span class="text-(--mer)">·</span>Rooms, invites and contests
+							</li>
+							<li class="flex gap-2">
+								<span class="text-(--mer)">·</span>Saved runs and replay links
+							</li>
+						</ul>
+						<a
+							href={resolve(`/login?next=${encodeURIComponent('/play')}` as '/login')}
+							class="ui-btn ui-btn-primary mt-4 w-full">create account →</a
+						>
+						<p class="mt-3 font-mono text-[10px] leading-relaxed text-(--silver)/40">
+							Practice and Zen stay free without one.
+						</p>
+					</section>
+				{/if}
+			</aside>
+		</div>
 	</main>
 
-	<footer class="mt-8 border-t border-(--border) pt-4">
-		<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-			<div class="pb-8 sm:pb-0 sm:pl-24">
-				<p class="font-mono text-[10px] tracking-[0.08em] text-(--silver)/30">
+	<footer class="mx-auto mt-6 w-full max-w-6xl border-t border-(--border) px-5 py-5 md:px-8">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+			<div>
+				<p class="font-mono text-[10px] tracking-[0.08em] text-(--silver)/40">
 					OSDTYP v0.0.1 · experimental · a typing arena for people who write code.
 				</p>
-				<p class="mt-1 font-mono text-[9px] tracking-[0.08em] text-(--red)/55">
-					first public build — bugs expected.
-					<a href={resolve('/bugs')} class="underline">report them.</a>
+				<p class="mt-1 font-mono text-[10px] tracking-[0.08em] text-(--red)/65">
+					First public build — bugs expected.
+					<a href={resolve('/bugs')} class="underline">Report them.</a>
 				</p>
 			</div>
 			<nav class="flex flex-wrap gap-2 font-mono text-[9px] uppercase">
-				<a
-					href="https://osdc.dev/"
-					target="_blank"
-					rel="noreferrer"
-					class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+				<a href="https://osdc.dev/" target="_blank" rel="noreferrer" class="ui-btn ui-btn-sm"
 					>osdc.dev</a
 				>
 				<a
 					href="https://itsarnavsh.github.io/"
 					target="_blank"
 					rel="noreferrer"
-					class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
-					>author site</a
+					class="ui-btn ui-btn-sm">author site</a
 				>
 				<a
 					href="https://github.com/ItsArnavSh/osdtype"
 					target="_blank"
 					rel="noreferrer"
-					class="border border-(--mer)/40 px-3 py-1.5 text-(--mer) hover:bg-(--mer)/10">github</a
+					class="ui-btn ui-btn-sm border-(--mer)/40 text-(--mer)">github</a
 				>
 			</nav>
 		</div>

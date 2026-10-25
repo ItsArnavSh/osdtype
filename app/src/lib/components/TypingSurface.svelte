@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
@@ -39,12 +38,50 @@
 	let { zen = false }: { zen?: boolean } = $props();
 
 	let guest = $derived(!appState.user);
-	let loginHref = $derived(`/login?next=${encodeURIComponent(page.url.pathname)}`);
 
 	// ─── Config ──────────────────────────────────────────────────────────────
 	let lang = $state<Language>('go');
 	let timer = $state<Time>(30);
 	let modalOpen = $state(false);
+	let botsOpen = $state(false);
+
+	const PREFS_KEY = 'osdtype.test.v1';
+
+	function loadPrefs() {
+		try {
+			const raw = localStorage.getItem(PREFS_KEY);
+			if (!raw) return;
+			const saved = JSON.parse(raw) as { lang?: string; timer?: number };
+			if (LANGUAGES.includes(saved.lang as Language)) lang = saved.lang as Language;
+			if (TIMES.includes(saved.timer as Time)) timer = saved.timer as Time;
+		} catch {
+			// Preferences are helpful, not required. Keep the defaults.
+		}
+	}
+
+	function savePrefs() {
+		try {
+			localStorage.setItem(PREFS_KEY, JSON.stringify({ lang, timer }));
+		} catch {
+			// Storage can be unavailable in private contexts.
+		}
+	}
+
+	function setLanguage(next: Language) {
+		if (next === lang) return;
+		lang = next;
+		savePrefs();
+		resetGame();
+		focusInput();
+	}
+
+	function setTimer(next: Time) {
+		if (next === timer) return;
+		timer = next;
+		savePrefs();
+		resetGame();
+		focusInput();
+	}
 
 	/** Token budget for a snippet. Small enough to stay readable, large
 	 *  enough that a fast test never runs out of text. */
@@ -70,6 +107,10 @@
 	// ─── Typing state ────────────────────────────────────────────────────────
 	let cursor = $state(0);
 	let typed: Record<number, string> = $state({});
+	let typedCount = $derived(Object.keys(typed).length);
+	let typingProgress = $derived(
+		Math.min(100, Math.round((typedCount / Math.max(1, targetCharacters.length)) * 100))
+	);
 
 	// ─── Game state ──────────────────────────────────────────────────────────
 	type Phase = 'idle' | 'typing' | 'done';
@@ -215,8 +256,8 @@
 			const t = bot.lastSampleSec;
 			bot.samples.push({
 				t,
-				raw: (bot.totalTyped / 5) / (t / 60),
-				net: (bot.correct / 5) / (t / 60),
+				raw: bot.totalTyped / 5 / (t / 60),
+				net: bot.correct / 5 / (t / 60),
 				errors: bot.wrong
 			});
 		}
@@ -283,19 +324,14 @@
 				const t = bot.lastSampleSec;
 				bot.samples.push({
 					t,
-					raw: (bot.totalTyped / 5) / (t / 60),
-					net: (bot.correct / 5) / (t / 60),
+					raw: bot.totalTyped / 5 / (t / 60),
+					net: bot.correct / 5 / (t / 60),
 					errors: bot.wrong
 				});
 			}
 		}
 		botElapsedMs = elapsed;
 		stopBots();
-	}
-
-	function botLiveWpm(bot: LiveBot): number {
-		const seconds = Math.max(1, botElapsedMs / 1000);
-		return Math.round((bot.correct / 5) / (seconds / 60));
 	}
 
 	function botFinalWpm(bot: LiveBot): number {
@@ -389,9 +425,7 @@
 	let resultSeries = $derived.by<SpeedSeries[]>(() => {
 		const duration = finalTime || timer;
 		const userSamples =
-			samples.length > 1
-				? samples
-				: syntheticSamples(finalWpm, finalAccuracy / 100, duration);
+			samples.length > 1 ? samples : syntheticSamples(finalWpm, finalAccuracy / 100, duration);
 		return [
 			{
 				label: appState.user?.username ?? 'you',
@@ -466,6 +500,8 @@
 	});
 
 	let botCarets = $derived.by(() => {
+		// This map is a local lookup rebuilt by the derivation, not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const byIndex = new Map<number, LiveBot[]>();
 		for (const entry of botDisplays) {
 			const index = entry.display.cursor;
@@ -638,14 +674,12 @@
 	// ─── Shortcut actions ────────────────────────────────────────────────────
 	function nextLanguage() {
 		const i = LANGUAGES.indexOf(lang);
-		lang = LANGUAGES[(i + 1) % LANGUAGES.length];
-		resetGame();
+		setLanguage(LANGUAGES[(i + 1) % LANGUAGES.length]);
 	}
 
 	function nextTimer() {
 		const i = TIMES.indexOf(timer);
-		timer = TIMES[(i + 1) % TIMES.length];
-		resetGame();
+		setTimer(TIMES[(i + 1) % TIMES.length]);
 	}
 
 	// ─── Cursor helpers ──────────────────────────────────────────────────────
@@ -736,7 +770,7 @@
 	// ─── Input handling ──────────────────────────────────────────────────────
 	let inputRef: HTMLTextAreaElement;
 	function focusInput() {
-		inputRef?.focus();
+		inputRef?.focus({ preventScroll: true });
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -771,6 +805,26 @@
 		// While settings are open the typing surface is inert.
 		if (modalOpen) return;
 
+		const target = e.target instanceof HTMLElement ? e.target : null;
+		const control = target?.closest(
+			'button, a, select, input, textarea, summary, [contenteditable="true"]'
+		);
+		const onTypingInput = target === inputRef;
+
+		// If a real form control has focus, native keyboard behaviour wins.
+		// Letter keys on buttons/links still fall through so "type anywhere"
+		// keeps working, and we move focus back to the typing surface below.
+		if (control && !onTypingInput) {
+			if (
+				control instanceof HTMLSelectElement ||
+				control instanceof HTMLInputElement ||
+				(control instanceof HTMLTextAreaElement && control !== inputRef)
+			) {
+				return;
+			}
+			if (e.key === ' ' || e.key === 'Enter' || e.key === 'Tab') return;
+		}
+
 		if (e.key === 'Tab') {
 			e.preventDefault();
 			resetGame();
@@ -785,6 +839,7 @@
 		if (e.key === 'Backspace') {
 			e.preventDefault();
 			if (phase === 'idle' || cursor <= start_cursor) return;
+			focusInput();
 			const prev = Math.max(prevReal(cursor), start_cursor);
 			delete typed[prev];
 			cursor = prev;
@@ -793,6 +848,7 @@
 		}
 		if (e.key.length === 1) {
 			e.preventDefault();
+			focusInput();
 			if (phase === 'idle') startGame();
 			recordEvent(KeypressAction.KEYPRESS, e.key);
 			const pos = nextReal(cursor);
@@ -810,6 +866,7 @@
 	}
 
 	onMount(() => {
+		loadPrefs();
 		window.addEventListener('keydown', handleKeydown);
 		timeLeft = timer;
 		initCodegen().then(() => {
@@ -829,302 +886,445 @@
 
 <div class="flex h-screen flex-col overflow-hidden bg-(--bg)">
 	<!-- Top bar -->
-	<header class="flex items-center gap-4 border-b border-(--border) px-6 py-4">
-		<button
-			class="cursor-pointer border border-(--border) px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-(--silver)/55 uppercase transition-colors hover:border-(--mer) hover:text-(--mer)"
-			onclick={() => goto(resolve('/play'))}
-		>
-			← hub
-		</button>
-		<div class="title-text text-4xl leading-none text-(--silver)">OSDTYP</div>
-		<span
-			class="hidden font-mono text-[10px] tracking-widest text-(--silver)/35 uppercase sm:inline"
-		>
-			{zen ? 'zen' : 'singleplayer'}
-		</span>
+	<header class="border-b border-(--border)">
+		<div class="mx-auto flex h-14 w-full max-w-[80rem] items-center gap-3 px-4 md:px-6">
+			<a href={resolve('/play')} class="ui-btn ui-btn-sm" aria-label="Open the mode hub"> ← hub </a>
+			<a href={resolve('/play')} class="title-text text-3xl leading-none text-(--silver)">
+				OSDTYP
+			</a>
+			<span
+				class="hidden border border-(--border) px-2 py-0.5 font-mono text-[9px] tracking-[0.14em] text-(--silver)/45 uppercase sm:inline-block"
+			>
+				{zen ? 'zen' : 'practice'}
+			</span>
 
-		<div class="flex-1"></div>
+			<div class="flex-1"></div>
 
-		<!-- Live stats -->
-		<div class="flex items-center gap-5">
-			<div class="flex flex-col items-end">
-				<span
-					class="font-mono text-lg leading-none {phase === 'typing' && !zen && timeLeft <= 5
-						? 'text-(--red)'
-						: 'text-(--mer)'}">{zen ? '∞' : phase === 'idle' ? timer : timeLeft}</span
-				>
-				<span class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/35 uppercase"
-					>{zen ? 'zen' : 'timer'}</span
-				>
-			</div>
-			{#if !zen}
-				<div class="h-7 w-px bg-(--border)"></div>
+			<!-- Live stats -->
+			<div class="flex items-center gap-4">
 				<div class="flex flex-col items-end">
-					<span class="font-mono text-lg leading-none text-(--mer)"
-						>{phase === 'idle' ? '—' : phase === 'done' ? finalWpm : wpm}</span
+					<span
+						class="font-mono text-lg leading-none {phase === 'typing' && !zen && timeLeft <= 5
+							? 'text-(--red)'
+							: 'text-(--mer)'}">{zen ? '∞' : phase === 'idle' ? timer : timeLeft}</span
 					>
-					<span class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/35 uppercase"
-						>wpm</span
-					>
+					<span class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/40 uppercase">
+						{zen ? 'zen' : 'time'}
+					</span>
 				</div>
-			{/if}
-			<div class="h-7 w-px bg-(--border)"></div>
-			<div class="flex flex-col items-end">
-				<span class="font-mono text-lg leading-none text-(--mer)">{LANGUAGE_LABELS[lang]}</span>
-				<span class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/35 uppercase"
-					>language</span
+				{#if !zen}
+					<div class="h-7 w-px bg-(--border)"></div>
+					<div class="flex flex-col items-end">
+						<span class="font-mono text-lg leading-none text-(--mer)"
+							>{phase === 'idle' ? '—' : phase === 'done' ? finalWpm : wpm}</span
+						>
+						<span class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/40 uppercase">
+							wpm
+						</span>
+					</div>
+				{/if}
+			</div>
+
+			<div class="ml-1 flex items-center gap-2">
+				{#if appState.user}
+					<a
+						href={resolve(`/profile/${appState.user.username}`)}
+						class="ui-btn ui-btn-sm hidden max-w-36 truncate sm:inline-flex"
+						title="Your profile">{appState.user.username}</a
+					>
+				{:else}
+					<a
+						href={resolve(`/login?next=${encodeURIComponent(page.url.pathname)}` as '/login')}
+						class="ui-btn ui-btn-sm ui-btn-primary">sign in</a
+					>
+				{/if}
+				<button class="ui-btn ui-btn-sm" onclick={cycleTheme} title="Cycle theme (ctrl+shift+T)"
+					>{themeState.current}</button
+				>
+				<button class="ui-btn ui-btn-sm" onclick={() => (modalOpen = true)} title="Settings (esc)"
+					>settings</button
 				>
 			</div>
-		</div>
-
-		<div class="ml-2 flex items-center gap-2">
-			<button
-				class="cursor-pointer rounded border border-(--border) px-2.5 py-1 font-mono text-[11px] text-(--silver)/55 transition-colors hover:border-(--silver)/40 hover:text-(--silver)"
-				onclick={cycleTheme}
-				title="cycle theme (ctrl+shift+T)"
-			>
-				{themeState.current}
-			</button>
-			<button
-				class="cursor-pointer rounded border border-(--border) px-2.5 py-1 font-mono text-[11px] text-(--silver)/55 transition-colors hover:border-(--silver)/40 hover:text-(--silver)"
-				onclick={() => (modalOpen = true)}
-				title="settings (esc)"
-			>
-				settings
-			</button>
 		</div>
 	</header>
 
 	{#if modalOpen}
-		<SettingsModal bind:lang bind:timer bind:open={modalOpen} onchange={() => resetGame()} />
+		<SettingsModal bind:open={modalOpen} />
 	{/if}
 
 	<textarea
 		bind:this={inputRef}
-		class="pointer-events-none absolute resize-none opacity-0"
+		class="pointer-events-none fixed top-0 left-0 h-px w-px resize-none opacity-0"
 		autocomplete="off"
 		spellcheck="false"
-		rows="1"
+		aria-label="Typing test input"
+		tabindex="-1"
 	></textarea>
 
-	{#if !zen && phase === 'typing' && liveBots.length > 0}
-		<div
-			class="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-(--border) bg-(--fbg) px-6 py-2 font-mono text-[10px]"
-		>
-			<span class="tracking-[0.14em] text-(--silver)/30 uppercase">race</span>
-			{#each liveBots as bot (bot.id)}
-				<div class="flex items-center gap-1.5">
-					<span class="h-2 w-2" style={`background:${bot.color}`}></span>
-					<span class="text-(--silver)/70">{bot.label}</span>
-					<span class="text-(--mer)/60">{botLiveWpm(bot)} wpm</span>
-					<span class="text-(--silver)/22">{botProgress(bot)}%</span>
+	<main class="mx-auto flex min-h-0 w-full max-w-[80rem] flex-1 flex-col px-4 py-4 md:px-6">
+		<!-- Test toolbar: every setting that changes the test is here, in one row. -->
+		<div class="flex flex-wrap items-center gap-x-6 gap-y-3 pb-3">
+			<div class="flex items-center gap-2">
+				<label class="ui-label" for="test-language">language</label>
+				<select
+					id="test-language"
+					class="ui-select"
+					value={lang}
+					onchange={(e) => setLanguage(e.currentTarget.value as Language)}
+					disabled={phase === 'typing'}
+				>
+					{#each LANGUAGES as l (l)}
+						<option value={l}>{LANGUAGE_LABELS[l]}</option>
+					{/each}
+				</select>
+			</div>
+
+			{#if !zen}
+				<div class="flex items-center gap-2">
+					<span class="ui-label">timer</span>
+					<div class="flex items-center gap-1">
+						{#each TIMES as t (t)}
+							<button
+								class="ui-chip"
+								aria-pressed={timer === t}
+								onclick={() => setTimer(t)}
+								disabled={phase === 'typing'}
+							>
+								{t}s
+							</button>
+						{/each}
+					</div>
 				</div>
-			{/each}
-			<span class="ml-auto text-[9px] text-(--silver)/20">
-				bot pace follows your {racePaceBase} wpm form
-			</span>
+			{/if}
+
+			{#if !zen && !guest}
+				<div class="flex items-center gap-2">
+					<span class="ui-label">race</span>
+					<button class="ui-chip" aria-expanded={botsOpen} onclick={() => (botsOpen = !botsOpen)}>
+						{#if effectiveBots.length === 0}
+							solo
+						{:else}
+							{effectiveBots.length} bot{effectiveBots.length === 1 ? '' : 's'}
+						{/if}
+						<span aria-hidden="true">▾</span>
+					</button>
+				</div>
+			{/if}
+
+			<div class="ml-auto flex items-center gap-2">
+				<button class="ui-btn ui-btn-sm" onclick={resetGame} title="Restart (tab)">
+					restart <span class="kbd">tab</span>
+				</button>
+			</div>
 		</div>
-	{/if}
 
-	<!-- Code / results -->
-	<div class="relative min-h-0 flex-1 border-b border-(--border)" onclick={focusInput} role="none">
-		{#if phase === 'done'}
-			<div class="h-full overflow-y-auto">
-				<div class="flex min-h-full items-center justify-center px-8 py-5">
-					<div class="flex w-full max-w-5xl flex-col gap-5">
-						<!-- Headline -->
-						<div class="flex flex-wrap items-end gap-x-10 gap-y-4">
-							<div>
-								<div class="font-mono text-7xl leading-none text-(--mer)">{finalWpm}</div>
-								<div
-									class="mt-2 font-mono text-[10px] tracking-widest text-(--silver)/40 uppercase"
-								>
-									wpm
-								</div>
-							</div>
-							<div>
-								<div class="font-mono text-5xl leading-none text-(--silver)">{finalAccuracy}%</div>
-								<div
-									class="mt-2 font-mono text-[10px] tracking-widest text-(--silver)/40 uppercase"
-								>
-									acc
-								</div>
-							</div>
-							<div class="ml-auto text-right font-mono text-xs text-(--silver)/40">
-								{LANGUAGE_LABELS[lang]} · {finalTime}s
-							</div>
-						</div>
-
-						<ResultGraph {samples} duration={finalTime} />
-
-						{#if raceResults.length > 0}
-							<div class="border border-(--border) bg-(--fbg)">
-								<div class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-4 py-2.5">
-									<div>
-										<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase">
-											race result
-										</div>
-										<div class="mt-1 font-mono text-[9px] text-(--silver)/25">
-											bots calibrated from your last {racePaceRuns || 0} run{racePaceRuns === 1 ? '' : 's'} · base {racePaceBase} wpm
-										</div>
-									</div>
-									<div class="font-mono text-[9px] text-(--mer)/60 uppercase">
-										{raceResults.find((entry) => entry.isYou)?.place === 1 ? 'you took it' : 'chase them down'}
-									</div>
-								</div>
-								<div class="divide-y divide-(--border)">
-									{#each raceResults as entry (entry.id)}
-										<div
-											class={`flex flex-wrap items-center gap-3 px-4 py-2.5 ${entry.isYou ? 'bg-(--mer)/5' : ''}`}
-										>
-											<span class="w-5 font-mono text-[11px] text-(--silver)/30">{entry.place}</span>
-											<span class="h-2 w-2 shrink-0" style={`background:${entry.color}`}></span>
-											<span class="min-w-0 flex-1 truncate font-mono text-xs" style={`color:${entry.isYou ? 'var(--mer)' : 'var(--silver)'}`}>
-												{entry.label}
-											</span>
-											{#if entry.isYou}
-												<span class="font-mono text-[8px] tracking-[0.1em] text-(--mer)/50 uppercase">you</span>
-											{:else}
-												<span class="font-mono text-[8px] tracking-[0.1em] text-(--silver)/25 uppercase">bot</span>
-											{/if}
-											<span class="font-mono text-xs text-(--mer)">{entry.wpm} <span class="text-[8px] text-(--silver)/25">wpm</span></span>
-											<span class="font-mono text-[10px] text-(--silver)/35">{entry.accuracy}% acc</span>
-											<span class="font-mono text-[10px] text-(--silver)/25">{entry.progress}%</span>
-										</div>
-									{/each}
-								</div>
-							</div>
-						{/if}
-
-						{#if effectiveBots.length > 0}
-							<div class="border border-(--border) bg-(--fbg) px-3 py-2">
-								<div class="flex flex-wrap items-center justify-between gap-2 px-2 pt-1">
-									<div>
-										<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/40 uppercase">
-											combined speed · you + bots
-										</div>
-										<div class="mt-1 font-mono text-[9px] text-(--silver)/25">
-											coloured lines are the bots' actual simulated race
-										</div>
-									</div>
-									<div class="font-mono text-[9px] text-(--mer)/70 uppercase">
-										{effectiveBots.length} bot{effectiveBots.length === 1 ? '' : 's'}
-									</div>
-								</div>
-								<SpeedGraph series={resultSeries} duration={finalTime} />
-							</div>
-						{/if}
-
-						<!-- Secondary stats -->
-						<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-							<div class="border border-(--border) px-3 py-2">
-								<div class="font-mono text-xl text-(--silver)">{finalRawWpm}</div>
-								<div
-									class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/40 uppercase"
-								>
-									raw
-								</div>
-							</div>
-							<div class="border border-(--border) px-3 py-2">
-								<div class="font-mono text-xl text-(--mer)">{finalCorrect}</div>
-								<div
-									class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/40 uppercase"
-								>
-									correct
-								</div>
-							</div>
-							<div class="border border-(--border) px-3 py-2">
-								<div class="font-mono text-xl text-(--silver)">{finalWrong}</div>
-								<div
-									class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/40 uppercase"
-								>
-									mistakes
-								</div>
-							</div>
-							<div class="border border-(--border) px-3 py-2">
-								<div class="font-mono text-xl text-(--silver)">{finalTime}s</div>
-								<div
-									class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/40 uppercase"
-								>
-									time
-								</div>
-							</div>
-						</div>
-
-						<!-- Practice storage -->
-						{#if !guest}
-							<div class="flex flex-wrap items-center gap-3 border border-(--border) bg-(--fbg) px-3 py-2.5">
-								<span class="font-mono text-[10px] tracking-[0.12em] text-(--silver)/35 uppercase">
-									latest practice
-								</span>
-								{#if practiceSaving}
-									<span class="font-mono text-[11px] text-(--silver)/45">storing temporary run…</span>
-								{:else if practiceError}
-									<span class="font-mono text-[11px] text-(--red)">{practiceError}</span>
-								{:else if practiceSaved}
-									<span class="font-mono text-[11px] text-(--mer)">saved to profile</span>
-									<a
-										href={`/profile/${encodeURIComponent(appState.user?.username ?? '')}`}
-										class="font-mono text-[10px] text-(--silver)/40 underline-offset-2 hover:text-(--mer) hover:underline"
-										>view run =></a
-									>
-								{:else if practiceRun}
-									<span class="font-mono text-[11px] text-(--silver)/40">temporary · replaced next run</span>
-									<button
-										class="cursor-pointer border border-(--mer) px-3 py-1 font-mono text-[10px] tracking-[0.1em] text-(--mer) uppercase hover:bg-(--mer)/10 disabled:opacity-40"
-										onclick={saveRun}
-										disabled={practiceSaveBusy}
-										>{practiceSaveBusy ? 'saving…' : 'save run =>'}</button
-									>
-								{:else}
-									<span class="font-mono text-[11px] text-(--silver)/30">
-										no keystrokes stored
-									</span>
-								{/if}
-								<span class="ml-auto font-mono text-[9px] text-(--silver)/25">
-									temporary runs stay out of history until saved
-								</span>
-							</div>
-						{/if}
-
-						<!-- What next -->
-						<div
-							class="flex flex-wrap items-center gap-2 border-t border-(--border) pt-5"
+		{#if botsOpen && !zen}
+			<div class="mb-3 border border-(--border) bg-(--bg) p-3">
+				<div class="flex flex-wrap items-center justify-between gap-2">
+					<div class="flex items-center gap-2">
+						<span class="ui-label">practice rivals</span>
+						<span class="font-mono text-[10px] text-(--silver)/40">
+							{paceLoading
+								? 'calibrating pace…'
+								: `pace ${paceBase} wpm${paceRuns > 0 ? ` · last ${paceRuns} runs` : ' · default'}`}
+						</span>
+					</div>
+					<span class="font-mono text-[9px] text-(--silver)/30"> applies to the next run </span>
+				</div>
+				<div class="mt-2 flex flex-wrap gap-1.5">
+					{#each PRACTICE_BOTS as bot (bot.id)}
+						<button
+							class="ui-chip"
+							aria-pressed={selectedBots.includes(bot.id)}
+							onclick={() => toggleBot(bot.id)}
+							title={`${botTarget(bot.id)} wpm · ${bot.accuracy}% accuracy`}
 						>
-							<button class="result-action" onclick={resetGame}>
-								next test <span class="kbd">tab</span>
-							</button>
-							<button class="result-action" onclick={repeatTest}>repeat</button>
-							<button
-								class="result-action disabled:cursor-default disabled:opacity-40"
-								onclick={() => (replayOpen = true)}
-								disabled={!localRun}
-							>
-								replay
-							</button>
-							<button class="result-action" onclick={() => (modalOpen = true)}>
-								settings <span class="kbd">esc</span>
-							</button>
-							<button
-								class="result-action"
-								onclick={() => (exportOpen = true)}
-							>
-								export png
-							</button>
-							<button class="result-action" onclick={() => goto(resolve('/play'))}>hub</button>
-							<span class="ml-auto font-mono text-[11px] text-(--silver)/30">
-								ctrl+shift+t theme · ctrl+shift+l language
-							</span>
+							<span class="h-1.5 w-1.5 shrink-0" style={`background:${bot.color}`}></span>
+							{bot.label}
+							<span class="opacity-45">{botTarget(bot.id)}</span>
+						</button>
+					{/each}
+				</div>
+				<p class="mt-2 font-mono text-[9px] text-(--silver)/30">
+					Bot speeds follow an exponential moving average of your latest runs.
+				</p>
+			</div>
+		{/if}
+
+		<!-- The surface itself is a click target that returns focus to the
+		     hidden textarea. It is not a control, so the keyboard path is the
+		     global keydown handler above. -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="relative flex min-h-0 flex-1 flex-col border border-(--border) bg-(--fbg)"
+			role="group"
+			aria-label="Typing test"
+			onclick={(e) => {
+				const el = e.target as HTMLElement;
+				if (el.closest('button, a, select, input, summary')) return;
+				focusInput();
+			}}
+		>
+			<!-- Status strip -->
+			<div
+				class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-4 py-2 font-mono text-[10px] md:px-5"
+			>
+				<div class="flex min-w-0 items-center gap-2">
+					{#if !wasmReady}
+						<span class="h-1.5 w-1.5 bg-(--silver)/35"></span>
+						<span class="text-(--silver)/45">loading snippet…</span>
+					{:else if phase === 'idle'}
+						<span class="h-1.5 w-1.5 bg-(--mer)"></span>
+						<span class="font-bold tracking-[0.08em] text-(--mer) uppercase">start typing</span>
+						<span class="truncate text-(--silver)/40">
+							— the timer starts with your first keystroke
+						</span>
+					{:else if phase === 'typing'}
+						<span class="h-1.5 w-1.5 bg-(--mer)"></span>
+						<span class="text-(--silver)/55">{zen ? 'zen mode' : 'running'}</span>
+						<span class="truncate text-(--silver)/35">
+							· line {currentLine + 1} · {typingProgress}%
+						</span>
+					{:else}
+						<span class="h-1.5 w-1.5 bg-(--mer)"></span>
+						<span class="text-(--silver)/55">result</span>
+						<span class="text-(--silver)/35">· {LANGUAGE_LABELS[lang]} · {finalTime}s</span>
+					{/if}
+				</div>
+			</div>
+
+			{#if phase === 'done'}
+				<div class="min-h-0 flex-1 overflow-y-auto">
+					<div class="flex min-h-full items-center justify-center px-5 py-5 md:px-8">
+						<div class="flex w-full max-w-5xl flex-col gap-5">
+							<!-- Headline -->
+							<div class="flex flex-wrap items-end gap-x-10 gap-y-4">
+								<div>
+									<div class="font-mono text-7xl leading-none text-(--mer)">{finalWpm}</div>
+									<div
+										class="mt-2 font-mono text-[10px] tracking-widest text-(--silver)/45 uppercase"
+									>
+										wpm
+									</div>
+								</div>
+								<div>
+									<div class="font-mono text-5xl leading-none text-(--silver)">
+										{finalAccuracy}%
+									</div>
+									<div
+										class="mt-2 font-mono text-[10px] tracking-widest text-(--silver)/45 uppercase"
+									>
+										acc
+									</div>
+								</div>
+								<div class="ml-auto text-right font-mono text-xs text-(--silver)/45">
+									{LANGUAGE_LABELS[lang]} · {finalTime}s
+								</div>
+							</div>
+
+							<ResultGraph {samples} duration={finalTime} />
+
+							{#if raceResults.length > 0}
+								<div class="border border-(--border) bg-(--fbg)">
+									<div
+										class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-4 py-2.5"
+									>
+										<div>
+											<div
+												class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/45 uppercase"
+											>
+												race result
+											</div>
+											<div class="mt-1 font-mono text-[9px] text-(--silver)/30">
+												bots calibrated from your last {racePaceRuns || 0} run{racePaceRuns === 1
+													? ''
+													: 's'} · base {racePaceBase} wpm
+											</div>
+										</div>
+										<div class="font-mono text-[9px] text-(--mer)/70 uppercase">
+											{raceResults.find((entry) => entry.isYou)?.place === 1
+												? 'you took it'
+												: 'chase them down'}
+										</div>
+									</div>
+									<div class="divide-y divide-(--border)">
+										{#each raceResults as entry (entry.id)}
+											<div
+												class={`flex flex-wrap items-center gap-3 px-4 py-2.5 ${entry.isYou ? 'bg-(--mer)/5' : ''}`}
+											>
+												<span class="w-5 font-mono text-[11px] text-(--silver)/35">
+													{entry.place}
+												</span>
+												<span class="h-2 w-2 shrink-0" style={`background:${entry.color}`}></span>
+												<span
+													class="min-w-0 flex-1 truncate font-mono text-xs"
+													style={`color:${entry.isYou ? 'var(--mer)' : 'var(--silver)'}`}
+												>
+													{entry.label}
+												</span>
+												{#if entry.isYou}
+													<span
+														class="font-mono text-[8px] tracking-[0.1em] text-(--mer)/55 uppercase"
+														>you</span
+													>
+												{:else}
+													<span
+														class="font-mono text-[8px] tracking-[0.1em] text-(--silver)/30 uppercase"
+														>bot</span
+													>
+												{/if}
+												<span class="font-mono text-xs text-(--mer)"
+													>{entry.wpm}
+													<span class="text-[8px] text-(--silver)/30">wpm</span></span
+												>
+												<span class="font-mono text-[10px] text-(--silver)/40"
+													>{entry.accuracy}% acc</span
+												>
+												<span class="font-mono text-[10px] text-(--silver)/30"
+													>{entry.progress}%</span
+												>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/if}
+
+							{#if effectiveBots.length > 0}
+								<div class="border border-(--border) bg-(--fbg) px-3 py-2">
+									<div class="flex flex-wrap items-center justify-between gap-2 px-2 pt-1">
+										<div>
+											<div
+												class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/45 uppercase"
+											>
+												combined speed · you + bots
+											</div>
+											<div class="mt-1 font-mono text-[9px] text-(--silver)/30">
+												coloured lines are the bots' actual simulated race
+											</div>
+										</div>
+										<div class="font-mono text-[9px] text-(--mer)/70 uppercase">
+											{effectiveBots.length} bot{effectiveBots.length === 1 ? '' : 's'}
+										</div>
+									</div>
+									<SpeedGraph series={resultSeries} duration={finalTime} />
+								</div>
+							{/if}
+
+							<!-- Secondary stats -->
+							<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+								<div class="border border-(--border) px-3 py-2">
+									<div class="font-mono text-xl text-(--silver)">{finalRawWpm}</div>
+									<div
+										class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/45 uppercase"
+									>
+										raw
+									</div>
+								</div>
+								<div class="border border-(--border) px-3 py-2">
+									<div class="font-mono text-xl text-(--mer)">{finalCorrect}</div>
+									<div
+										class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/45 uppercase"
+									>
+										correct
+									</div>
+								</div>
+								<div class="border border-(--border) px-3 py-2">
+									<div class="font-mono text-xl text-(--silver)">{finalWrong}</div>
+									<div
+										class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/45 uppercase"
+									>
+										mistakes
+									</div>
+								</div>
+								<div class="border border-(--border) px-3 py-2">
+									<div class="font-mono text-xl text-(--silver)">{finalTime}s</div>
+									<div
+										class="mt-1 font-mono text-[10px] tracking-widest text-(--silver)/45 uppercase"
+									>
+										time
+									</div>
+								</div>
+							</div>
+
+							<!-- Practice storage -->
+							{#if !guest}
+								<div
+									class="flex flex-wrap items-center gap-3 border border-(--border) bg-(--fbg) px-3 py-2.5"
+								>
+									<span
+										class="font-mono text-[10px] tracking-[0.12em] text-(--silver)/40 uppercase"
+									>
+										latest practice
+									</span>
+									{#if practiceSaving}
+										<span class="font-mono text-[11px] text-(--silver)/50"
+											>storing temporary run…</span
+										>
+									{:else if practiceError}
+										<span class="font-mono text-[11px] text-(--red)">{practiceError}</span>
+									{:else if practiceSaved}
+										<span class="font-mono text-[11px] text-(--mer)">saved to profile</span>
+										<a
+											href={resolve(
+												`/profile/${encodeURIComponent(appState.user?.username ?? '')}`
+											)}
+											class="font-mono text-[10px] text-(--silver)/45 underline-offset-2 hover:text-(--mer) hover:underline"
+											>view run →</a
+										>
+									{:else if practiceRun}
+										<span class="font-mono text-[11px] text-(--silver)/45"
+											>temporary · replaced next run</span
+										>
+										<button
+											class="ui-btn ui-btn-sm ui-btn-primary"
+											onclick={saveRun}
+											disabled={practiceSaveBusy}
+											>{practiceSaveBusy ? 'saving…' : 'save run →'}</button
+										>
+									{:else}
+										<span class="font-mono text-[11px] text-(--silver)/35">
+											no keystrokes stored
+										</span>
+									{/if}
+									<span class="ml-auto font-mono text-[9px] text-(--silver)/30">
+										temporary runs stay out of history until saved
+									</span>
+								</div>
+							{/if}
+
+							<!-- What next -->
+							<div class="flex flex-wrap items-center gap-2 border-t border-(--border) pt-5">
+								<button class="ui-btn ui-btn-sm ui-btn-primary" onclick={resetGame}>
+									next test <span class="kbd">tab</span>
+								</button>
+								<button class="ui-btn ui-btn-sm" onclick={repeatTest}>repeat</button>
+								<button
+									class="ui-btn ui-btn-sm"
+									onclick={() => (replayOpen = true)}
+									disabled={!localRun}
+								>
+									replay
+								</button>
+								<button class="ui-btn ui-btn-sm" onclick={() => (modalOpen = true)}>
+									settings <span class="kbd">esc</span>
+								</button>
+								<button class="ui-btn ui-btn-sm" onclick={() => (exportOpen = true)}>
+									export png
+								</button>
+								<a class="ui-btn ui-btn-sm" href={resolve('/play')}>play hub</a>
+								<span class="ml-auto font-mono text-[10px] text-(--silver)/35">
+									ctrl+shift+t theme · ctrl+shift+l language
+								</span>
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-		{:else}
-			<!-- Code display -->
-			<div class="relative h-full border-l border-(--border)">
+			{:else}
+				<!-- Code display -->
 				<div
 					bind:this={codeContainer}
-					class="h-full overflow-hidden px-8 py-6 font-mono text-2xl leading-relaxed"
+					class="typing-scroll min-h-0 flex-1 overflow-hidden px-5 py-6 font-mono text-xl leading-relaxed md:px-8 md:text-2xl"
 				>
 					{#each lines as line, li (li)}
 						<div class="code-line" class:code-line-active={li === currentLine}>
@@ -1140,8 +1340,7 @@
 												>{#each carets as bot, depth (bot.id)}<span
 														class="bot-caret-mark"
 														style={`left:${depth * 3}px;background:${bot.color}`}
-													></span
-												>{/each}</span
+													></span>{/each}</span
 											>{/if}{display_chars[i]}</span
 									>
 								{/each}</span
@@ -1149,102 +1348,35 @@
 						</div>
 					{/each}
 				</div>
-			</div>
 
-			<!-- Idle overlay -->
-			{#if phase === 'idle'}
-				<div
-					class="absolute inset-0 flex items-center justify-center"
-					style="background: color-mix(in srgb, var(--bg) 52%, transparent);"
-				>
-					<div
-						class="flex flex-col items-center gap-3 rounded border border-(--border) bg-(--fbg) px-8 py-6"
-					>
-						<span class="font-mono text-sm tracking-widest text-(--silver)/70 uppercase">
-							press any key to begin
-						</span>
-						<span class="font-mono text-[11px] text-(--silver)/35">
-							<span class="kbd">tab</span> restart · <span class="kbd">esc</span> settings
-						</span>
-						{#if !guest && !zen}
-							<div class="mt-2 w-full border-t border-(--border) pt-3">
-								<div class="flex items-center justify-between gap-3">
-									<span class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase">
-										add bots · singleplayer
-									</span>
-									<span class="font-mono text-[9px] text-(--silver)/25">
-										{paceLoading
-											? 'calibrating pace…'
-											: `your pace ${paceBase} wpm${paceRuns > 0 ? ` · last ${paceRuns}` : ' · default'}`}
-									</span>
-								</div>
-								<div class="mt-2 flex flex-wrap justify-center gap-1.5">
-									{#each PRACTICE_BOTS as bot (bot.id)}
-										<button
-											class={`flex cursor-pointer items-center gap-1.5 border px-2 py-1 font-mono text-[10px] transition-colors ${
-												selectedBots.includes(bot.id)
-													? 'border-(--silver)/40 text-(--silver)'
-													: 'border-(--border) text-(--silver)/40 hover:border-(--silver)/40 hover:text-(--silver)'
-											}`}
-											onclick={() => toggleBot(bot.id)}
-											title={`${botTarget(bot.id)} wpm · ${bot.accuracy}% accuracy`}
-										>
-											<span
-												class="h-1.5 w-1.5 shrink-0"
-												style={`background:${bot.color}`}
-											></span>
-											{selectedBots.includes(bot.id) ? '−' : '+'} {bot.label}
-											<span class="text-[9px] opacity-50">{botTarget(bot.id)}</span>
-										</button>
-									{/each}
-								</div>
-								<div class="mt-1.5 text-center font-mono text-[9px] text-(--silver)/20">
-									bot speeds follow an exponential moving average of your latest runs
-								</div>
-							</div>
-						{/if}
-						{#if guest}
-							<a
-								href={loginHref}
-								class="mt-1 border border-(--border) px-3 py-1.5 font-mono text-[10px] tracking-[0.12em] text-(--silver)/45 uppercase transition-colors hover:border-(--mer) hover:text-(--mer)"
-							>
-								guest mode · sign up to save stats =>
-							</a>
-						{/if}
+				{#if !wasmReady}
+					<div class="absolute inset-0 flex items-center justify-center bg-(--bg)/50">
+						<div class="ui-card px-6 py-4 font-mono text-xs text-(--silver)/55">
+							loading the code generator…
+						</div>
 					</div>
-				</div>
+				{/if}
 			{/if}
-		{/if}
-	</div>
+		</div>
 
-	<!-- Shortcut bar -->
-	<div
-		class="flex flex-wrap items-center gap-x-5 gap-y-2 px-6 py-3 font-mono text-[11px] text-(--silver)/45"
-	>
-		<button
-			class="flex cursor-pointer items-center gap-2 transition-colors hover:text-(--silver)"
-			onclick={resetGame}
+		<!-- Footer hints -->
+		<div
+			class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] text-(--silver)/40"
 		>
-			<span class="kbd">tab</span> restart
-		</button>
-		<span class="flex items-center gap-2"><span class="kbd">esc</span> settings</span>
-		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+T</span> theme</span>
-		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+L</span> language</span>
-		<span class="flex items-center gap-2"><span class="kbd">ctrl+shift+S</span> timer</span>
-		{#if effectiveBots.length > 0 && !zen}
-			<span class="flex items-center gap-2 text-(--mer)/60">
-				bots: {effectiveBots.map((id) => botProfile(id).label).join(' · ')}
-			</span>
-		{/if}
-		{#if guest}
-			<a
-				href={loginHref}
-				class="ml-auto text-(--mer)/70 transition-colors hover:text-(--mer)"
-			>
-				guest mode · sign up for ranked + saved stats =>
-			</a>
-		{/if}
-	</div>
+			<span><span class="kbd">tab</span> restart</span>
+			<span><span class="kbd">esc</span> settings</span>
+			<span class="hidden sm:inline"><span class="kbd">ctrl+shift+l</span> language</span>
+			<span class="hidden sm:inline"><span class="kbd">ctrl+shift+s</span> timer</span>
+			{#if effectiveBots.length > 0 && !zen}
+				<span class="text-(--mer)/70">
+					bots: {effectiveBots.map((id) => botProfile(id).label).join(' · ')}
+				</span>
+			{/if}
+			{#if guest}
+				<span class="ml-auto text-(--silver)/35">guest mode · runs are not saved</span>
+			{/if}
+		</div>
+	</main>
 </div>
 
 {#if replayOpen && localRun}

@@ -2,7 +2,6 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import AuthGate from '$lib/components/AuthGate.svelte';
-	import BackKey from '$lib/components/BackKey.svelte';
 	import MobileLock from '$lib/components/MobileLock.svelte';
 	import { initTheme } from '$lib/core/theme.svelte';
 	import { MOBILE_QUERY, mobileAllowed } from '$lib/core/mobile';
@@ -193,9 +192,6 @@
 	</div>
 	{#if gated}
 		<AuthGate next={page.url.pathname + page.url.search} />
-	{/if}
-	{#if page.url.pathname !== '/' && page.url.pathname !== '/admin' && page.status < 400}
-		<BackKey />
 	{/if}
 {/if}
 

@@ -142,7 +142,176 @@ body {
 	font-size: 10px;
 	line-height: 1.5;
 	white-space: nowrap;
+	color: color-mix(in srgb, var(--silver) 62%, transparent);
+}
+
+/* ── Shared UI primitives ────────────────────────────────────────────────
+   The app used to repeat long utility strings (and slightly different
+   variants) on every page. These keep the primary actions, controls and
+   labels consistent and readable across the hub, login and typing pages.
+   ---------------------------------------------------------------------- */
+.ui-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	border: 1px solid var(--border);
+	background: transparent;
+	padding: 0.55rem 0.9rem;
+	font-family: 'Fira Code', monospace;
+	font-size: 11px;
+	line-height: 1.2;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: color-mix(in srgb, var(--silver) 62%, transparent);
+	cursor: pointer;
+	transition:
+		border-color 0.15s ease,
+		color 0.15s ease,
+		background-color 0.15s ease;
+}
+.ui-btn:hover {
+	border-color: color-mix(in srgb, var(--silver) 45%, transparent);
+	color: var(--silver);
+}
+.ui-btn:disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+.ui-btn-primary {
+	border-color: var(--mer);
+	color: var(--mer);
+	background: color-mix(in srgb, var(--mer) 7%, transparent);
+}
+.ui-btn-primary:hover {
+	border-color: var(--mer);
+	color: var(--bg);
+	background: var(--mer);
+}
+.ui-btn-quiet {
+	border-color: transparent;
+	padding: 0.35rem 0.5rem;
+	letter-spacing: 0.04em;
+	text-transform: none;
+	color: color-mix(in srgb, var(--silver) 52%, transparent);
+}
+.ui-btn-quiet:hover {
+	border-color: var(--border);
+	color: var(--silver);
+}
+.ui-btn-sm {
+	padding: 0.35rem 0.6rem;
+	font-size: 10px;
+}
+
+.ui-card {
+	border: 1px solid var(--border);
+	background: var(--fbg);
+}
+
+.ui-label {
+	font-family: 'Fira Code', monospace;
+	font-size: 10px;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: color-mix(in srgb, var(--silver) 52%, transparent);
+}
+
+.ui-hint {
+	font-family: 'Fira Code', monospace;
+	font-size: 11px;
+	line-height: 1.6;
+	color: color-mix(in srgb, var(--silver) 52%, transparent);
+}
+
+.ui-input,
+.ui-select {
+	width: 100%;
+	border: 1px solid var(--border);
+	background: var(--bg);
+	padding: 0.55rem 0.7rem;
+	font-family: 'Fira Code', monospace;
+	font-size: 13px;
+	line-height: 1.3;
+	color: var(--silver);
+	outline: none;
+}
+.ui-input::placeholder {
+	color: color-mix(in srgb, var(--silver) 30%, transparent);
+}
+.ui-input:focus,
+.ui-select:focus {
+	border-color: var(--mer);
+}
+.ui-select {
+	width: auto;
+	cursor: pointer;
+	padding: 0.3rem 1.8rem 0.3rem 0.55rem;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.ui-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	border: 1px solid var(--border);
+	background: transparent;
+	padding: 0.3rem 0.6rem;
+	font-family: 'Fira Code', monospace;
+	font-size: 10px;
+	line-height: 1.2;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
 	color: color-mix(in srgb, var(--silver) 55%, transparent);
+	cursor: pointer;
+	transition:
+		border-color 0.15s ease,
+		color 0.15s ease,
+		background-color 0.15s ease;
+}
+.ui-chip:hover {
+	border-color: color-mix(in srgb, var(--silver) 42%, transparent);
+	color: var(--silver);
+}
+.ui-chip:disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+.ui-chip[aria-pressed='true'] {
+	border-color: color-mix(in srgb, var(--mer) 65%, transparent);
+	background: color-mix(in srgb, var(--mer) 8%, transparent);
+	color: var(--mer);
+}
+
+.ui-eyebrow {
+	font-family: 'Fira Code', monospace;
+	font-size: 10px;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--mer);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+	outline: 2px solid var(--mer);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
 }
 
 /* ── Syntax highlighting ─────────────────────────────────────────────────
@@ -191,6 +360,23 @@ body {
 	min-width: 0;
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+/* Soften the partially scrolled line at the top/bottom of the snippet. */
+.typing-scroll {
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		transparent 0,
+		#000 18px,
+		#000 calc(100% - 18px),
+		transparent 100%
+	);
+	mask-image: linear-gradient(
+		to bottom,
+		transparent 0,
+		#000 18px,
+		#000 calc(100% - 18px),
+		transparent 100%
+	);
 }
 .line-no {
 	flex: 0 0 auto;
