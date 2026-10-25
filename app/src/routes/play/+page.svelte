@@ -117,6 +117,7 @@
 				{#if user}
 					<a href={resolve('/leaderboard')} class="ui-btn ui-btn-sm">leaderboard</a>
 					<a href={resolve('/friends')} class="ui-btn ui-btn-sm">friends</a>
+					<a href={resolve('/settings')} class="ui-btn ui-btn-sm">settings</a>
 					<a
 						href={resolve(`/profile/${user.username}`)}
 						class="ui-btn ui-btn-sm flex max-w-48 items-center gap-2 normal-case"
@@ -174,8 +175,38 @@
 
 		<div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
 			<div class="flex min-w-0 flex-col gap-4">
+				<!-- Phones are a companion surface: no typing actions. -->
+				<section
+					class="ui-card p-6 md:hidden"
+					style="border-top-color: var(--mer);"
+					aria-label="Mobile companion"
+				>
+					<div class="ui-eyebrow">phone companion</div>
+					<h1 class="title-text mt-2 text-5xl leading-[0.9] text-(--silver)">
+						WATCH.<br />DON'T TYPE.
+					</h1>
+					<p class="mt-3 font-mono text-[11px] leading-relaxed text-(--silver)/50">
+						The typing arena is desktop-only. Your phone keeps the ladder, contests, friends,
+						profiles and shared replays within reach.
+					</p>
+					<div class="mt-5 grid grid-cols-2 gap-2">
+						<a href={resolve('/leaderboard')} class="ui-btn ui-btn-sm justify-center">leaderboard</a>
+						<a href={resolve('/contests')} class="ui-btn ui-btn-sm justify-center">contests</a>
+						{#if user}
+							<a href={resolve('/friends')} class="ui-btn ui-btn-sm justify-center">friends</a>
+							<a href={resolve('/settings')} class="ui-btn ui-btn-sm justify-center">settings</a>
+						{:else}
+							<a
+								href={resolve(`/login?next=${encodeURIComponent('/play')}` as '/login')}
+								class="ui-btn ui-btn-sm justify-center">sign in</a
+							>
+							<a href={resolve('/docs')} class="ui-btn ui-btn-sm justify-center">docs</a>
+						{/if}
+					</div>
+				</section>
+
 				<!-- Primary action: the one thing a new visitor should do. -->
-				<section class="ui-card p-6 md:p-8" style="border-top-color: var(--mer);">
+				<section class="ui-card p-6 md:p-8 max-md:hidden" style="border-top-color: var(--mer);">
 					<div class="ui-eyebrow">practice · free</div>
 					<div class="mt-2 flex flex-wrap items-start justify-between gap-4">
 						<div class="min-w-0">
@@ -204,7 +235,7 @@
 					</div>
 				</section>
 
-				<section aria-label="Other modes" class="grid gap-3 sm:grid-cols-3">
+				<section aria-label="Other modes" class="grid gap-3 max-md:hidden sm:grid-cols-3">
 					{#each modes as mode (mode.name)}
 						<a
 							href={resolve(
@@ -358,6 +389,7 @@
 				</p>
 			</div>
 			<nav class="flex flex-wrap gap-2 font-mono text-[9px] uppercase">
+				<a href={resolve('/welcome')} class="ui-btn ui-btn-sm">features</a>
 				<a href="https://osdc.dev/" target="_blank" rel="noreferrer" class="ui-btn ui-btn-sm"
 					>osdc.dev</a
 				>

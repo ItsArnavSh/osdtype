@@ -43,6 +43,9 @@ func (s *ServiceLayer) Friends(ctx context.Context, uid uint32) ([]FriendView, e
 			continue
 		}
 		online, _ := s.rdb().IsOnline(ctx, id)
+		if u.HideOnline {
+			online = false
+		}
 		followsYou, _ := s.db.IsFollowing(ctx, id, uid)
 		out = append(out, FriendView{User: entity.NewUserView(u), Online: online, IsFriend: true, Follows: followsYou})
 		seen[id] = true
@@ -56,6 +59,9 @@ func (s *ServiceLayer) Friends(ctx context.Context, uid uint32) ([]FriendView, e
 			continue
 		}
 		online, _ := s.rdb().IsOnline(ctx, id)
+		if u.HideOnline {
+			online = false
+		}
 		followsYou, _ := s.db.IsFollowing(ctx, id, uid)
 		out = append(out, FriendView{User: entity.NewUserView(u), Online: online, Follows: followsYou})
 	}

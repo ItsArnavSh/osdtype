@@ -26,6 +26,7 @@
 	let isOwn = $derived(data?.user.id === appState.user?.id);
 	let pinned = $derived(data?.pinned ?? []);
 	let history = $derived(data?.history ?? []);
+	let canReplay = $derived(isOwn || (data?.replays_visible ?? false));
 
 	async function load(showSpinner = true) {
 		if (showSpinner) loading = true;
@@ -141,50 +142,86 @@
 
 <svelte:head><title>{username} · profile · OSDTYP</title></svelte:head>
 
+{#snippet bestBody(match: MatchHistory)}
+	<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase">
+		top wpm
+	</div>
+	<div class="mt-1 flex items-end gap-2">
+		<span class="font-mono text-4xl text-(--mer)">{fmtWpm(data?.top_wpm ?? 0)}</span>
+		<span class="mb-1 font-mono text-[10px] text-(--silver)/35">wpm</span>
+	</div>
+	<div class="mt-4 truncate text-base text-(--silver)">{runTitle(match)}</div>
+	{#if match.run_description}
+		<p class="mt-1 line-clamp-3 font-mono text-[11px] leading-relaxed text-(--silver)/40">
+			{match.run_description}
+		</p>
+	{/if}
+	<div
+		class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35"
+	>
+		<span>{runMode(match)}</span>
+		<span>{fmtDate(match.played_at)}</span>
+		<span>{Math.round(match.accuracy * 100)}%</span>
+		{#if canReplay}
+			<span class="ml-auto text-(--mer)/50">replay =></span>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet runBody(match: MatchHistory)}
+	<div class="flex flex-wrap items-center gap-2">
+		<span class="truncate text-base text-(--silver)">{runTitle(match)}</span>
+		{#if match.pinned}
+			<span
+				class="border border-(--mer)/35 px-1.5 py-0.5 font-mono text-[8px] tracking-[0.1em] text-(--mer)/70 uppercase"
+				>pinned</span
+			>
+		{/if}
+	</div>
+	{#if match.run_description}
+		<p class="mt-1 line-clamp-2 font-mono text-[11px] leading-relaxed text-(--silver)/40">
+			{match.run_description}
+		</p>
+	{/if}
+	<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35">
+		<span class="text-(--silver)/50">{runMode(match)}</span>
+		<span>{fmtDate(match.played_at)}</span>
+		<span class="text-(--mer)/80">{fmtWpm(match.wpm)} wpm</span>
+		<span>{Math.round(match.accuracy * 100)}%</span>
+		{#if match.mode !== 'practice'}
+			<span>#{match.rank}/{match.players}</span>
+		{:else}
+			<span class="text-(--mer)/50">solo</span>
+		{/if}
+		<span>{LANGUAGE_LABELS[match.language] ?? match.language}</span>
+		{#if match.mode === 'ranked'}
+			<span class={match.rating_delta >= 0 ? 'text-(--mer)' : 'text-(--red)'}>
+				{delta(match.rating_delta)} elo
+			</span>
+		{/if}
+		{#if match.flagged}<span class="text-(--red)/70">flagged</span>{/if}
+		{#if canReplay}
+			<span class="ml-auto text-(--mer)/35 group-hover:text-(--mer)/70 max-md:ml-0"
+				>replay =></span
+			>
+		{/if}
+	</div>
+{/snippet}
+
 {#snippet runCard(match: MatchHistory)}
 	<div
 		class="group border border-(--border) bg-(--fbg) p-4 transition-colors hover:border-(--mer)/45"
 	>
 		<div class="flex items-start gap-4 max-md:flex-col max-md:gap-3">
-			<a href={replayHref(match)} class="min-w-0 flex-1" title="open replay">
-				<div class="flex flex-wrap items-center gap-2">
-					<span class="truncate text-base text-(--silver)">{runTitle(match)}</span>
-					{#if match.pinned}
-						<span
-							class="border border-(--mer)/35 px-1.5 py-0.5 font-mono text-[8px] tracking-[0.1em] text-(--mer)/70 uppercase"
-							>pinned</span
-						>
-					{/if}
+			{#if canReplay}
+				<a href={replayHref(match)} class="min-w-0 flex-1" title="open replay">
+					{@render runBody(match)}
+				</a>
+			{:else}
+				<div class="min-w-0 flex-1">
+					{@render runBody(match)}
 				</div>
-				{#if match.run_description}
-					<p class="mt-1 line-clamp-2 font-mono text-[11px] leading-relaxed text-(--silver)/40">
-						{match.run_description}
-					</p>
-				{/if}
-				<div
-					class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35"
-				>
-					<span class="text-(--silver)/50">{runMode(match)}</span>
-					<span>{fmtDate(match.played_at)}</span>
-					<span class="text-(--mer)/80">{fmtWpm(match.wpm)} wpm</span>
-					<span>{Math.round(match.accuracy * 100)}%</span>
-					{#if match.mode !== 'practice'}
-						<span>#{match.rank}/{match.players}</span>
-					{:else}
-						<span class="text-(--mer)/50">solo</span>
-					{/if}
-					<span>{LANGUAGE_LABELS[match.language] ?? match.language}</span>
-					{#if match.mode === 'ranked'}
-						<span class={match.rating_delta >= 0 ? 'text-(--mer)' : 'text-(--red)'}>
-							{delta(match.rating_delta)} elo
-						</span>
-					{/if}
-					{#if match.flagged}<span class="text-(--red)/70">flagged</span>{/if}
-					<span class="ml-auto text-(--mer)/35 group-hover:text-(--mer)/70 max-md:ml-0"
-						>replay =></span
-					>
-				</div>
-			</a>
+			{/if}
 			{#if isOwn}
 				<div class="flex shrink-0 flex-wrap justify-end gap-1 max-md:w-full max-md:justify-start">
 					<button
@@ -250,11 +287,22 @@
 					/>
 					<div class="min-w-0 flex-1">
 						<div class="flex flex-wrap items-center gap-3">
-							<h1 class="truncate text-3xl text-(--silver)">{data.user.username}</h1>
+							<h1 class="truncate text-3xl text-(--silver)">
+								{data.user.display_name || data.user.username}
+							</h1>
+							{#if data.user.display_name && !data.anonymous}
+								<span class="font-mono text-[11px] text-(--silver)/35">@{data.user.username}</span>
+							{/if}
 							{#if data.user.is_bot}
 								<span
 									class="border border-(--border) px-2 py-0.5 font-mono text-[9px] text-(--silver)/30 uppercase"
 									>bot</span
+								>
+							{/if}
+							{#if data.anonymous}
+								<span
+									class="border border-(--mer)/40 px-2 py-0.5 font-mono text-[9px] text-(--mer) uppercase"
+									>anonymous</span
 								>
 							{/if}
 							{#if isOwn}
@@ -275,6 +323,11 @@
 								<span class="font-mono text-[9px] text-(--silver)/30 lowercase">follows you</span>
 							{/if}
 						</div>
+						{#if data.user.bio && !data.anonymous}
+							<p class="mt-2 max-w-2xl font-mono text-[11px] leading-relaxed text-(--silver)/50">
+								{data.user.bio}
+							</p>
+						{/if}
 						<div
 							class="mt-2 flex flex-wrap items-center gap-4 font-mono text-[11px] text-(--silver)/45"
 						>
@@ -295,9 +348,9 @@
 						>
 					{:else}
 						<a
-							href={resolve('/play')}
+							href={resolve('/settings')}
 							class="border border-(--mer) px-4 py-2 font-mono text-xs text-(--mer) hover:bg-(--mer)/10 max-md:w-full max-md:text-center"
-							>play =></a
+							>settings =></a
 						>
 					{/if}
 				</div>
@@ -408,34 +461,18 @@
 							best run
 						</div>
 						{#if data.best}
-							<a
-								href={replayHref(data.best)}
-								class="block p-5 transition-colors hover:bg-(--mer)/5"
-							>
-								<div class="font-mono text-[9px] tracking-[0.14em] text-(--silver)/30 uppercase">
-									top wpm
-								</div>
-								<div class="mt-1 flex items-end gap-2">
-									<span class="font-mono text-4xl text-(--mer)">{fmtWpm(data.top_wpm)}</span>
-									<span class="mb-1 font-mono text-[10px] text-(--silver)/35">wpm</span>
-								</div>
-								<div class="mt-4 truncate text-base text-(--silver)">{runTitle(data.best)}</div>
-								{#if data.best.run_description}
-									<p
-										class="mt-1 line-clamp-3 font-mono text-[11px] leading-relaxed text-(--silver)/40"
-									>
-										{data.best.run_description}
-									</p>
-								{/if}
-								<div
-									class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-(--silver)/35"
+							{#if canReplay}
+								<a
+									href={replayHref(data.best)}
+									class="block p-5 transition-colors hover:bg-(--mer)/5"
 								>
-									<span>{runMode(data.best)}</span>
-									<span>{fmtDate(data.best.played_at)}</span>
-									<span>{Math.round(data.best.accuracy * 100)}%</span>
-									<span class="ml-auto text-(--mer)/50">replay =></span>
+									{@render bestBody(data.best)}
+								</a>
+							{:else}
+								<div class="block p-5">
+									{@render bestBody(data.best)}
 								</div>
-							</a>
+							{/if}
 						{:else}
 							<div class="p-5 font-mono text-[11px] text-(--silver)/30">No finished runs yet.</div>
 						{/if}

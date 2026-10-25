@@ -2,12 +2,12 @@ import type { MatchHistory } from './api/types';
 
 /** The three practice rivals. Their pace is not fixed: it is derived from the
  *  player's recent form, then scaled into three difficulty bands. */
-export type PracticeBotID = 'lewis' | 'max' | 'lance';
+export type PracticeBotID = 'ace' | 'nova' | 'rune';
 
 export interface PracticeBotProfile {
 	id: PracticeBotID;
 	label: string;
-	/** F1-inspired identity colours: Ferrari red, Red Bull blue, Aston green. */
+	/** Racing-inspired identity colours: warm red, deep blue, racing green. */
 	color: string;
 	/** Speed multiplier applied to the player's form. */
 	factor: number;
@@ -18,24 +18,24 @@ export interface PracticeBotProfile {
 
 export const PRACTICE_BOTS: PracticeBotProfile[] = [
 	{
-		id: 'lewis',
-		label: 'Lewis',
+		id: 'ace',
+		label: 'Ace',
 		color: '#e8322e',
 		factor: 0.86,
 		offset: 4,
 		accuracy: 98
 	},
 	{
-		id: 'max',
-		label: 'Max',
+		id: 'nova',
+		label: 'Nova',
 		color: '#3f7cff',
 		factor: 1,
 		offset: 4,
 		accuracy: 97
 	},
 	{
-		id: 'lance',
-		label: 'Lance',
+		id: 'rune',
+		label: 'Rune',
 		color: '#24b47e',
 		factor: 1.14,
 		offset: 4,

@@ -42,6 +42,11 @@ func (s *ServiceLayer) CreatePracticeRun(ctx context.Context, uid uint32, req Pr
 	if req.StartOffset < 0 || req.StartOffset > len(req.Snippet) {
 		return entity.PracticeRunView{}, errf(ErrBadRequest, "invalid start offset")
 	}
+	// "Save no data" means exactly that for solo practice: there is no score
+	// or opponent to preserve, so keep neither the game row nor the recording.
+	if !user.SaveRunData {
+		return entity.PracticeRunView{Temporary: true}, nil
+	}
 
 	events := append([]entity.Keypress(nil), req.Events...)
 	sort.SliceStable(events, func(i, j int) bool { return events[i].TimeMS < events[j].TimeMS })
@@ -101,6 +106,7 @@ func (s *ServiceLayer) CreatePracticeRun(ctx context.Context, uid uint32, req Pr
 		Placement:     1,
 		Finished:      true,
 		Acked:         true,
+		Hidden:        !user.SaveRunData,
 	}
 	raw, err := json.Marshal(events)
 	if err != nil {
@@ -124,6 +130,13 @@ func (s *ServiceLayer) CreatePracticeRun(ctx context.Context, uid uint32, req Pr
 }
 
 func (s *ServiceLayer) SavePracticeRun(ctx context.Context, uid, gameID uint32) (entity.PracticeRunView, error) {
+	user, err := s.GetUser(ctx, uid)
+	if err != nil {
+		return entity.PracticeRunView{}, err
+	}
+	if !user.SaveRunData {
+		return entity.PracticeRunView{}, errf(ErrForbidden, "run saving is turned off in account settings")
+	}
 	saved, err := s.db.SavePracticeRun(ctx, gameID, uid)
 	if err != nil {
 		return entity.PracticeRunView{}, err
@@ -131,6 +144,7 @@ func (s *ServiceLayer) SavePracticeRun(ctx context.Context, uid, gameID uint32) 
 	if !saved {
 		return entity.PracticeRunView{}, errf(ErrNotFound, "practice run not found")
 	}
+	_, _ = s.db.PruneUserMatchHistory(ctx, uid, entity.MatchRetentionLimit)
 	return entity.PracticeRunView{
 		ID:        gameID,
 		Temporary: false,

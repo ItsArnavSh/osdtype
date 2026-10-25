@@ -31,6 +31,12 @@ func (d *Database) SaveUser(ctx context.Context, user entity.User) error {
 	return d.db.WithContext(ctx).Save(&user).Error
 }
 
+// UpdateUserFields applies account-setting changes without rewriting cached
+// ratings or game statistics from a stale user struct.
+func (d *Database) UpdateUserFields(ctx context.Context, uid uint32, fields map[string]any) error {
+	return d.db.WithContext(ctx).Model(&entity.User{}).Where("id = ?", uid).Updates(fields).Error
+}
+
 func (d *Database) GetUser(userid uint32) (entity.User, error) {
 	var user entity.User
 	if err := d.db.First(&user, "id = ?", userid).Error; err != nil {

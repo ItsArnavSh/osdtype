@@ -718,6 +718,9 @@ func (s *ServiceLayer) InviteUser(ctx context.Context, uid uint32, code string, 
 	if target.ID == uid {
 		return entity.InviteView{}, errf(ErrBadRequest, "you are already in this room")
 	}
+	if target.DoNotDisturb {
+		return entity.InviteView{}, errf(ErrForbidden, "this player has do not disturb turned on")
+	}
 	if _, err := s.db.GetMember(ctx, room.ID, target.ID); err == nil {
 		return entity.InviteView{}, errf(ErrConflict, "user is already in this room")
 	}

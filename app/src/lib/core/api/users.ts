@@ -4,6 +4,8 @@ import type {
 	FriendView,
 	LeaderboardSearchView,
 	LeaderboardView,
+	ProfileSettings,
+	ProfileSettingsInput,
 	ProfileView,
 	RunMetaInput,
 	UserView
@@ -55,4 +57,26 @@ export async function searchUsers(q: string): Promise<UserView[]> {
 		`${ENDPOINTS.SEARCH_USERS}?q=${encodeURIComponent(q)}&limit=10`
 	);
 	return res.users ?? [];
+}
+
+export function profileSettings(): Promise<ProfileSettings> {
+	return api<ProfileSettings>(ENDPOINTS.USER_SETTINGS);
+}
+
+export function updateProfileSettings(input: ProfileSettingsInput): Promise<ProfileSettings> {
+	return api<ProfileSettings>(ENDPOINTS.USER_SETTINGS, { method: 'PATCH', body: input });
+}
+
+export function exportAccountData(): Promise<Record<string, unknown>> {
+	return api<Record<string, unknown>>(ENDPOINTS.USER_EXPORT);
+}
+
+export function deleteRunHistory(): Promise<{
+	deleted: number;
+	pinned_kept: boolean;
+	best_kept: boolean;
+}> {
+	return api<{ deleted: number; pinned_kept: boolean; best_kept: boolean }>(ENDPOINTS.USER_RUNS, {
+		method: 'DELETE'
+	});
 }

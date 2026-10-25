@@ -21,6 +21,8 @@ export type ClockKey = '30' | '90' | '300';
 export interface UserView {
 	id: number;
 	username: string;
+	display_name?: string;
+	bio?: string;
 	avatar_url: string;
 	rating: number;
 	peak_rating: number;
@@ -28,6 +30,8 @@ export interface UserView {
 	wins: number;
 	is_bot: boolean;
 	is_admin?: boolean;
+	// Present only on the signed-in user's self view.
+	save_run_data?: boolean;
 	ratings: Record<ClockKey, EloView>;
 	best_duration: number;
 }
@@ -166,6 +170,7 @@ export interface MatchHistory {
 	user_id: number;
 	mode: GameMode;
 	room_code?: string;
+	room_private?: boolean;
 	language: string;
 	duration: number;
 	wpm: number;
@@ -193,6 +198,8 @@ export interface ProfileView {
 	is_friend: boolean;
 	is_followed: boolean;
 	follows_you: boolean;
+	replays_visible: boolean;
+	anonymous: boolean;
 }
 
 export interface FriendView {
@@ -201,6 +208,48 @@ export interface FriendView {
 	is_friend: boolean;
 	follows_you: boolean;
 }
+
+export type ProfileVisibility = 'public' | 'anonymous' | 'private';
+export type RunSharing = 'all' | 'pinned' | 'none';
+
+export interface ProfileSettings {
+	username: string;
+	display_name: string;
+	bio: string;
+	profile_visibility: ProfileVisibility;
+	do_not_disturb: boolean;
+	hide_online: boolean;
+	share_runs: RunSharing;
+	share_ranked: boolean;
+	share_rooms: boolean;
+	share_practice: boolean;
+	share_contests: boolean;
+	hide_private_rooms: boolean;
+	share_replays: boolean;
+	save_run_data: boolean;
+	retention_limit: number;
+	retention_keeps_pinned: boolean;
+	retention_keeps_best: boolean;
+}
+
+export type ProfileSettingsInput = Partial<
+	Pick<
+		ProfileSettings,
+		| 'display_name'
+		| 'bio'
+		| 'profile_visibility'
+		| 'do_not_disturb'
+		| 'hide_online'
+		| 'share_runs'
+		| 'share_ranked'
+		| 'share_rooms'
+		| 'share_practice'
+		| 'share_contests'
+		| 'hide_private_rooms'
+		| 'share_replays'
+		| 'save_run_data'
+	>
+>;
 
 export interface LeaderboardRow {
 	position: number;

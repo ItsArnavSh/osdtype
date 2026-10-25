@@ -1,11 +1,14 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"osdtyp/app/api/auth"
 	"osdtyp/app/core/hub"
+	"osdtyp/app/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -145,6 +148,75 @@ func (s *Server) profile(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, profile)
+}
+
+func (s *Server) getProfileSettings(c *gin.Context) {
+	uid, err := auth.GetUserID(c)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	settings, err := s.services.ProfileSettings(c, uid)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, settings)
+}
+
+func (s *Server) updateProfileSettings(c *gin.Context) {
+	uid, err := auth.GetUserID(c)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	var req services.ProfileSettingsRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	settings, err := s.services.UpdateProfileSettings(c, uid, req)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, settings)
+}
+
+func (s *Server) exportUserData(c *gin.Context) {
+	uid, err := auth.GetUserID(c)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	export, err := s.services.ExportUserData(c, uid)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	payload, err := json.MarshalIndent(export, "", "  ")
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="osdtyp-%d-export.json"`, uid))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
+}
+
+func (s *Server) deleteRunHistory(c *gin.Context) {
+	uid, err := auth.GetUserID(c)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	deleted, err := s.services.DeleteRunHistory(c, uid)
+	if err != nil {
+		s.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": deleted, "pinned_kept": true, "best_kept": true})
 }
 
 func (s *Server) leaderboard(c *gin.Context) {

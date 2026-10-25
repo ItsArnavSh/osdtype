@@ -36,7 +36,8 @@
 			</h1>
 			<p class="mt-4 font-mono text-xs leading-relaxed text-(--silver)/45">
 				Ranked, rooms, practice, Zen and live games are locked on phones for now. The phone build
-				keeps profiles, shared replays, friends, leaderboards, docs and bug reports open.
+				keeps contests, profiles, shared replays, friends, leaderboards, docs, settings and bug reports
+				open. Admins can also reach the admin desk from the hub.
 			</p>
 			<p class="mt-3 font-mono text-[10px] leading-relaxed text-(--silver)/25">
 				requested: <span class="text-(--silver)/40">{path}</span> · open the desktop build to continue.
@@ -63,6 +64,11 @@
 						href={ladderHref}
 						class="border border-(--border) px-4 py-2.5 text-center font-mono text-xs text-(--silver)/55 hover:border-(--mer) hover:text-(--mer)"
 						>leaderboard</a
+					>
+					<a
+						href={resolve('/settings')}
+						class="border border-(--border) px-4 py-2.5 text-center font-mono text-xs text-(--silver)/55 hover:border-(--mer) hover:text-(--mer)"
+						>settings</a
 					>
 				{/if}
 				<a

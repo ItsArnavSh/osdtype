@@ -58,17 +58,17 @@ bot_after_seconds = 20
 [Contests]
 lobby_minutes = 2
 
-[Bots.LEWIS]
+[Bots.ACE]
 accuracy = 95
 relative_speed = 1.2
 rating = 600
 
-[Bots.MAX]
+[Bots.NOVA]
 accuracy = 85
 relative_speed = 1.5
 rating = 500
 
-[Bots.LANCE]
+[Bots.RUNE]
 accuracy = 75
 relative_speed = 1.8
 rating = 400

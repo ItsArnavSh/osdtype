@@ -43,9 +43,13 @@ func (s *ServiceLayer) IsAdmin(ctx context.Context, uid uint32) (bool, error) {
 }
 
 // UserView adds the computed primary-admin flag to the public projection.
+// It is used for authenticated self views so the client can respect the
+// account's save-data preference before sending a practice run.
 func (s *ServiceLayer) UserView(user entity.User) entity.UserView {
 	view := entity.NewUserView(user)
 	view.IsAdmin = view.IsAdmin || s.IsPrimaryAdmin(user)
+	saveRunData := user.SaveRunData
+	view.SaveRunData = &saveRunData
 	return view
 }
 
@@ -405,6 +409,24 @@ func (s *ServiceLayer) StartMonitoring() {
 				return
 			case <-ticker.C:
 				s.runHealthCheck(ctx)
+			}
+		}
+	}()
+
+	// Run retention immediately and then periodically. This also cleans up
+	// accounts that have not played since the limit was introduced.
+	s.monitorWG.Add(1)
+	go func() {
+		defer s.monitorWG.Done()
+		s.pruneAllMatchHistories(ctx)
+		ticker := time.NewTicker(6 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.pruneAllMatchHistories(ctx)
 			}
 		}
 	}()

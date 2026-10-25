@@ -84,6 +84,25 @@ func (s *ServiceLayer) onGameFinished(ctx context.Context, g entity.Game, player
 		players[i].RatingAfter = after[i]
 	}
 
+	// A player can opt out of keeping their own run data. The score row still
+	// has to exist for the other participants and for rating integrity, but
+	// the run is hidden from their history and its keystrokes are discarded.
+	keptRecordings := make([]entity.Recording, 0, len(recordings))
+	for i := range players {
+		user, ok := userMap[players[i].UserID]
+		if ok && !user.IsBot && !user.SaveRunData {
+			players[i].Hidden = true
+		}
+	}
+	for _, recording := range recordings {
+		user, ok := userMap[recording.UserID]
+		if ok && !user.IsBot && !user.SaveRunData {
+			continue
+		}
+		keptRecordings = append(keptRecordings, recording)
+	}
+	recordings = keptRecordings
+
 	if err := s.db.FinishGame(ctx, &g, players, flags); err != nil {
 		return nil, err
 	}
@@ -194,6 +213,13 @@ func (s *ServiceLayer) onGameFinished(ctx context.Context, g entity.Game, player
 		s.state().SetResults(ctx, p.UserID, g.ID, roomCode)
 		if st, err := s.State(ctx, p.UserID); err == nil {
 			s.hub().SendToUser(p.UserID, hub.Ev("state", st))
+		}
+	}
+	for _, p := range players {
+		if user, ok := userMap[p.UserID]; ok && !user.IsBot {
+			if _, err := s.db.PruneUserMatchHistory(ctx, p.UserID, entity.MatchRetentionLimit); err != nil {
+				s.logger.Warnw("prune match history", "user_id", p.UserID, "error", err)
+			}
 		}
 	}
 	return views, nil

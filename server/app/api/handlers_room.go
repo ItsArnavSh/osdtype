@@ -391,7 +391,7 @@ func (s *Server) addBot(c *gin.Context) {
 		}
 	}
 	if !found {
-		c.JSON(http.StatusBadRequest, apiError{Error: "persona must be LEWIS, MAX or LANCE", Code: "bad_request"})
+		c.JSON(http.StatusBadRequest, apiError{Error: "persona must be ACE, NOVA or RUNE", Code: "bad_request"})
 		return
 	}
 	room, err := s.services.AddBot(c, uid, c.Param("code"), persona)

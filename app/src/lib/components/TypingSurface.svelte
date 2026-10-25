@@ -38,6 +38,7 @@
 	let { zen = false }: { zen?: boolean } = $props();
 
 	let guest = $derived(!appState.user);
+	let saveRunData = $derived(appState.user?.save_run_data ?? true);
 
 	// ─── Config ──────────────────────────────────────────────────────────────
 	let lang = $state<Language>('go');
@@ -364,7 +365,7 @@
 	}
 
 	async function storePracticeRun(generation: number) {
-		if (guest || runEvents.length === 0) return;
+		if (guest || !saveRunData || runEvents.length === 0) return;
 		practiceSaving = true;
 		practiceError = '';
 		try {
@@ -1257,7 +1258,16 @@
 									>
 										latest practice
 									</span>
-									{#if practiceSaving}
+									{#if !saveRunData}
+										<span class="font-mono text-[11px] text-(--silver)/45">
+											save no data is on · this run stays local
+										</span>
+										<a
+											href={resolve('/settings')}
+											class="font-mono text-[10px] text-(--silver)/45 underline-offset-2 hover:text-(--mer) hover:underline"
+											>change in settings →</a
+										>
+									{:else if practiceSaving}
 										<span class="font-mono text-[11px] text-(--silver)/50"
 											>storing temporary run…</span
 										>
@@ -1288,7 +1298,11 @@
 										</span>
 									{/if}
 									<span class="ml-auto font-mono text-[9px] text-(--silver)/30">
-										temporary runs stay out of history until saved
+										{#if saveRunData}
+											temporary runs stay out of history until saved
+										{:else}
+											no history entry or replay keystrokes were sent
+										{/if}
 									</span>
 								</div>
 							{/if}

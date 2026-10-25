@@ -12,6 +12,11 @@
 		byteToChar
 	} from '$lib/core/replay';
 	import { highlightCode } from '$lib/core/syntax';
+	import {
+		KEY_SOUNDS,
+		ReplaySoundEngine,
+		type KeySoundKind
+	} from '$lib/core/replay-sound';
 	import { onMount } from 'svelte';
 
 	let {
@@ -59,10 +64,19 @@
 	let playing = $state(true);
 	let speed = $state(1);
 	let copied = $state(false);
+	let soundOn = $state(false);
+	let soundOpen = $state(false);
+	let soundProfileId = $state('blue');
+	let soundPanel = $state<HTMLDivElement | null>(null);
 	let codeEl = $state<HTMLDivElement | null>(null);
 	let lineRefs: (HTMLDivElement | undefined)[] = [];
 	let raf = 0;
 	let lastFrame = 0;
+	let soundCursor = 0;
+	const sound = new ReplaySoundEngine();
+	const selectedSound = $derived(
+		KEY_SOUNDS.find((profile) => profile.id === soundProfileId) ?? KEY_SOUNDS[0]
+	);
 
 	type KeyCap = {
 		id: string;
@@ -225,25 +239,97 @@
 	}
 
 	function togglePlay() {
-		if (currentMs >= durationMs) currentMs = 0;
+		if (currentMs >= durationMs) {
+			currentMs = 0;
+			syncSoundCursor();
+		}
 		playing = !playing;
 		lastFrame = 0;
+		if (soundOn) syncSoundCursor();
 	}
 
 	function restart() {
 		currentMs = 0;
 		playing = true;
 		lastFrame = 0;
+		soundCursor = 0;
 	}
 
 	function cycleSpeed() {
 		speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
 	}
 
+	function syncSoundCursor() {
+		const index = events.findIndex((event) => (event.time_ms ?? 0) > currentMs);
+		soundCursor = index < 0 ? events.length : index;
+	}
+
+	function eventSoundKind(event: ClientKeypress): KeySoundKind {
+		if (event.action === KeypressAction.BACKSPACE) return 'backspace';
+		const char = Array.from(event.value ?? '')[0];
+		if (char === ' ') return 'space';
+		if (char === '\n' || char === '\r' || char === '\t') return 'mod';
+		return 'key';
+	}
+
+	function playSoundsBetween(from: number, to: number) {
+		let emitted = 0;
+		while (soundCursor < events.length) {
+			const event = events[soundCursor];
+			const at = event.time_ms ?? 0;
+			if (at <= from) {
+				soundCursor++;
+				continue;
+			}
+			if (at > to) break;
+			soundCursor++;
+			if (emitted < 10) {
+				sound.play(eventSoundKind(event));
+				emitted++;
+			}
+		}
+	}
+
+	async function toggleSound() {
+		if (soundOn) {
+			soundOn = false;
+			sound.disable();
+			return;
+		}
+		sound.setProfile(soundProfileId);
+		await sound.enable();
+		soundOn = true;
+		syncSoundCursor();
+		sound.play('key');
+	}
+
+	function previewSound() {
+		if (!soundOn) return;
+		sound.setProfile(soundProfileId);
+		sound.play('key');
+	}
+
+	function changeSoundProfile() {
+		sound.setProfile(soundProfileId);
+		if (soundOn) sound.play('key');
+	}
+
+	function closeSoundPopover(event: MouseEvent) {
+		if (!soundOpen) return;
+		const target = event.target as Node;
+		if (soundPanel?.contains(target)) return;
+		soundOpen = false;
+	}
+
+	function closeSoundOnEscape(event: KeyboardEvent) {
+		if (event.key === 'Escape') soundOpen = false;
+	}
+
 	function seek(event: Event) {
 		const value = Number((event.currentTarget as HTMLInputElement).value);
 		currentMs = Math.min(durationMs, Math.max(0, value));
 		lastFrame = 0;
+		syncSoundCursor();
 	}
 
 	async function copyShare() {
@@ -281,12 +367,16 @@
 	}
 
 	onMount(() => {
+		sound.setProfile(soundProfileId);
+		syncSoundCursor();
 		const tick = (now: number) => {
 			if (playing) {
 				if (!lastFrame) lastFrame = now;
 				const delta = Math.min(100, now - lastFrame);
 				lastFrame = now;
+				const before = currentMs;
 				currentMs = Math.min(durationMs, currentMs + delta * speed);
+				if (soundOn) playSoundsBetween(before, currentMs);
 				if (currentMs >= durationMs) playing = false;
 			} else {
 				lastFrame = 0;
@@ -294,7 +384,10 @@
 			raf = requestAnimationFrame(tick);
 		};
 		raf = requestAnimationFrame(tick);
-		return () => cancelAnimationFrame(raf);
+		return () => {
+			cancelAnimationFrame(raf);
+			sound.disable();
+		};
 	});
 
 	$effect(() => {
@@ -308,6 +401,8 @@
 		code.scrollTop = Math.max(0, active.offsetTop - lineHeight * 3);
 	});
 </script>
+
+<svelte:window onclick={closeSoundPopover} onkeydown={closeSoundOnEscape} />
 
 <div class="flex flex-col gap-4">
 	<header class="flex flex-wrap items-center justify-between gap-3 border-b border-(--border) pb-3">
@@ -495,6 +590,101 @@
 			class="h-1 min-w-[120px] flex-1 cursor-pointer accent-(--mer)"
 			aria-label="replay position"
 		/>
+		<div class="relative" bind:this={soundPanel}>
+			<button
+				type="button"
+				class={`flex cursor-pointer items-center gap-1.5 border px-2.5 py-1.5 font-mono text-[10px] transition-colors ${soundOn ? 'border-(--mer) bg-(--mer)/10 text-(--mer)' : 'border-(--border) text-(--silver)/45 hover:border-(--mer)/60 hover:text-(--silver)'}`}
+				aria-expanded={soundOpen}
+				aria-controls="replay-sound-popover"
+				title="probable sound"
+				onclick={() => (soundOpen = !soundOpen)}
+			>
+				<span class={soundOn ? 'text-(--mer)' : 'text-(--silver)/30'}>♪</span>
+				<span>sound</span>
+				<span class={soundOn ? 'text-(--mer)' : 'text-(--silver)/25'}>{soundOn ? 'on' : 'off'}</span>
+			</button>
+
+			{#if soundOpen}
+				<div
+					id="replay-sound-popover"
+					class={`absolute right-0 bottom-full z-50 mb-2 w-80 max-w-[calc(100vw-2rem)] border bg-(--fbg) p-4 shadow-[0_18px_50px_rgba(0,0,0,0.55)] max-md:fixed max-md:inset-x-4 max-md:right-auto max-md:bottom-20 max-md:mb-0 max-md:w-auto max-md:max-w-none ${soundOn ? 'border-(--mer)/55' : 'border-(--border)'}`}
+				>
+					<div class="flex items-start justify-between gap-3">
+						<div>
+							<div class="flex flex-wrap items-center gap-2">
+								<span class="font-mono text-[10px] tracking-[0.14em] text-(--mer) uppercase"
+									>probable sound</span
+								>
+								<span
+									class="border border-(--border) px-1.5 py-0.5 font-mono text-[8px] tracking-[0.08em] text-(--silver)/30 uppercase"
+									>synthesised</span
+								>
+							</div>
+							<p class="mt-1 font-mono text-[10px] leading-relaxed text-(--silver)/35">
+								A guess at how this run might have sounded. It clicks with the original
+								keystrokes.
+							</p>
+						</div>
+						<button
+							type="button"
+							class="cursor-pointer px-1 font-mono text-xs text-(--silver)/30 hover:text-(--silver)"
+							aria-label="Close sound settings"
+							onclick={() => (soundOpen = false)}>✕</button
+						>
+					</div>
+
+					<div class="mt-4 flex items-center justify-between gap-3">
+						<div>
+							<div class="font-mono text-[10px] text-(--silver)/55">
+								{soundOn ? 'sound is on' : 'sound is off'}
+							</div>
+							<div class="mt-0.5 font-mono text-[9px] text-(--silver)/25">
+								{soundOn ? 'replay clicks follow the timeline' : 'toggle on to listen'}
+							</div>
+						</div>
+						<button
+							type="button"
+							role="switch"
+							aria-checked={soundOn}
+							aria-label="Probable sound"
+							class={`relative h-6 w-11 shrink-0 cursor-pointer border transition-colors ${soundOn ? 'border-(--mer) bg-(--mer)/15' : 'border-(--border) bg-(--bg)'}`}
+							onclick={toggleSound}
+						>
+							<span
+								class={`absolute top-0.5 left-0.5 h-4 w-4 transition-transform ${soundOn ? 'translate-x-5 bg-(--mer)' : 'translate-x-0 bg-(--silver)/30'}`}
+							></span>
+						</button>
+					</div>
+
+					<label class="mt-4 block">
+						<span class="font-mono text-[9px] tracking-[0.1em] text-(--silver)/30 uppercase"
+							>switch family</span
+						>
+						<select
+							class="mt-1 w-full border border-(--border) bg-(--bg) px-2 py-1.5 font-mono text-[10px] text-(--silver) outline-none focus:border-(--mer)"
+							bind:value={soundProfileId}
+							onchange={changeSoundProfile}
+						>
+							{#each KEY_SOUNDS as profile (profile.id)}
+								<option value={profile.id}>{profile.label}</option>
+							{/each}
+						</select>
+					</label>
+
+					<div class="mt-3 flex items-center gap-2">
+						<button
+							type="button"
+							class="cursor-pointer border border-(--border) px-3 py-1.5 font-mono text-[10px] text-(--silver)/50 hover:border-(--mer) hover:text-(--mer) disabled:cursor-not-allowed disabled:opacity-35"
+							onclick={previewSound}
+							disabled={!soundOn}>test key</button
+						>
+						<span class="min-w-0 font-mono text-[9px] leading-relaxed text-(--silver)/25"
+							>{selectedSound.description}</span
+						>
+					</div>
+				</div>
+			{/if}
+		</div>
 		<span class="font-mono text-[10px] text-(--silver)/35">{elapsedLabel} / {totalLabel}</span>
 	</div>
 </div>

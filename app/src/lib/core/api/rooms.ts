@@ -68,7 +68,7 @@ export function inviteToRoom(code: string, username: string): Promise<InviteView
 	return api<InviteView>(ENDPOINTS.ROOM_INVITE(code), { method: 'POST', body: { username } });
 }
 
-export function addRoomBot(code: string, persona: 'LEWIS' | 'MAX' | 'LANCE'): Promise<RoomView> {
+export function addRoomBot(code: string, persona: 'ACE' | 'NOVA' | 'RUNE'): Promise<RoomView> {
 	return api<RoomView>(ENDPOINTS.ROOM_BOT(code), { method: 'POST', body: { persona } });
 }
 

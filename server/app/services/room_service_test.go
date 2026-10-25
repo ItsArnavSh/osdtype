@@ -131,17 +131,17 @@ func TestRoomPermissionsAndBots(t *testing.T) {
 	if err := e.svc.DemoteUser(ctx, alice.ID, room.Code, bob.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.svc.AddBot(ctx, bob.ID, room.Code, entity.LEWIS); !errors.Is(err, ErrForbidden) {
+	if _, err := e.svc.AddBot(ctx, bob.ID, room.Code, entity.ACE); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("non-mod added bot: %v", err)
 	}
-	view, err := e.svc.AddBot(ctx, alice.ID, room.Code, entity.LEWIS)
+	view, err := e.svc.AddBot(ctx, alice.ID, room.Code, entity.ACE)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if view.MemberCount != 3 {
 		t.Fatalf("bot not added: %+v", view)
 	}
-	if _, err := e.svc.AddBot(ctx, alice.ID, room.Code, entity.LEWIS); err != nil {
+	if _, err := e.svc.AddBot(ctx, alice.ID, room.Code, entity.ACE); err != nil {
 		t.Fatalf("duplicate bot add should be idempotent: %v", err)
 	}
 }

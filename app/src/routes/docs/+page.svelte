@@ -177,6 +177,11 @@
 				aria-current="page">docs</a
 			>
 			<a
+				href={resolve('/welcome')}
+				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
+				>features</a
+			>
+			<a
 				href={resolve('/bugs')}
 				class="border border-(--border) px-3 py-1.5 text-(--silver)/45 hover:border-(--mer) hover:text-(--mer)"
 				>report bug</a

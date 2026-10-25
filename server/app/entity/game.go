@@ -60,6 +60,9 @@ type GamePlayer struct {
 	Flagged       bool    `json:"flagged"`
 	IsBot         bool    `json:"is_bot"`
 	Acked         bool    `json:"-"`
+	// Hidden keeps the scoring row for the game and other participants but
+	// removes the run from history, retention counts, and public replays.
+	Hidden bool `gorm:"not null;default:false;index" json:"-"`
 
 	// Shareable run presentation. These are set by the player from their
 	// profile; they do not affect scoring.
@@ -159,6 +162,7 @@ type MatchHistory struct {
 	UserID         uint32     `json:"user_id"`
 	Mode           GameMode   `json:"mode"`
 	RoomCode       string     `json:"room_code,omitempty"`
+	RoomPrivate    bool       `json:"room_private,omitempty"`
 	Language       string     `json:"language"`
 	Duration       int        `json:"duration"`
 	WPM            float64    `json:"wpm"`

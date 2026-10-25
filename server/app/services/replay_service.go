@@ -43,7 +43,8 @@ func (s *ServiceLayer) GameReplays(ctx context.Context, uid, gameID uint32) (ent
 
 // PublicReplay serves a single run from a share link. It deliberately does
 // not require authentication, but only exposes the requested player's events.
-func (s *ServiceLayer) PublicReplay(ctx context.Context, gameID, userID uint32) (entity.ReplayBundle, error) {
+// Signed-in owners can still open their own runs after disabling sharing.
+func (s *ServiceLayer) PublicReplay(ctx context.Context, viewerID, gameID, userID uint32) (entity.ReplayBundle, error) {
 	game, err := s.db.GetGame(ctx, gameID)
 	if err != nil {
 		return entity.ReplayBundle{}, gameLookupError(err)
@@ -55,15 +56,34 @@ func (s *ServiceLayer) PublicReplay(ctx context.Context, gameID, userID uint32) 
 	if err != nil {
 		return entity.ReplayBundle{}, err
 	}
-	found := false
-	for _, p := range players {
-		if p.UserID == userID {
-			found = true
+	var target *entity.GamePlayer
+	for i := range players {
+		if players[i].UserID == userID {
+			target = &players[i]
 			break
 		}
 	}
-	if !found {
+	if target == nil {
 		return entity.ReplayBundle{}, errf(ErrNotFound, "replay not found")
+	}
+	isOwner := viewerID != 0 && viewerID == userID
+	owner, err := s.GetUser(ctx, userID)
+	if err != nil {
+		return entity.ReplayBundle{}, errf(ErrNotFound, "replay not found")
+	}
+	if !isOwner {
+		if target.Hidden || !owner.ShareReplays {
+			return entity.ReplayBundle{}, errf(ErrNotFound, "replay not found")
+		}
+		roomPrivate := false
+		if game.RoomID != 0 {
+			if room, err := s.db.GetRoomByID(ctx, game.RoomID); err == nil {
+				roomPrivate = !room.IsPublic || room.PasswordHash != ""
+			}
+		}
+		if !owner.SharesRun(game.Mode, target.Pinned, roomPrivate) {
+			return entity.ReplayBundle{}, errf(ErrNotFound, "replay not found")
+		}
 	}
 	view, err := s.gameViewFromDBFor(ctx, 0, game, false)
 	if err != nil {
@@ -81,6 +101,10 @@ func (s *ServiceLayer) PublicReplay(ctx context.Context, gameID, userID uint32) 
 	}
 	if len(bundle.Runs) == 0 || len(bundle.Runs[0].Events) == 0 {
 		return entity.ReplayBundle{}, errf(ErrNotFound, "recording not found")
+	}
+	if !isOwner && owner.IsAnonymous() {
+		bundle.Runs[0].Username = "anonymous"
+		bundle.Runs[0].AvatarURL = ""
 	}
 	return bundle, nil
 }

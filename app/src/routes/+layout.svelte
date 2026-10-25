@@ -32,6 +32,7 @@
 		'/play/zen',
 		'/contests',
 		'/docs',
+		'/welcome',
 		'/bugs',
 		'/admin'
 	];
@@ -131,6 +132,18 @@
 		})();
 	});
 
+	// The boot screen is a full-viewport state, not a page. Lock the document
+	// while it is visible so browser scroll cannot move the OSDTYP mark off
+	// centre or reveal empty space behind it.
+	$effect(() => {
+		if (!browser || appState.booted) return;
+		const previous = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		return () => {
+			document.body.style.overflow = previous;
+		};
+	});
+
 	// The layout survives the login page, so socket setup must react to auth
 	// rather than run only once on mount. Disconnecting on logout prevents the
 	// next account in the same tab from inheriting the old socket identity.
@@ -184,7 +197,11 @@
 </svelte:head>
 
 {#if !appState.booted}
-	<div class="flex min-h-screen items-center justify-center bg-(--bg)">
+	<div
+		class="fixed inset-0 z-[100] flex touch-none items-center justify-center overflow-hidden bg-(--bg)"
+		role="status"
+		aria-label="Loading OSDTYP"
+	>
 		<div class="title-text text-6xl text-(--silver)/40">OSDTYP</div>
 	</div>
 {:else if mobileBlocked}

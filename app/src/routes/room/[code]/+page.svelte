@@ -196,7 +196,7 @@
 		}
 	}
 
-	async function addBot(persona: 'LEWIS' | 'MAX' | 'LANCE') {
+	async function addBot(persona: 'ACE' | 'NOVA' | 'RUNE') {
 		busy = true;
 		error = '';
 		try {
@@ -426,10 +426,10 @@
 					</div>
 					<div class="flex items-center gap-2">
 						{#if canManage}
-							{#each ['LEWIS', 'MAX', 'LANCE'] as persona (persona)}
+							{#each ['ACE', 'NOVA', 'RUNE'] as persona (persona)}
 								<button
 									class="cursor-pointer border border-(--border) px-2 py-1 font-mono text-[9px] tracking-[0.1em] text-(--silver)/45 uppercase hover:border-(--mer) hover:text-(--mer) disabled:opacity-40"
-									onclick={() => addBot(persona as 'LEWIS' | 'MAX' | 'LANCE')}
+									onclick={() => addBot(persona as 'ACE' | 'NOVA' | 'RUNE')}
 									disabled={busy}>+ {persona}</button
 								>
 							{/each}

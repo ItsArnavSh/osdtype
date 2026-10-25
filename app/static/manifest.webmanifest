@@ -2,12 +2,16 @@
 	"id": "/",
 	"name": "OSDTYP",
 	"short_name": "OSDTYP",
-	"description": "OSDTYP companion for contests, rooms, leaderboards, and admin.",
+	"description": "OSDTYP companion for contests, leaderboards, profiles, replays, friends, settings, and admin.",
 	"lang": "en",
 	"dir": "ltr",
 	"start_url": "/play",
 	"scope": "/",
 	"display": "standalone",
+	"display_override": ["standalone", "minimal-ui"],
+	"launch_handler": {
+		"client_mode": "navigate-new"
+	},
 	"orientation": "any",
 	"background_color": "#070707",
 	"theme_color": "#070707",

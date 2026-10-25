@@ -78,10 +78,38 @@ func (s *ServiceLayer) bots() *bots.Manager        { return s.core.Bots }
 // Bootstrap creates the reserved bot accounts. It is safe to call on every
 // boot because usernames are unique.
 func (s *ServiceLayer) Bootstrap(ctx context.Context) error {
+	// Earlier builds used driver-inspired bot handles. Rename those reserved
+	// accounts in place so their IDs, ratings, and game history survive.
+	legacyBots := []struct {
+		old     string
+		persona entity.Persona
+	}{
+		{"osd-bot-lewis", entity.ACE},
+		{"osd-bot-max", entity.NOVA},
+		{"osd-bot-lance", entity.RUNE},
+	}
+	for _, legacy := range legacyBots {
+		existing, err := s.db.GetUserFromName(ctx, legacy.old)
+		if err != nil || !existing.IsBot {
+			continue
+		}
+		name := bots.Username(legacy.persona)
+		if _, err := s.db.GetUserFromName(ctx, name); err == nil {
+			// Do not overwrite an account that already uses the new handle.
+			continue
+		}
+		existing.Username = name
+		if err := s.db.SaveUser(ctx, existing); err != nil {
+			s.logger.Warnw("could not rename legacy bot", "old", legacy.old, "new", name, "error", err)
+			continue
+		}
+		s.logger.Infow("renamed legacy bot", "old", legacy.old, "new", name)
+	}
+
 	// Old seeds used the tier-era 950/1050/1150 spread. Move those exact
 	// accounts onto the new 400-based ladder once; ratings earned after a
 	// bot has actually played are left alone.
-	legacyRatings := map[entity.Persona]int{entity.LEWIS: 1150, entity.MAX: 1050, entity.LANCE: 950}
+	legacyRatings := map[entity.Persona]int{entity.ACE: 1150, entity.NOVA: 1050, entity.RUNE: 950}
 	for _, persona := range s.bots().All() {
 		cfg, _ := s.bots().Config(persona)
 		name := bots.Username(persona)

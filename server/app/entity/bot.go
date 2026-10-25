@@ -3,12 +3,12 @@ package entity
 type Persona string
 
 const (
-	LEWIS Persona = "LEWIS"
-	MAX   Persona = "MAX"
-	LANCE Persona = "LANCE"
+	ACE  Persona = "ACE"
+	NOVA Persona = "NOVA"
+	RUNE Persona = "RUNE"
 )
 
-var Personas = []Persona{LEWIS, MAX, LANCE}
+var Personas = []Persona{ACE, NOVA, RUNE}
 
 type BotConfig struct {
 	Accuracy      int     `mapstructure:"accuracy"`

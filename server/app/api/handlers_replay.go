@@ -96,7 +96,8 @@ func (s *Server) publicReplay(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apiError{Error: "invalid user id", Code: "bad_request"})
 		return
 	}
-	bundle, err := s.services.PublicReplay(c, uint32(gameID), uint32(userID))
+	viewerID, _ := auth.GetUserID(c)
+	bundle, err := s.services.PublicReplay(c, viewerID, uint32(gameID), uint32(userID))
 	if err != nil {
 		s.fail(c, err)
 		return

@@ -12,6 +12,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	maxDisplayNameRunes = 40
+	maxBioRunes         = 280
+)
+
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
 
 func (s *ServiceLayer) newUser(name string, rating int, isBot bool) entity.User {
@@ -21,6 +26,7 @@ func (s *ServiceLayer) newUser(name string, rating int, isBot bool) entity.User 
 		IsBot:    isBot,
 	}
 	user.SetAllRatings(rating)
+	user.SetDefaultSharing()
 	return user
 }
 
@@ -98,23 +104,30 @@ func (s *ServiceLayer) SearchUsers(ctx context.Context, name string, limit int) 
 }
 
 type ProfileView struct {
-	User       entity.UserView       `json:"user"`
-	Position   int64                 `json:"position"`
-	Positions  map[string]int64      `json:"positions"`
-	History    []entity.MatchHistory `json:"history"`
-	Pinned     []entity.MatchHistory `json:"pinned"`
-	Best       *entity.MatchHistory  `json:"best"`
-	TopWPM     float64               `json:"top_wpm"`
-	Online     bool                  `json:"online"`
-	IsFriend   bool                  `json:"is_friend"`
-	IsFollowed bool                  `json:"is_followed"`
-	FollowsYou bool                  `json:"follows_you"`
+	User           entity.UserView       `json:"user"`
+	Position       int64                 `json:"position"`
+	Positions      map[string]int64      `json:"positions"`
+	History        []entity.MatchHistory `json:"history"`
+	Pinned         []entity.MatchHistory `json:"pinned"`
+	Best           *entity.MatchHistory  `json:"best"`
+	TopWPM         float64               `json:"top_wpm"`
+	Online         bool                  `json:"online"`
+	IsFriend       bool                  `json:"is_friend"`
+	IsFollowed     bool                  `json:"is_followed"`
+	FollowsYou     bool                  `json:"follows_you"`
+	ReplaysVisible bool                  `json:"replays_visible"`
+	Anonymous      bool                  `json:"anonymous"`
 }
 
 func (s *ServiceLayer) Profile(ctx context.Context, viewerID uint32, username string) (ProfileView, error) {
 	user, err := s.GetUserFromName(ctx, username)
 	if err != nil {
 		return ProfileView{}, err
+	}
+	isSelf := viewerID != 0 && viewerID == user.ID
+	if !isSelf && user.Visibility() == entity.ProfilePrivate {
+		// Do not confirm that a private handle exists.
+		return ProfileView{}, errf(ErrNotFound, "user not found")
 	}
 	positions := make(map[string]int64, len(entity.RankedDurations))
 	var bestPosition int64
@@ -140,20 +153,47 @@ func (s *ServiceLayer) Profile(ctx context.Context, viewerID uint32, username st
 	if err != nil {
 		return ProfileView{}, err
 	}
+	if !isSelf {
+		history = sharedRuns(user, history)
+		pinned = sharedRuns(user, pinned)
+		best = nil
+		if user.SharingMode() != entity.RunSharingNone {
+			best, err = s.db.BestGameHistoryMatching(
+				ctx,
+				user.ID,
+				user.SharedModes(),
+				user.SharingMode() == entity.RunSharingPinned,
+				user.HidePrivateRooms,
+			)
+			if err != nil {
+				return ProfileView{}, err
+			}
+		}
+	}
 	topWPM := 0.0
 	if best != nil {
 		topWPM = best.WPM
 	}
 	online, _ := s.rdb().IsOnline(ctx, user.ID)
+	if !isSelf && user.HideOnline {
+		online = false
+	}
+	viewUser := entity.NewUserView(user)
+	anonymous := !isSelf && user.IsAnonymous()
+	if anonymous {
+		viewUser = anonymousUserView(user)
+	}
 	out := ProfileView{
-		User:      entity.NewUserView(user),
-		Position:  bestPosition,
-		Positions: positions,
-		History:   history,
-		Pinned:    pinned,
-		Best:      best,
-		TopWPM:    topWPM,
-		Online:    online || user.IsBot,
+		User:           viewUser,
+		Position:       bestPosition,
+		Positions:      positions,
+		History:        history,
+		Pinned:         pinned,
+		Best:           best,
+		TopWPM:         topWPM,
+		Online:         online || (user.IsBot && !user.HideOnline),
+		ReplaysVisible: isSelf || (user.ShareReplays && user.SharingMode() != entity.RunSharingNone),
+		Anonymous:      anonymous,
 	}
 	if viewerID != 0 && viewerID != user.ID {
 		out.IsFriend, _ = s.db.IsFriend(ctx, viewerID, user.ID)
