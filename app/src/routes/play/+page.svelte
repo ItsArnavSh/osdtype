@@ -89,7 +89,7 @@
 <div class="flex min-h-screen flex-col bg-(--bg)">
 	<header class="border-b border-(--border)">
 		<div
-			class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-8"
+			class="mx-auto flex w-full max-w-[88rem] flex-wrap items-center justify-between gap-3 px-5 py-4 md:px-8"
 		>
 			<div class="flex items-center gap-3">
 				<a
@@ -141,7 +141,7 @@
 		</div>
 	</header>
 
-	<main class="mx-auto w-full max-w-6xl flex-1 px-5 py-6 md:px-8">
+	<main class="mx-auto w-full max-w-[88rem] flex-1 px-5 py-7 md:px-8 md:py-9">
 		{#if user}
 			<section
 				class="mb-4 grid grid-cols-2 divide-(--border) border border-(--border) bg-(--fbg) sm:grid-cols-4 sm:divide-x"
@@ -173,7 +173,9 @@
 			</section>
 		{/if}
 
-		<div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+		<div
+			class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_24rem] xl:gap-5"
+		>
 			<div class="flex min-w-0 flex-col gap-4">
 				<!-- Phones are a companion surface: no typing actions. -->
 				<section
@@ -206,28 +208,34 @@
 				</section>
 
 				<!-- Primary action: the one thing a new visitor should do. -->
-				<section class="ui-card p-6 md:p-8 max-md:hidden" style="border-top-color: var(--mer);">
+				<section
+					class="ui-card p-6 max-md:hidden md:p-9 xl:p-10"
+					style="border-top-color: var(--mer);"
+				>
 					<div class="ui-eyebrow">practice · free</div>
-					<div class="mt-2 flex flex-wrap items-start justify-between gap-4">
+					<div class="mt-2 flex items-start justify-between gap-4">
 						<div class="min-w-0">
-							<h1 class="title-text text-5xl leading-[0.9] text-(--silver) md:text-7xl">
+							<h1 class="title-text text-5xl leading-[0.9] text-(--silver) md:text-7xl xl:text-8xl">
 								START TYPING.
 							</h1>
-							<p class="mt-3 max-w-xl text-sm leading-relaxed text-(--silver)/65">
+							<p class="mt-4 max-w-2xl text-sm leading-relaxed text-(--silver)/65 md:text-base">
 								Jump into a real code snippet right away. The timer starts with your first keystroke
 								— no account, no setup.
 							</p>
 						</div>
-						<ModeIcon name="practice" class="hidden h-16 w-16 shrink-0 text-(--mer)/55 sm:block" />
+						<ModeIcon
+							name="practice"
+							class="hidden h-20 w-20 shrink-0 text-(--mer)/55 sm:block xl:h-24 xl:w-24"
+						/>
 					</div>
 
-					<div class="mt-6 flex flex-wrap items-center gap-2">
-						<a href={resolve('/play/me')} class="ui-btn ui-btn-primary px-5 py-3 text-xs">
+					<div class="mt-8 flex flex-wrap items-center gap-2 xl:mt-10">
+						<a href={resolve('/play/me')} class="ui-btn ui-btn-primary px-6 py-3.5 text-xs">
 							start practice →
 						</a>
-						<a href={resolve('/play/zen')} class="ui-btn px-4 py-3 text-xs">zen · no timer</a>
+						<a href={resolve('/play/zen')} class="ui-btn px-5 py-3.5 text-xs">zen · no timer</a>
 						<span
-							class="ml-auto font-mono text-[9px] tracking-[0.1em] text-(--silver)/40 uppercase"
+							class="ml-auto font-mono text-[10px] tracking-[0.1em] text-(--silver)/40 uppercase"
 						>
 							solo · adaptive bots{#if guest}
 								· guest{/if}
@@ -235,7 +243,7 @@
 					</div>
 				</section>
 
-				<section aria-label="Other modes" class="grid gap-3 max-md:hidden sm:grid-cols-3">
+				<section aria-label="Other modes" class="grid gap-4 max-md:hidden sm:grid-cols-3">
 					{#each modes as mode (mode.name)}
 						<a
 							href={resolve(
@@ -243,21 +251,30 @@
 									? `/login?next=${encodeURIComponent(mode.href)}`
 									: mode.href) as '/play'
 							)}
-							class="ui-card group flex min-h-44 flex-col p-5 transition-colors hover:border-(--mer)/60"
+							class="ui-card group flex min-h-52 flex-col p-5 transition-colors hover:border-(--mer)/60 xl:min-h-56 xl:p-6"
 							aria-label={`${mode.name}${guest && mode.account ? ' — account required' : ''}`}
 						>
 							<div class="flex items-start justify-between gap-3">
-								<h2 class="text-2xl leading-none text-(--silver)">{mode.name}</h2>
-								<ModeIcon name={mode.icon} class="h-10 w-10 shrink-0 text-(--mer)/70" />
+								<h2 class="text-2xl leading-none text-(--silver) xl:text-3xl">{mode.name}</h2>
+								<ModeIcon
+									name={mode.icon}
+									class="h-10 w-10 shrink-0 text-(--mer)/70 xl:h-12 xl:w-12"
+								/>
 							</div>
-							<p class="mt-3 flex-1 text-[11px] leading-relaxed text-(--silver)/55">
+							<p class="mt-3 flex-1 text-[11px] leading-relaxed text-(--silver)/55 xl:mt-4 xl:text-xs">
 								{mode.desc}
 							</p>
-							<div class="mt-5 flex items-end justify-between gap-2">
-								<span class="font-mono text-[9px] tracking-[0.12em] text-(--silver)/40 uppercase">
+							<div
+								class="mt-5 flex flex-col items-start gap-2 xl:mt-6 xl:flex-row xl:items-end xl:justify-between"
+							>
+								<span
+									class="font-mono text-[9px] tracking-[0.12em] text-(--silver)/40 uppercase xl:text-[10px]"
+								>
 									{modeMeta(mode)}
 								</span>
-								<span class="font-mono text-[10px] tracking-[0.08em] text-(--mer) uppercase">
+								<span
+									class="font-mono text-[10px] tracking-[0.08em] text-(--mer) uppercase xl:text-[11px]"
+								>
 									{modeCta(mode)} →
 								</span>
 							</div>
@@ -267,12 +284,12 @@
 
 				<a
 					href={resolve('/contests')}
-					class="ui-card group flex flex-wrap items-center justify-between gap-3 px-5 py-4 transition-colors hover:border-(--mer)/60"
+					class="ui-card group flex flex-wrap items-center justify-between gap-3 px-6 py-5 transition-colors hover:border-(--mer)/60"
 				>
 					<div class="flex flex-wrap items-center gap-3">
 						<span class="ui-eyebrow">events</span>
-						<span class="text-lg text-(--silver)">Contests</span>
-						<span class="hidden font-mono text-[10px] text-(--silver)/45 sm:inline">
+						<span class="text-xl text-(--silver)">Contests</span>
+						<span class="hidden font-mono text-[11px] text-(--silver)/45 sm:inline">
 							scheduled races · public or invite-only
 						</span>
 					</div>
@@ -280,7 +297,7 @@
 				</a>
 			</div>
 
-			<aside class="flex flex-col gap-3" aria-label="Account and social">
+			<aside class="flex flex-col gap-4" aria-label="Account and social">
 				{#if user}
 					<div class="ui-card">
 						<div class="flex items-center justify-between border-b border-(--border) px-4 py-2.5">
@@ -348,11 +365,11 @@
 						</a>
 					</div>
 				{:else}
-					<section class="ui-card p-5" style="border-top-color: var(--mer);">
+					<section class="ui-card p-6" style="border-top-color: var(--mer);">
 						<div class="ui-eyebrow">with an account</div>
-						<h2 class="mt-1 text-2xl leading-tight text-(--silver)">Keep your progress.</h2>
+						<h2 class="mt-1 text-3xl leading-tight text-(--silver)">Keep your progress.</h2>
 						<ul
-							class="mt-3 flex flex-col gap-2 font-mono text-[11px] leading-relaxed text-(--silver)/55"
+							class="mt-5 flex flex-col gap-3 font-mono text-xs leading-relaxed text-(--silver)/55"
 						>
 							<li class="flex gap-2">
 								<span class="text-(--mer)">·</span>Ranked Elo and the leaderboard
@@ -366,10 +383,50 @@
 						</ul>
 						<a
 							href={resolve(`/login?next=${encodeURIComponent('/play')}` as '/login')}
-							class="ui-btn ui-btn-primary mt-4 w-full">create account →</a
+							class="ui-btn ui-btn-primary mt-6 w-full py-3">create account →</a
 						>
-						<p class="mt-3 font-mono text-[10px] leading-relaxed text-(--silver)/40">
+						<p class="mt-4 font-mono text-[11px] leading-relaxed text-(--silver)/40">
 							Practice and Zen stay free without one.
+						</p>
+					</section>
+
+					<section
+						class="ui-card hidden flex-1 flex-col p-6 lg:flex"
+						aria-label="How it works"
+					>
+						<div class="ui-eyebrow">how it works</div>
+						<h2 class="mt-1 text-2xl leading-tight text-(--silver)">Type. Compare. Repeat.</h2>
+						<ol class="mt-6 flex flex-col gap-5">
+							<li class="flex gap-3">
+								<span class="font-mono text-[10px] leading-5 text-(--mer)">01</span>
+								<div>
+									<p class="text-sm leading-tight text-(--silver)/80">Pick a mode.</p>
+									<p class="mt-1.5 font-mono text-[11px] leading-relaxed text-(--silver)/45">
+										Practice is free. Ranked and rooms add the ladder.
+									</p>
+								</div>
+							</li>
+							<li class="flex gap-3">
+								<span class="font-mono text-[10px] leading-5 text-(--mer)">02</span>
+								<div>
+									<p class="text-sm leading-tight text-(--silver)/80">Type the snippet.</p>
+									<p class="mt-1.5 font-mono text-[11px] leading-relaxed text-(--silver)/45">
+										The clock starts on your first keystroke.
+									</p>
+								</div>
+							</li>
+							<li class="flex gap-3">
+								<span class="font-mono text-[10px] leading-5 text-(--mer)">03</span>
+								<div>
+									<p class="text-sm leading-tight text-(--silver)/80">Read the clock.</p>
+									<p class="mt-1.5 font-mono text-[11px] leading-relaxed text-(--silver)/45">
+										Every run ends with a speed graph and replay.
+									</p>
+								</div>
+							</li>
+						</ol>
+						<p class="mt-auto border-t border-(--border) pt-4 font-mono text-[10px] text-(--silver)/35">
+							No install. No account needed for practice.
 						</p>
 					</section>
 				{/if}
@@ -377,7 +434,7 @@
 		</div>
 	</main>
 
-	<footer class="mx-auto mt-6 w-full max-w-6xl border-t border-(--border) px-5 py-5 md:px-8">
+	<footer class="mx-auto mt-6 w-full max-w-[88rem] border-t border-(--border) px-5 py-5 md:px-8 md:py-6">
 		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 			<div>
 				<p class="font-mono text-[10px] tracking-[0.08em] text-(--silver)/40">
