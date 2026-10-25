@@ -4,6 +4,11 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="theme-color" content="#040806" />
+		<meta name="application-name" content="OSDTYP" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="OSDTYP" />
+		<link rel="manifest" href="/manifest.webmanifest" />
 		<meta
 			name="description"
 			content="OSDTYP — seeded code typing practice, ranked races, rooms, and contests."
@@ -31,10 +36,9 @@
 		<script>
 			// Applied before first paint so a saved theme never flashes.
 			try {
-				document.documentElement.dataset.theme =
-					localStorage.getItem('osdtype.theme') || 'gruvbox';
+				document.documentElement.dataset.theme = localStorage.getItem('osdtype.theme') || 'carbon';
 			} catch (e) {
-				document.documentElement.dataset.theme = 'gruvbox';
+				document.documentElement.dataset.theme = 'carbon';
 			}
 		</script>
 	</head>

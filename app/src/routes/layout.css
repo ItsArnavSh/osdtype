@@ -8,6 +8,44 @@
    ---------------------------------------------------------------------- */
 
 :root,
+[data-theme='carbon'] {
+	--bg: #040806;
+	--fbg: #0b0f11;
+	--mer: #00a19b;
+	--silver: #e8eceb;
+	--red: #ff4d4d;
+	--wrong-bg: rgba(255, 77, 77, 0.15);
+	--pending: rgba(232, 236, 235, 0.56);
+	--space: rgba(232, 236, 235, 0.18);
+	--border: rgba(232, 236, 235, 0.15);
+	--syntax-keyword: #00bfb3;
+	--syntax-type: #e8eceb;
+	--syntax-literal: #ff8a8a;
+	--syntax-comment: rgba(160, 174, 172, 0.55);
+	--syntax-meta: #7ad7cf;
+	--syntax-punct: rgba(232, 236, 235, 0.66);
+	color-scheme: dark;
+}
+
+[data-theme='mono'] {
+	--bg: #070707;
+	--fbg: #101010;
+	--mer: #f2f2f2;
+	--silver: #ededed;
+	--red: #ff4d4d;
+	--wrong-bg: rgba(255, 77, 77, 0.14);
+	--pending: rgba(255, 255, 255, 0.55);
+	--space: rgba(255, 255, 255, 0.17);
+	--border: rgba(255, 255, 255, 0.15);
+	--syntax-keyword: #ffffff;
+	--syntax-type: #d6d6d6;
+	--syntax-literal: #a8a8a8;
+	--syntax-comment: rgba(255, 255, 255, 0.36);
+	--syntax-meta: #f0f0f0;
+	--syntax-punct: rgba(255, 255, 255, 0.62);
+	color-scheme: dark;
+}
+
 [data-theme='meridian'] {
 	--bg: #0b0c0e;
 	--fbg: #16181c;

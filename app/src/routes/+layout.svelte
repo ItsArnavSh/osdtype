@@ -116,6 +116,13 @@
 	});
 
 	onMount(() => {
+		if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+		void navigator.serviceWorker.register('/sw.js').catch(() => {
+			// PWA support is progressive; registration failures must not break the app.
+		});
+	});
+
+	onMount(() => {
 		initTheme();
 		(async () => {
 			await bootSession();

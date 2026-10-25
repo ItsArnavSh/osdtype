@@ -1,4 +1,4 @@
-export const THEMES = ['gruvbox', 'meridian', 'amber', 'paper', 'crt'] as const;
+export const THEMES = ['carbon', 'mono', 'gruvbox', 'meridian', 'amber', 'paper', 'crt'] as const;
 export type Theme = (typeof THEMES)[number];
 
 export interface ThemePalette {
@@ -21,6 +21,40 @@ export interface ThemePalette {
 
 /** Mirror of the CSS theme variables for export previews/captures. */
 export const THEME_PALETTES: Record<Theme, ThemePalette> = {
+	carbon: {
+		bg: '#040806',
+		fbg: '#0b0f11',
+		mer: '#00a19b',
+		silver: '#e8eceb',
+		red: '#ff4d4d',
+		border: 'rgba(232, 236, 235, 0.15)',
+		pending: 'rgba(232, 236, 235, 0.56)',
+		space: 'rgba(232, 236, 235, 0.18)',
+		wrongBg: 'rgba(255, 77, 77, 0.15)',
+		syntaxKeyword: '#00bfb3',
+		syntaxType: '#e8eceb',
+		syntaxLiteral: '#ff8a8a',
+		syntaxComment: 'rgba(160, 174, 172, 0.55)',
+		syntaxMeta: '#7ad7cf',
+		syntaxPunct: 'rgba(232, 236, 235, 0.66)'
+	},
+	mono: {
+		bg: '#070707',
+		fbg: '#101010',
+		mer: '#f2f2f2',
+		silver: '#ededed',
+		red: '#ff4d4d',
+		border: 'rgba(255, 255, 255, 0.15)',
+		pending: 'rgba(255, 255, 255, 0.55)',
+		space: 'rgba(255, 255, 255, 0.17)',
+		wrongBg: 'rgba(255, 77, 77, 0.14)',
+		syntaxKeyword: '#ffffff',
+		syntaxType: '#d6d6d6',
+		syntaxLiteral: '#a8a8a8',
+		syntaxComment: 'rgba(255, 255, 255, 0.36)',
+		syntaxMeta: '#f0f0f0',
+		syntaxPunct: 'rgba(255, 255, 255, 0.62)'
+	},
 	meridian: {
 		bg: '#0b0c0e',
 		fbg: '#16181c',
@@ -135,7 +169,7 @@ function isTheme(value: string | null): value is Theme {
 	return value !== null && (THEMES as readonly string[]).includes(value);
 }
 
-export const themeState = $state<{ current: Theme }>({ current: 'gruvbox' });
+export const themeState = $state<{ current: Theme }>({ current: 'carbon' });
 
 export function applyTheme(theme: Theme): void {
 	themeState.current = theme;
@@ -156,7 +190,7 @@ export function initTheme(): void {
 	} catch {
 		stored = null;
 	}
-	applyTheme(isTheme(stored) ? stored : 'gruvbox');
+	applyTheme(isTheme(stored) ? stored : 'carbon');
 }
 
 export function cycleTheme(): void {

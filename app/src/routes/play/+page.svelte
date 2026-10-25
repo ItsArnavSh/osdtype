@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import ModeIcon from '$lib/components/ModeIcon.svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
+	import InstallApp from '$lib/components/InstallApp.svelte';
 	import { cycleTheme, themeState } from '$lib/core/theme.svelte';
 	import { appState, resetSession } from '$lib/core/state/state.svelte';
 	import { logout } from '$lib/core/api/auth';
@@ -107,10 +108,10 @@
 				<button class="ui-btn ui-btn-sm" onclick={cycleTheme} title="Cycle theme">
 					theme: {themeState.current}
 				</button>
+				<InstallApp />
 				{#if user?.is_admin}
-					<a
-						href={resolve('/admin')}
-						class="ui-btn ui-btn-sm hidden border-(--red)/40 text-(--red) md:inline-flex">admin</a
+					<a href={resolve('/admin')} class="ui-btn ui-btn-sm border-(--red)/40 text-(--red)"
+						>admin</a
 					>
 				{/if}
 				{#if user}

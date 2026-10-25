@@ -3,6 +3,8 @@
 	import type { Theme } from '$lib/core/theme.svelte';
 
 	const THEME_SWATCH: Record<Theme, { bg: string; mer: string; silver: string }> = {
+		carbon: { bg: '#040806', mer: '#00a19b', silver: '#e8eceb' },
+		mono: { bg: '#070707', mer: '#f2f2f2', silver: '#ededed' },
 		gruvbox: { bg: '#282828', mer: '#b8bb26', silver: '#ebdbb2' },
 		meridian: { bg: '#0b0c0e', mer: '#00a19c', silver: '#c0c0c0' },
 		amber: { bg: '#1d1509', mer: '#ffb000', silver: '#e8d5a3' },
