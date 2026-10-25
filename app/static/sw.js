@@ -3,7 +3,7 @@
 // The app is client-rendered, so one cached shell is enough to start any route
 // offline. API and websocket traffic is never cached: admin data and live games
 // must always come from the network.
-const CACHE = 'osdtype-pwa-v1';
+const CACHE = 'osdtype-pwa-v2';
 const SHELL = '/play';
 const PRECACHE = [
 	SHELL,

@@ -1,4 +1,4 @@
-export const THEMES = ['carbon', 'mono', 'gruvbox', 'meridian', 'amber', 'paper', 'crt'] as const;
+export const THEMES = ['mono', 'gruvbox', 'meridian', 'amber', 'paper', 'crt', 'carbon'] as const;
 export type Theme = (typeof THEMES)[number];
 
 export interface ThemePalette {
@@ -164,12 +164,14 @@ export function paletteStyle(palette: ThemePalette): string {
 }
 
 const STORAGE_KEY = 'osdtype.theme';
+const DEFAULT_VERSION_KEY = 'osdtype.themeDefaultVersion';
+const DEFAULT_VERSION = 'mono-1';
 
 function isTheme(value: string | null): value is Theme {
 	return value !== null && (THEMES as readonly string[]).includes(value);
 }
 
-export const themeState = $state<{ current: Theme }>({ current: 'carbon' });
+export const themeState = $state<{ current: Theme }>({ current: 'mono' });
 
 export function applyTheme(theme: Theme): void {
 	themeState.current = theme;
@@ -187,10 +189,16 @@ export function initTheme(): void {
 	let stored: string | null = null;
 	try {
 		stored = localStorage.getItem(STORAGE_KEY);
+		if (localStorage.getItem(DEFAULT_VERSION_KEY) !== DEFAULT_VERSION) {
+			// Carbon was briefly the default. Move that saved preference to mono once;
+			// choosing carbon again afterwards is still respected.
+			if (stored === 'carbon') stored = 'mono';
+			localStorage.setItem(DEFAULT_VERSION_KEY, DEFAULT_VERSION);
+		}
 	} catch {
 		stored = null;
 	}
-	applyTheme(isTheme(stored) ? stored : 'carbon');
+	applyTheme(isTheme(stored) ? stored : 'mono');
 }
 
 export function cycleTheme(): void {

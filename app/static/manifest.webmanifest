@@ -9,8 +9,8 @@
 	"scope": "/",
 	"display": "standalone",
 	"orientation": "any",
-	"background_color": "#040806",
-	"theme_color": "#040806",
+	"background_color": "#070707",
+	"theme_color": "#070707",
 	"categories": ["developer", "productivity", "utilities"],
 	"prefer_related_applications": false,
 	"icons": [

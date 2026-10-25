@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<meta name="theme-color" content="#040806" />
+		<meta name="theme-color" content="#070707" />
 		<meta name="application-name" content="OSDTYP" />
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
@@ -36,9 +36,19 @@
 		<script>
 			// Applied before first paint so a saved theme never flashes.
 			try {
-				document.documentElement.dataset.theme = localStorage.getItem('osdtype.theme') || 'carbon';
+				const versionKey = 'osdtype.themeDefaultVersion';
+				const version = 'mono-1';
+				let stored = localStorage.getItem('osdtype.theme');
+				if (localStorage.getItem(versionKey) !== version) {
+					if (stored === 'carbon') {
+						stored = 'mono';
+						localStorage.setItem('osdtype.theme', stored);
+					}
+					localStorage.setItem(versionKey, version);
+				}
+				document.documentElement.dataset.theme = stored || 'mono';
 			} catch (e) {
-				document.documentElement.dataset.theme = 'carbon';
+				document.documentElement.dataset.theme = 'mono';
 			}
 		</script>
 	</head>
