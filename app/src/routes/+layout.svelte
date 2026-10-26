@@ -3,6 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import AuthGate from '$lib/components/AuthGate.svelte';
 	import MobileLock from '$lib/components/MobileLock.svelte';
+	import SitePrompts from '$lib/components/SitePrompts.svelte';
 	import { initTheme } from '$lib/core/theme.svelte';
 	import { MOBILE_QUERY, mobileAllowed } from '$lib/core/mobile';
 	import { browser } from '$app/environment';
@@ -216,6 +217,8 @@
 	</div>
 	{#if gated}
 		<AuthGate next={page.url.pathname + page.url.search} />
+	{:else}
+		<SitePrompts />
 	{/if}
 {/if}
 

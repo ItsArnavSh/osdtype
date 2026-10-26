@@ -16,6 +16,7 @@
 	import Avatar from '$lib/components/Avatar.svelte';
 	import type { GameView, PlayerProgress, ResultView } from '$lib/core/api/types';
 	import { appState, applyState, refreshState } from '$lib/core/state/state.svelte';
+	import { promptState } from '$lib/core/prompts.svelte';
 
 	const gameID = $derived(Number(page.params.id ?? 0));
 
@@ -47,7 +48,15 @@
 	let hasEnded = $derived(endsAt > 0 && serverNow >= endsAt);
 	let canType = $derived(Boolean(game) && hasStarted && !hasEnded && !localFinished && !busy);
 	let phase = $derived(
-		!game ? 'loading' : localFinished || game.status === 'finished' ? 'waiting' : countdown > 0 ? 'countdown' : hasEnded ? 'waiting' : 'typing'
+		!game
+			? 'loading'
+			: localFinished || game.status === 'finished'
+				? 'waiting'
+				: countdown > 0
+					? 'countdown'
+					: hasEnded
+						? 'waiting'
+						: 'typing'
 	);
 	let myID = $derived(appState.user?.id ?? 0);
 	let me = $derived(game?.players.find((p) => p.user_id === myID) ?? null);
@@ -213,10 +222,7 @@
 	function rawPlayerProgress(player: PlayerProgress): number {
 		if (!game) return 0;
 		if (player.user_id === myID) return progressPct;
-		return Math.min(
-			1,
-			Math.max(0, (player.current_points - game.start_offset) / totalBytes)
-		);
+		return Math.min(1, Math.max(0, (player.current_points - game.start_offset) / totalBytes));
 	}
 
 	function playerProgress(player: PlayerProgress): number {
@@ -271,7 +277,7 @@
 	}
 
 	function onKeydown(event: KeyboardEvent) {
-		if (!canType) return;
+		if (!canType || promptState.blocking) return;
 		if (event.ctrlKey || event.metaKey || event.altKey) return;
 		const target = event.target as HTMLElement | null;
 		if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
@@ -361,14 +367,18 @@
 
 	function fmt(seconds: number): string {
 		const safe = Math.max(0, seconds);
-		return `${Math.floor(safe / 60).toString().padStart(2, '0')}:${(safe % 60).toString().padStart(2, '0')}`;
+		return `${Math.floor(safe / 60)
+			.toString()
+			.padStart(2, '0')}:${(safe % 60).toString().padStart(2, '0')}`;
 	}
 
 	function charClass(index: number): string {
 		if (index < startChar) return 'text-(--silver)/15';
 		if (index === pos && canType) return 'current-char text-(--silver)';
 		if (typed[index]) {
-			return typed[index] === chars[index] ? 'text-(--mer)' : 'text-(--red) underline decoration-(--red)/60';
+			return typed[index] === chars[index]
+				? 'text-(--mer)'
+				: 'text-(--red) underline decoration-(--red)/60';
 		}
 		return 'text-(--silver)/45';
 	}
@@ -450,9 +460,20 @@
 						{game?.mode ?? 'race'} · {game?.room_code || `game ${gameID}`}
 					{/if}
 				</div>
-				<div class="mt-1 flex items-baseline gap-3">
-					<span class="font-mono text-3xl text-(--silver)">{fmt(remaining)}</span>
-					<span class="font-mono text-[10px] text-(--silver)/30">
+				<div class="mt-1 flex items-end gap-4">
+					<div>
+						<div class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
+							time left
+						</div>
+						<div
+							class={`font-mono text-5xl leading-none font-semibold tabular-nums md:text-6xl ${
+								phase === 'typing' && remaining <= 5 ? 'text-(--red)' : 'text-(--silver)'
+							}`}
+						>
+							{fmt(remaining)}
+						</div>
+					</div>
+					<span class="pb-1 font-mono text-[10px] text-(--silver)/30">
 						{game?.duration ?? 0}s · {LANGUAGE_LABELS[game?.language ?? 'go'] ?? game?.language}
 					</span>
 				</div>
@@ -494,11 +515,15 @@
 		</div>
 	{:else}
 		{#if error}
-			<div class="mt-2 border border-(--red)/40 px-4 py-2 font-mono text-xs text-(--red)">{error}</div>
+			<div class="mt-2 border border-(--red)/40 px-4 py-2 font-mono text-xs text-(--red)">
+				{error}
+			</div>
 		{/if}
 		<main class="grid min-h-0 flex-1 gap-3 pt-3 lg:grid-cols-[1fr_260px]">
 			<section class="relative flex min-h-0 flex-col border border-(--border) bg-(--fbg)">
-				<div class="flex items-center justify-between border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--silver)/35">
+				<div
+					class="flex items-center justify-between border-b border-(--border) px-4 py-2 font-mono text-[10px] text-(--silver)/35"
+				>
 					<span>{game.duration}s · {LANGUAGE_LABELS[game.language] ?? game.language}</span>
 					<span>{phase === 'typing' ? 'typing live' : phase}</span>
 				</div>
@@ -509,15 +534,12 @@
 					{#each visibleChars as char, i (displayStart + i)}
 						{@const index = displayStart + i}
 						{@const carets = botCarets.get(index) ?? []}
-						<span
-							class={charClass(index)}
-							class:bot-caret-host={carets.length > 0}
+						<span class={charClass(index)} class:bot-caret-host={carets.length > 0}
 							>{#if carets.length > 0}<span class="bot-caret-stack" aria-hidden="true"
 									>{#each carets as bot, depth (bot.id)}<span
 											class="bot-caret-mark"
 											style={`left:${depth * 3}px;background:${bot.color}`}
-										></span
-									>{/each}</span
+										></span>{/each}</span
 								>{/if}{char}</span
 						>
 					{/each}
@@ -533,10 +555,14 @@
 						</div>
 					</div>
 				{:else if phase === 'waiting'}
-					<div class="absolute inset-x-0 bottom-0 border-t border-(--border) bg-(--bg)/95 px-5 py-3">
+					<div
+						class="absolute inset-x-0 bottom-0 border-t border-(--border) bg-(--bg)/95 px-5 py-3"
+					>
 						<div class="flex flex-wrap items-center justify-between gap-3 font-mono text-xs">
 							<span class="text-(--silver)/50">
-								{localFinished ? 'run complete · waiting for results' : 'clock over · waiting for results'}
+								{localFinished
+									? 'run complete · waiting for results'
+									: 'clock over · waiting for results'}
 							</span>
 							<div class="flex items-center gap-3">
 								<span class="text-(--mer)">{fmt(remaining)}</span>
@@ -553,7 +579,9 @@
 
 			<aside class="flex min-h-0 flex-col gap-2 overflow-auto">
 				<div class="border border-(--border) bg-(--fbg)">
-					<div class="border-b border-(--border) px-4 py-2 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase">
+					<div
+						class="border-b border-(--border) px-4 py-2 font-mono text-[10px] tracking-[0.14em] text-(--silver)/35 uppercase"
+					>
 						race · {game.players.length} players
 					</div>
 					<div class="divide-y divide-(--border)">
@@ -561,11 +589,18 @@
 							<div class="px-4 py-3" animate:flip={{ duration: 300 }}>
 								<div class="flex items-center justify-between gap-2">
 									<div class="flex min-w-0 items-center gap-2">
-										<Avatar src={player.avatar_url} name={player.username} class="h-6 w-6" text="text-[9px]" />
+										<Avatar
+											src={player.avatar_url}
+											name={player.username}
+											class="h-6 w-6"
+											text="text-[9px]"
+										/>
 										<span class="truncate font-mono text-[11px] text-(--silver)/75"
 											>{player.username}{player.user_id === myID ? ' (you)' : ''}</span
 										>
-										{#if player.is_bot}<span class="font-mono text-[9px] text-(--silver)/25">bot</span>{/if}
+										{#if player.is_bot}<span class="font-mono text-[9px] text-(--silver)/25"
+												>bot</span
+											>{/if}
 									</div>
 									<span class="shrink-0 font-mono text-[10px] text-(--silver)/35">
 										{Math.round(playerWpm(player))} wpm
@@ -578,7 +613,8 @@
 									></div>
 								</div>
 								<div class="mt-1 flex justify-between font-mono text-[9px] text-(--silver)/25">
-									<span>{player.finished ? 'finished' : player.flagged ? 'flagged' : 'typing'}</span>
+									<span>{player.finished ? 'finished' : player.flagged ? 'flagged' : 'typing'}</span
+									>
 									<span>{Math.round(playerProgress(player) * 100)}%</span>
 								</div>
 							</div>
@@ -587,7 +623,9 @@
 				</div>
 
 				<div class="border border-(--border) p-4">
-					<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/30 uppercase">your run</div>
+					<div class="font-mono text-[10px] tracking-[0.14em] text-(--silver)/30 uppercase">
+						your run
+					</div>
 					<div class="mt-2 grid grid-cols-2 gap-2">
 						<div>
 							<div class="font-mono text-[9px] text-(--silver)/30">progress</div>
@@ -602,8 +640,8 @@
 						<div class="h-px bg-(--mer)" style={`width:${progressPct * 100}%`}></div>
 					</div>
 					<p class="mt-3 font-mono text-[9px] leading-relaxed text-(--silver)/25">
-						Backspace works. Whitespace is skipped automatically. Refreshing resumes your run
-						where you left off.
+						Backspace works. Whitespace is skipped automatically. Refreshing resumes your run where
+						you left off.
 					</p>
 				</div>
 			</aside>

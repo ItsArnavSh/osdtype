@@ -32,6 +32,7 @@
 		type PracticeBotProfile
 	} from '$lib/core/practice-bots';
 	import { mapTypedToDisplay, nonWhitespace, syntheticSamples } from '$lib/core/replay';
+	import { promptState } from '$lib/core/prompts.svelte';
 	import { onDestroy, onMount } from 'svelte';
 
 	/** Zen: no timer, no results — just keep typing. */
@@ -99,8 +100,8 @@
 	let display_chars = $derived(code.split(''));
 	let syntax_kinds = $derived(highlightCode(code, lang));
 
-	/** The first character the run actually starts on; everything before it
-	 *  is dimmed context and is not counted. */
+	/** The first character the run actually starts on. The snippet is sliced
+	 *  at the chosen line, so this is only the indentation before the cursor. */
 	let start_cursor = $state(0);
 	/** Non-whitespace characters from the start point, shared by the bots. */
 	let targetCharacters = $derived(nonWhitespace(display_chars.slice(start_cursor)));
@@ -514,6 +515,13 @@
 		return byIndex;
 	});
 
+	function fmtClock(seconds: number): string {
+		const safe = Math.max(0, Math.round(seconds));
+		return `${Math.floor(safe / 60)
+			.toString()
+			.padStart(2, '0')}:${(safe % 60).toString().padStart(2, '0')}`;
+	}
+
 	function calcStats() {
 		const elapsed = finalTime - timeLeft;
 		const entries = Object.entries(typed);
@@ -564,8 +572,12 @@
 		let cursorAt = offsets[startLine];
 		while (cursorAt < text.length && ' \n\t'.includes(text[cursorAt])) cursorAt++;
 
-		start_cursor = cursorAt;
-		code = text;
+		// Keep the middle-of-snippet start, but make the chosen line the first
+		// visible line. Only the indentation before the cursor remains as
+		// context; no completed code sits above the run.
+		const lineStart = offsets[startLine];
+		start_cursor = cursorAt - lineStart;
+		code = text.slice(lineStart);
 	}
 
 	function startGame() {
@@ -771,10 +783,12 @@
 	// ─── Input handling ──────────────────────────────────────────────────────
 	let inputRef: HTMLTextAreaElement;
 	function focusInput() {
+		if (promptState.blocking) return;
 		inputRef?.focus({ preventScroll: true });
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
+		if (promptState.blocking) return;
 		const mod = e.ctrlKey || e.metaKey;
 
 		// App-wide shortcuts (usable mid-run, so they use a modifier).
@@ -888,7 +902,7 @@
 <div class="flex h-screen flex-col overflow-hidden bg-(--bg)">
 	<!-- Top bar -->
 	<header class="border-b border-(--border)">
-		<div class="mx-auto flex h-14 w-full max-w-[80rem] items-center gap-3 px-4 md:px-6">
+		<div class="mx-auto flex h-16 w-full max-w-[80rem] items-center gap-3 px-4 md:h-20 md:px-6">
 			<a href={resolve('/play')} class="ui-btn ui-btn-sm" aria-label="Open the mode hub"> ← hub </a>
 			<a href={resolve('/play')} class="title-text text-3xl leading-none text-(--silver)">
 				OSDTYP
@@ -901,26 +915,32 @@
 
 			<div class="flex-1"></div>
 
-			<!-- Live stats -->
-			<div class="flex items-center gap-4">
+			<!-- Live stats. The clock is deliberately the largest thing in the
+			     top bar so it stays readable in peripheral vision while typing. -->
+			<div class="flex items-center gap-3 md:gap-5">
 				<div class="flex flex-col items-end">
+					<span class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
+						{zen ? 'zen mode' : phase === 'idle' ? 'timer' : 'time left'}
+					</span>
 					<span
-						class="font-mono text-lg leading-none {phase === 'typing' && !zen && timeLeft <= 5
-							? 'text-(--red)'
-							: 'text-(--mer)'}">{zen ? '∞' : phase === 'idle' ? timer : timeLeft}</span
+						class={`min-w-[5ch] text-right font-mono text-4xl leading-none font-semibold tabular-nums md:text-5xl ${
+							phase === 'typing' && !zen && timeLeft <= 5 ? 'text-(--red)' : 'text-(--mer)'
+						}`}
+						aria-label={zen
+							? 'Zen mode, no timer'
+							: `${phase === 'idle' ? timer : timeLeft} seconds left`}
 					>
-					<span class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/40 uppercase">
-						{zen ? 'zen' : 'time'}
+						{zen ? '∞' : fmtClock(phase === 'idle' ? timer : timeLeft)}
 					</span>
 				</div>
 				{#if !zen}
-					<div class="h-7 w-px bg-(--border)"></div>
-					<div class="flex flex-col items-end">
-						<span class="font-mono text-lg leading-none text-(--mer)"
-							>{phase === 'idle' ? '—' : phase === 'done' ? finalWpm : wpm}</span
-						>
-						<span class="mt-1 font-mono text-[9px] tracking-widest text-(--silver)/40 uppercase">
+					<div class="hidden h-10 w-px bg-(--border) sm:block"></div>
+					<div class="hidden flex-col items-end sm:flex">
+						<span class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
 							wpm
+						</span>
+						<span class="font-mono text-2xl leading-none text-(--mer)">
+							{phase === 'idle' ? '—' : phase === 'done' ? finalWpm : wpm}
 						</span>
 					</div>
 				{/if}
