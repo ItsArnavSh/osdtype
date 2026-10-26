@@ -1713,7 +1713,7 @@
 				>
 					{#each lines as line, li (li)}
 						<div class="code-line" class:code-line-active={li === currentLine}>
-							<span class="line-no">{li + 1}</span>
+							<span class="line-no"><span>{li + 1}</span></span>
 							<span class="line-code"
 								>{#each line as i (i)}
 									{@const carets = botCarets.get(i) ?? []}<span

@@ -385,7 +385,7 @@ summary:focus-visible {
 .code-line {
 	display: flex;
 	gap: 1.1rem;
-	align-items: baseline;
+	align-items: flex-start;
 	min-height: 1.5em;
 	padding-right: 2px;
 }
@@ -426,10 +426,18 @@ summary:focus-visible {
 .line-no {
 	flex: 0 0 auto;
 	width: 2.25rem;
-	text-align: right;
-	font-size: 0.55em;
+	height: 1lh;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	font-size: inherit;
+	line-height: inherit;
 	user-select: none;
 	color: color-mix(in srgb, var(--silver) 28%, transparent);
+}
+.line-no > span {
+	font-size: 0.55em;
+	line-height: 1;
 }
 .code-line-active .line-no {
 	color: color-mix(in srgb, var(--mer) 70%, transparent);

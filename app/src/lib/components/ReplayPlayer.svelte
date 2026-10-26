@@ -459,7 +459,7 @@
 							class:code-line-active={lineIndex === currentLine}
 							use:trackLine={lineIndex}
 						>
-							<span class="line-no">{lineIndex + 1}</span>
+							<span class="line-no"><span>{lineIndex + 1}</span></span>
 							<span class="line-code">
 								{#each line as index (index)}
 									<span class={charClass(index)} class:replay-caret={index === display.cursor}
