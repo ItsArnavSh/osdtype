@@ -160,8 +160,8 @@
 						space + enter
 					</div>
 					<p class="mt-1 font-mono text-[10px] leading-relaxed text-(--silver)/40">
-						Adaptive is the default: missed spaces pass, extra spaces count, and enters are manual.
-						Indentation always auto-tabs. Switch it above the code.
+						Adaptive is the default: missed spaces pass, wrong spaces count, and Enter always moves
+						to the next line. Indentation auto-tabs in every mode. Switch it above the code.
 					</p>
 				</div>
 				<div>

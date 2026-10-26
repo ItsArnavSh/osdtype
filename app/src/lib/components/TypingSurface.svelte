@@ -1001,24 +1001,9 @@
 		const auto = autoWhitespace(cursor);
 		const pos = auto.pos;
 
-		// Manual treats a space like any other character: it is written at the
-		// caret and is wrong when the target is not a space. Tabs and line
-		// indentation have already advanced automatically.
-		if (whitespaceMode === 'manual' && pos < display_chars.length) {
-			typed[pos] = ' ';
-			undoStack.push({
-				typedIndex: pos,
-				value: ' ',
-				missed: [],
-				skipped: auto.skipped,
-				extra: false,
-				restoreTo: pos
-			});
-			cursor = nextCaretAfter(pos + 1);
-			return;
-		}
-
-		if (display_chars[pos] === ' ') {
+		// Spaces are characters in every manual mode. A space written over a
+		// non-space target is a visible error and advances the caret.
+		if (pos < display_chars.length) {
 			typed[pos] = ' ';
 			undoStack.push({
 				typedIndex: pos,
@@ -1049,9 +1034,7 @@
 		const skipped = [...auto.skipped];
 		let pos = auto.pos;
 
-		// Adaptive lets optional spaces pass before a return. Unlike a normal
-		// character, Enter always writes at the caret, so it is never silently
-		// ignored when the next target is not a newline.
+		// Adaptive lets optional spaces pass before a return.
 		if (whitespaceMode === 'adaptive') {
 			while (
 				pos < display_chars.length &&
@@ -1075,6 +1058,9 @@
 			return;
 		}
 
+		// Enter is also a character at the current target, but it always
+		// advances to the next line. If the target is not a return, that
+		// target is marked wrong and the rest of the line is skipped.
 		typed[pos] = '\n';
 		undoStack.push({
 			typedIndex: pos,
@@ -1084,7 +1070,16 @@
 			extra: false,
 			restoreTo: pos
 		});
-		cursor = nextCaretAfter(pos + 1);
+
+		let lineEnd = pos;
+		while (lineEnd < display_chars.length && !isNewline(display_chars[lineEnd])) lineEnd++;
+		cursor = nextCaretAfter(lineEnd < display_chars.length ? lineEnd + 1 : lineEnd);
+
+		if (cursor > display_chars.length - 400) {
+			const extraSeed = deriveSeed(seed, 1_000_000 + extensions++);
+			const extra = generate(lang, extraSeed, SNIPPET_TOKENS);
+			if (extra) code = code + '\n' + extra;
+		}
 	}
 
 	function deleteCharacter() {
@@ -1272,9 +1267,11 @@
 						<span class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
 							wpm
 						</span>
-						<span class="font-mono text-2xl leading-none text-(--mer)">
-							{phase === 'idle' ? '—' : phase === 'done' ? finalWpm : wpm}
-						</span>
+						<div class="flex h-9 items-end md:h-12">
+							<span class="font-mono text-2xl leading-none text-(--mer)">
+								{phase === 'idle' ? '—' : phase === 'done' ? finalWpm : wpm}
+							</span>
+						</div>
 					</div>
 				{/if}
 			</div>
