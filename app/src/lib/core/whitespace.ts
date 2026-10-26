@@ -12,8 +12,8 @@ export const WHITESPACE_MODE_LABELS: Record<WhitespaceMode, string> = {
 
 export const WHITESPACE_MODE_HINTS: Record<WhitespaceMode, string> = {
 	manual:
-		'Type every space and enter. Tabs advance automatically; missed whitespace counts as mistakes.',
+		'Spaces and enters are ordinary characters. Tabs and line indentation advance automatically.',
 	adaptive:
-		'Missed spaces pass, extra spaces count, and enters are manual. Tabs advance automatically.',
-	auto: 'Spaces, enters, and tabs advance automatically.'
+		'Missed spaces pass, extra spaces count, and enters are manual. Tabs and line indentation advance automatically.',
+	auto: 'Spaces, enters, tabs, and line indentation advance automatically.'
 };

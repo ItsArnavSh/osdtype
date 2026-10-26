@@ -161,7 +161,7 @@
 					</div>
 					<p class="mt-1 font-mono text-[10px] leading-relaxed text-(--silver)/40">
 						Adaptive is the default: missed spaces pass, extra spaces count, and enters are manual.
-						Switch it above the code.
+						Indentation always auto-tabs. Switch it above the code.
 					</p>
 				</div>
 				<div>
