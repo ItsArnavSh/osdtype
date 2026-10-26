@@ -399,6 +399,13 @@ summary:focus-visible {
 	white-space: pre-wrap;
 	word-break: break-word;
 }
+/* Manual and adaptive runs render returns as a small target marker. */
+.newline-glyph {
+	display: inline-block;
+	font-size: 0.62em;
+	line-height: 1;
+	vertical-align: 0.14em;
+}
 /* Soften the partially scrolled line at the top/bottom of the snippet. */
 .typing-scroll {
 	-webkit-mask-image: linear-gradient(

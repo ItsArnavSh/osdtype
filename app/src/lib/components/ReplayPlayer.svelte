@@ -12,11 +12,7 @@
 		byteToChar
 	} from '$lib/core/replay';
 	import { highlightCode } from '$lib/core/syntax';
-	import {
-		KEY_SOUNDS,
-		ReplaySoundEngine,
-		type KeySoundKind
-	} from '$lib/core/replay-sound';
+	import { KEY_SOUNDS, ReplaySoundEngine, type KeySoundKind } from '$lib/core/replay-sound';
 	import { onMount } from 'svelte';
 
 	let {
@@ -349,6 +345,7 @@
 		if (typed != null) {
 			if (typed === chars[index]) {
 				const kind = syntaxKinds[index] ?? 'plain';
+				if (kind === 'punct') return 'text-(--silver)';
 				return kind === 'plain' || kind === 'ws' ? 'text-(--silver)' : `syn-${kind}`;
 			}
 			return 'bg-(--wrong-bg) text-(--red)';
@@ -601,7 +598,8 @@
 			>
 				<span class={soundOn ? 'text-(--mer)' : 'text-(--silver)/30'}>♪</span>
 				<span>sound</span>
-				<span class={soundOn ? 'text-(--mer)' : 'text-(--silver)/25'}>{soundOn ? 'on' : 'off'}</span>
+				<span class={soundOn ? 'text-(--mer)' : 'text-(--silver)/25'}>{soundOn ? 'on' : 'off'}</span
+				>
 			</button>
 
 			{#if soundOpen}
@@ -621,8 +619,7 @@
 								>
 							</div>
 							<p class="mt-1 font-mono text-[10px] leading-relaxed text-(--silver)/35">
-								A guess at how this run might have sounded. It clicks with the original
-								keystrokes.
+								A guess at how this run might have sounded. It clicks with the original keystrokes.
 							</p>
 						</div>
 						<button

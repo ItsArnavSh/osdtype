@@ -177,12 +177,15 @@ export function mapTypedToDisplay(
 	const chars = charsOf(snippet);
 	const start = byteToChar(snippet, startOffset);
 	const mapped: (string | null)[] = new Array(chars.length).fill(null);
+	// Manual and adaptive runs can record whitespace keystrokes. They are
+	// visual-only in the replay, so keep the printable stream aligned.
+	const typed = nonWhitespace(typedChars);
 	let typedIndex = 0;
 	let cursor = start;
 	for (let index = start; index < chars.length; index++) {
 		if (isWhitespace(chars[index])) continue;
-		if (typedIndex < typedChars.length) {
-			mapped[index] = typedChars[typedIndex++];
+		if (typedIndex < typed.length) {
+			mapped[index] = typed[typedIndex++];
 			cursor = index + 1;
 		} else {
 			cursor = index;

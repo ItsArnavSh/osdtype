@@ -33,6 +33,13 @@
 	} from '$lib/core/practice-bots';
 	import { mapTypedToDisplay, nonWhitespace, syntheticSamples } from '$lib/core/replay';
 	import { promptState } from '$lib/core/prompts.svelte';
+	import {
+		DEFAULT_WHITESPACE_MODE,
+		WHITESPACE_MODES,
+		WHITESPACE_MODE_HINTS,
+		WHITESPACE_MODE_LABELS,
+		type WhitespaceMode
+	} from '$lib/core/whitespace';
 	import { onDestroy, onMount } from 'svelte';
 
 	/** Zen: no timer, no results — just keep typing. */
@@ -44,6 +51,7 @@
 	// ─── Config ──────────────────────────────────────────────────────────────
 	let lang = $state<Language>('go');
 	let timer = $state<Time>(30);
+	let whitespaceMode = $state<WhitespaceMode>(DEFAULT_WHITESPACE_MODE);
 	let modalOpen = $state(false);
 	let botsOpen = $state(false);
 
@@ -53,9 +61,16 @@
 		try {
 			const raw = localStorage.getItem(PREFS_KEY);
 			if (!raw) return;
-			const saved = JSON.parse(raw) as { lang?: string; timer?: number };
+			const saved = JSON.parse(raw) as {
+				lang?: string;
+				timer?: number;
+				whitespaceMode?: string;
+			};
 			if (LANGUAGES.includes(saved.lang as Language)) lang = saved.lang as Language;
 			if (TIMES.includes(saved.timer as Time)) timer = saved.timer as Time;
+			if (WHITESPACE_MODES.includes(saved.whitespaceMode as WhitespaceMode)) {
+				whitespaceMode = saved.whitespaceMode as WhitespaceMode;
+			}
 		} catch {
 			// Preferences are helpful, not required. Keep the defaults.
 		}
@@ -63,7 +78,7 @@
 
 	function savePrefs() {
 		try {
-			localStorage.setItem(PREFS_KEY, JSON.stringify({ lang, timer }));
+			localStorage.setItem(PREFS_KEY, JSON.stringify({ lang, timer, whitespaceMode }));
 		} catch {
 			// Storage can be unavailable in private contexts.
 		}
@@ -83,6 +98,14 @@
 		savePrefs();
 		resetGame();
 		focusInput();
+	}
+
+	function setWhitespaceMode(next: WhitespaceMode) {
+		if (next === whitespaceMode || phase === 'typing') return;
+		whitespaceMode = next;
+		savePrefs();
+		if (phase === 'done') resetGame();
+		else focusInput();
 	}
 
 	/** Token budget for a snippet. Small enough to stay readable, large
@@ -109,7 +132,28 @@
 	// ─── Typing state ────────────────────────────────────────────────────────
 	let cursor = $state(0);
 	let typed: Record<number, string> = $state({});
-	let typedCount = $derived(Object.keys(typed).length);
+	/** Whitespace the player skipped when it was required by the active mode. */
+	let missed: Record<number, true> = $state({});
+	/** Wrong whitespace keystrokes that did not consume a target character. */
+	let extraWrong = $state(0);
+
+	interface UndoStep {
+		/** Display index this keystroke wrote, or null for an extra keystroke. */
+		typedIndex: number | null;
+		value: string;
+		/** Whitespace positions skipped by this keystroke that were counted as errors. */
+		missed: number[];
+		/** Whitespace positions skipped before the typed character, error or not. */
+		skipped: number[];
+		extra: boolean;
+		/** Cursor position restored when this keystroke is undone. */
+		restoreTo: number;
+	}
+
+	let undoStack = $state<UndoStep[]>([]);
+	let typedCount = $derived(
+		Object.keys(typed).filter((index) => !isSpecial(display_chars[Number(index)])).length
+	);
 	let typingProgress = $derived(
 		Math.min(100, Math.round((typedCount / Math.max(1, targetCharacters.length)) * 100))
 	);
@@ -117,6 +161,7 @@
 	// ─── Game state ──────────────────────────────────────────────────────────
 	type Phase = 'idle' | 'typing' | 'done';
 	let phase = $state<Phase>('idle');
+	let immersive = $state(false);
 	let timeLeft = $state(0);
 	let wpm = $state(0);
 	let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -524,12 +569,18 @@
 
 	function calcStats() {
 		const elapsed = finalTime - timeLeft;
-		const entries = Object.entries(typed);
+		// Correct whitespace is shown in the surface but, like the server's
+		// scoring, it does not count toward the printable-character totals.
+		const entries = Object.entries(typed).filter(([i]) => !isSpecial(display_chars[Number(i)]));
 		const correct = entries.filter(([i, ch]) => ch === display_chars[Number(i)]).length;
-		const wrong = entries.filter(([i, ch]) => ch !== display_chars[Number(i)]).length;
+		const wrong =
+			entries.filter(([i, ch]) => ch !== display_chars[Number(i)]).length +
+			Object.keys(missed).length +
+			extraWrong;
 		const raw = elapsed > 0 ? Math.round(entries.length / 5 / (elapsed / 60)) : 0;
 		const net = elapsed > 0 ? Math.round(correct / 5 / (elapsed / 60)) : 0;
-		const acc = entries.length > 0 ? Math.round((correct / entries.length) * 100) : 100;
+		const total = correct + wrong;
+		const acc = total > 0 ? Math.round((correct / total) * 100) : 100;
 		return { correct, wrong, raw, net, acc };
 	}
 
@@ -592,7 +643,13 @@
 		practiceSaveBusy = false;
 		replayOpen = false;
 		exportOpen = false;
+		typed = {};
+		missed = {};
+		extraWrong = 0;
+		undoStack = [];
+		cursor = start_cursor;
 		phase = 'typing';
+		immersive = true;
 		if (zen) {
 			liveBots = [];
 			return;
@@ -630,6 +687,7 @@
 		finalCorrect = correct;
 		finalWrong = wrong;
 		finalizeBotRace();
+		immersive = false;
 		phase = 'done';
 		void storePracticeRun(runGeneration);
 	}
@@ -643,10 +701,14 @@
 		liveBots = [];
 		botElapsedMs = 0;
 		runGeneration++;
+		immersive = false;
 		phase = 'idle';
 		timeLeft = timer;
 		wpm = 0;
 		typed = {};
+		missed = {};
+		extraWrong = 0;
+		undoStack = [];
 		samples = [];
 		runEvents = [];
 		practiceRun = null;
@@ -669,10 +731,14 @@
 		liveBots = [];
 		botElapsedMs = 0;
 		runGeneration++;
+		immersive = false;
 		phase = 'idle';
 		timeLeft = timer;
 		wpm = 0;
 		typed = {};
+		missed = {};
+		extraWrong = 0;
+		undoStack = [];
 		samples = [];
 		runEvents = [];
 		practiceRun = null;
@@ -697,32 +763,77 @@
 
 	// ─── Cursor helpers ──────────────────────────────────────────────────────
 	function isSpecial(char: string) {
-		return char === ' ' || char === '\n' || char === '\t';
+		return char === ' ' || char === '\n' || char === '\t' || char === '\r';
 	}
-	function nextReal(pos: number) {
+
+	function skipTabs(pos: number) {
+		while (pos < display_chars.length && display_chars[pos] === '\t') pos++;
+		return pos;
+	}
+
+	function skipAllWhitespace(pos: number) {
 		while (pos < display_chars.length && isSpecial(display_chars[pos])) pos++;
 		return pos;
 	}
-	function prevReal(pos: number) {
-		pos--;
-		while (pos > 0 && isSpecial(display_chars[pos])) pos--;
-		return Math.max(0, pos);
+
+	/** Place the caret on the next position the active mode expects. */
+	function nextCaretAfter(pos: number) {
+		pos = skipTabs(pos);
+		if (whitespaceMode === 'auto') return skipAllWhitespace(pos);
+		return pos;
+	}
+
+	/**
+	 * Walks whitespace before the next printable character. Tabs always pass;
+	 * spaces only fail in manual mode, while returns fail whenever they are
+	 * manual (adaptive and manual).
+	 */
+	function collectSkippedWhitespace(from: number) {
+		const skipped: number[] = [];
+		const missedPositions: number[] = [];
+		let pos = from;
+		while (pos < display_chars.length) {
+			const char = display_chars[pos];
+			if (char === '\t') {
+				skipped.push(pos);
+				pos++;
+				continue;
+			}
+			if (char === ' ') {
+				skipped.push(pos);
+				if (whitespaceMode === 'manual') missedPositions.push(pos);
+				pos++;
+				continue;
+			}
+			if (char === '\n' || char === '\r') {
+				skipped.push(pos);
+				if (whitespaceMode !== 'auto') missedPositions.push(pos);
+				pos++;
+				continue;
+			}
+			break;
+		}
+		return { pos, skipped, missedPositions };
 	}
 
 	let char_states = $derived(
 		display_chars.map((char, i) => {
+			if (i in typed) return typed[i] === char ? 'correct' : 'wrong';
+			if (i in missed) return 'wrong';
 			if (isSpecial(char)) return 'special';
-			if (!(i in typed)) return 'pending';
-			return typed[i] === char ? 'correct' : 'wrong';
+			return 'pending';
 		})
 	);
 
-	/** Global character indices grouped into visual lines (newlines excluded). */
+	/** Global character indices grouped into visual lines. Newline markers are
+	 *  only rendered when returns are part of the run. */
 	let lines = $derived.by(() => {
 		const out: number[][] = [];
 		let current: number[] = [];
+		const showNewlines = whitespaceMode !== 'auto';
 		for (let i = 0; i < display_chars.length; i++) {
 			if (display_chars[i] === '\n') {
+				if (showNewlines) current.push(i);
 				out.push(current);
 				current = [];
 			} else {
@@ -746,14 +857,28 @@
 	function charClass(i: number): string {
 		if (i < start_cursor) return 'text-(--completed)';
 		const state = char_states[i];
-		if (state === 'special') return 'text-(--space)';
 		if (state === 'wrong') return 'bg-(--wrong-bg) text-(--red)';
 		if (state === 'correct') {
+			const char = display_chars[i];
+			if (char === ' ') return 'bg-(--mer)/25 text-(--silver)';
+			if (char === '\n' || char === '\r') return 'bg-(--mer)/10 text-(--mer)';
+			if (char === '\t') return 'bg-(--mer)/15 text-(--silver)';
 			const kind = syntax_kinds[i] ?? 'plain';
+			// Punctuation is a typed character like any other; keep it at the
+			// full foreground contrast instead of the dimmer syntax tone.
+			if (kind === 'punct') return 'text-(--silver)';
 			return kind === 'plain' || kind === 'ws' ? 'text-(--silver)' : `syn-${kind}`;
 		}
+		if (state === 'special') return 'text-(--space)';
 		// Untyped text stays readable and neutral until it is written.
 		return 'text-(--pending)';
+	}
+
+	function charGlyph(i: number): string {
+		const char = display_chars[i];
+		if (char === '\n') return '↵';
+		if (char === '\r') return '⏎';
+		return char;
 	}
 
 	// ─── Autoscroll ──────────────────────────────────────────────────────────
@@ -772,11 +897,15 @@
 
 	$effect(() => {
 		const pos = cursor;
+		// The chrome collapsing for focus changes the available height, so
+		// re-centre when it toggles as well as when the caret moves.
+		const focusBias = immersive ? 0.46 : 0.5;
 		const span = spanRefs[pos];
 		if (!span || !codeContainer) return;
 
 		const spanOffsetTop = span.offsetTop;
-		const targetScrollTop = spanOffsetTop - codeContainer.clientHeight / 2 + span.offsetHeight / 2;
+		const targetScrollTop =
+			spanOffsetTop - codeContainer.clientHeight * focusBias + span.offsetHeight / 2;
 		codeContainer.scrollTop = Math.max(0, targetScrollTop);
 	});
 
@@ -785,6 +914,156 @@
 	function focusInput() {
 		if (promptState.blocking) return;
 		inputRef?.focus({ preventScroll: true });
+	}
+
+	function undoLastAction(): string | null {
+		const step = undoStack.pop();
+		if (!step) return null;
+		if (step.typedIndex !== null) delete typed[step.typedIndex];
+		for (const index of step.missed) delete missed[index];
+		if (step.extra) extraWrong = Math.max(0, extraWrong - 1);
+		cursor = step.restoreTo;
+		return step.value;
+	}
+
+	function isWhitespaceStep(step: UndoStep): boolean {
+		if (step.extra || step.typedIndex === null) return true;
+		return isSpecial(display_chars[step.typedIndex]);
+	}
+
+	function typeCharacter(char: string) {
+		const { pos, skipped, missedPositions } = collectSkippedWhitespace(cursor);
+		if (pos >= display_chars.length) return;
+
+		for (const index of missedPositions) missed[index] = true;
+		typed[pos] = char;
+		const restoreTo =
+			whitespaceMode === 'auto' || missedPositions.length === 0
+				? pos
+				: Math.min(pos, ...missedPositions);
+		undoStack.push({
+			typedIndex: pos,
+			value: char,
+			missed: missedPositions,
+			skipped,
+			extra: false,
+			restoreTo
+		});
+		cursor = nextCaretAfter(pos + 1);
+
+		// Top up the text before the end is reached, in every mode, so a long
+		// timer never runs out of something to type.
+		if (cursor > display_chars.length - 400) {
+			const extraSeed = deriveSeed(seed, 1_000_000 + extensions++);
+			const extra = generate(lang, extraSeed, SNIPPET_TOKENS);
+			if (extra) code = code + '\n' + extra;
+		}
+	}
+
+	function typeSpace() {
+		const cursorBefore = cursor;
+		const pos = skipTabs(cursor);
+		if (display_chars[pos] === ' ') {
+			typed[pos] = ' ';
+			undoStack.push({
+				typedIndex: pos,
+				value: ' ',
+				missed: [],
+				skipped: [],
+				extra: false,
+				restoreTo: pos
+			});
+			cursor = nextCaretAfter(pos + 1);
+			return;
+		}
+
+		extraWrong++;
+		undoStack.push({
+			typedIndex: null,
+			value: ' ',
+			missed: [],
+			skipped: [],
+			extra: true,
+			restoreTo: cursorBefore
+		});
+	}
+
+	function typeEnter() {
+		const cursorBefore = cursor;
+		let pos = skipTabs(cursor);
+		const skipped: number[] = [];
+		const missedPositions: number[] = [];
+
+		// Returns are manual in adaptive and manual modes. Tabs always pass;
+		// spaces before the return are optional in adaptive (they pass) and
+		// mistakes in manual.
+		while (pos < display_chars.length) {
+			if (display_chars[pos] === '\t') {
+				skipped.push(pos);
+				pos++;
+				continue;
+			}
+			if (display_chars[pos] !== ' ') break;
+			skipped.push(pos);
+			if (whitespaceMode === 'manual') missedPositions.push(pos);
+			pos++;
+		}
+
+		if (display_chars[pos] === '\n') {
+			for (const index of missedPositions) missed[index] = true;
+			typed[pos] = '\n';
+			undoStack.push({
+				typedIndex: pos,
+				value: '\n',
+				missed: missedPositions,
+				skipped,
+				extra: false,
+				restoreTo:
+					whitespaceMode === 'manual' && missedPositions.length > 0
+						? Math.min(pos, ...missedPositions)
+						: pos
+			});
+			cursor = nextCaretAfter(pos + 1);
+			return;
+		}
+
+		extraWrong++;
+		undoStack.push({
+			typedIndex: null,
+			value: '\n',
+			missed: [],
+			skipped: [],
+			extra: true,
+			restoreTo: cursorBefore
+		});
+	}
+
+	function deleteCharacter() {
+		const deleted = undoLastAction();
+		if (deleted === null) return;
+		recordEvent(KeypressAction.BACKSPACE, '');
+	}
+
+	function deleteWord() {
+		const deleted: string[] = [];
+
+		// Drop whitespace immediately before the caret, then the word itself.
+		// A character that jumped over whitespace starts a new word, so stop
+		// after consuming it even when the whitespace was auto-skipped.
+		while (undoStack.length > 0 && isWhitespaceStep(undoStack[undoStack.length - 1])) {
+			const value = undoLastAction();
+			if (value !== null) deleted.push(value);
+		}
+		while (undoStack.length > 0) {
+			const step = undoStack[undoStack.length - 1];
+			if (isWhitespaceStep(step)) break;
+			const value = undoLastAction();
+			if (value !== null) deleted.push(value);
+			if (step.skipped.length > 0) break;
+		}
+
+		if (deleted.length === 0) return;
+		recordEvent(KeypressAction.BACKSPACE, [...deleted].reverse().join(''));
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -813,6 +1092,7 @@
 
 		if (e.key === 'Escape') {
 			e.preventDefault();
+			immersive = false;
 			modalOpen = !modalOpen;
 			return;
 		}
@@ -846,43 +1126,53 @@
 			return;
 		}
 		if (phase === 'done') return;
-		if (mod || e.altKey) return;
-		if (e.key === ' ' || e.key === 'Enter') {
-			e.preventDefault();
-			return;
-		}
+
 		if (e.key === 'Backspace') {
+			if (phase === 'idle') return;
 			e.preventDefault();
-			if (phase === 'idle' || cursor <= start_cursor) return;
+			if (e.altKey) return;
 			focusInput();
-			const prev = Math.max(prevReal(cursor), start_cursor);
-			delete typed[prev];
-			cursor = prev;
-			recordEvent(KeypressAction.BACKSPACE, '');
+			if (mod) deleteWord();
+			else deleteCharacter();
+			immersive = true;
 			return;
 		}
+
+		if (mod || e.altKey) return;
+
+		if (e.key === ' ' || e.key === 'Enter') {
+			if (whitespaceMode === 'auto' || phase === 'idle') {
+				e.preventDefault();
+				return;
+			}
+			e.preventDefault();
+			focusInput();
+			const value = e.key === ' ' ? ' ' : '\n';
+			recordEvent(KeypressAction.KEYPRESS, value);
+			if (e.key === ' ') typeSpace();
+			else typeEnter();
+			immersive = true;
+			return;
+		}
+
 		if (e.key.length === 1) {
 			e.preventDefault();
 			focusInput();
 			if (phase === 'idle') startGame();
 			recordEvent(KeypressAction.KEYPRESS, e.key);
-			const pos = nextReal(cursor);
-			typed[pos] = e.key;
-			cursor = nextReal(pos + 1);
-
-			// Top up the text before the end is reached, in every mode, so a
-			// long timer never runs out of something to type.
-			if (cursor > display_chars.length - 400) {
-				const extraSeed = deriveSeed(seed, 1_000_000 + extensions++);
-				const extra = generate(lang, extraSeed, SNIPPET_TOKENS);
-				if (extra) code = code + '\n' + extra;
-			}
+			typeCharacter(e.key);
+			immersive = true;
 		}
+	}
+
+	function revealChrome() {
+		if (immersive) immersive = false;
 	}
 
 	onMount(() => {
 		loadPrefs();
 		window.addEventListener('keydown', handleKeydown);
+		window.addEventListener('pointermove', revealChrome, { passive: true });
 		timeLeft = timer;
 		initCodegen().then(() => {
 			wasmReady = true;
@@ -890,7 +1180,10 @@
 			cursor = start_cursor;
 			focusInput();
 		});
-		return () => window.removeEventListener('keydown', handleKeydown);
+		return () => {
+			window.removeEventListener('keydown', handleKeydown);
+			window.removeEventListener('pointermove', revealChrome);
+		};
 	});
 
 	onDestroy(() => {
@@ -901,17 +1194,21 @@
 
 <div class="flex h-screen flex-col overflow-hidden bg-(--bg)">
 	<!-- Top bar -->
-	<header class="border-b border-(--border)">
+	<header class="border-b border-(--border)" class:border-transparent={immersive}>
 		<div class="mx-auto flex h-16 w-full max-w-[80rem] items-center gap-3 px-4 md:h-20 md:px-6">
-			<a href={resolve('/play')} class="ui-btn ui-btn-sm" aria-label="Open the mode hub"> ← hub </a>
-			<a href={resolve('/play')} class="title-text text-3xl leading-none text-(--silver)">
-				OSDTYP
-			</a>
-			<span
-				class="hidden border border-(--border) px-2 py-0.5 font-mono text-[9px] tracking-[0.14em] text-(--silver)/45 uppercase sm:inline-block"
-			>
-				{zen ? 'zen' : 'practice'}
-			</span>
+			{#if !immersive}
+				<a href={resolve('/play')} class="ui-btn ui-btn-sm" aria-label="Open the mode hub">
+					← hub
+				</a>
+				<a href={resolve('/play')} class="title-text text-3xl leading-none text-(--silver)">
+					OSDTYP
+				</a>
+				<span
+					class="hidden border border-(--border) px-2 py-0.5 font-mono text-[9px] tracking-[0.14em] text-(--silver)/45 uppercase sm:inline-block"
+				>
+					{zen ? 'zen' : 'practice'}
+				</span>
+			{/if}
 
 			<div class="flex-1"></div>
 
@@ -933,7 +1230,7 @@
 						{zen ? '∞' : fmtClock(phase === 'idle' ? timer : timeLeft)}
 					</span>
 				</div>
-				{#if !zen}
+				{#if !zen && !immersive}
 					<div class="hidden h-10 w-px bg-(--border) sm:block"></div>
 					<div class="hidden flex-col items-end sm:flex">
 						<span class="font-mono text-[9px] tracking-[0.16em] text-(--silver)/35 uppercase">
@@ -946,26 +1243,33 @@
 				{/if}
 			</div>
 
-			<div class="ml-1 flex items-center gap-2">
-				{#if appState.user}
-					<a
-						href={resolve(`/profile/${appState.user.username}`)}
-						class="ui-btn ui-btn-sm hidden max-w-36 truncate sm:inline-flex"
-						title="Your profile">{appState.user.username}</a
+			{#if !immersive}
+				<div class="ml-1 flex items-center gap-2">
+					{#if appState.user}
+						<a
+							href={resolve(`/profile/${appState.user.username}`)}
+							class="ui-btn ui-btn-sm hidden max-w-36 truncate sm:inline-flex"
+							title="Your profile">{appState.user.username}</a
+						>
+					{:else}
+						<a
+							href={resolve(`/login?next=${encodeURIComponent(page.url.pathname)}` as '/login')}
+							class="ui-btn ui-btn-sm ui-btn-primary">sign in</a
+						>
+					{/if}
+					<button class="ui-btn ui-btn-sm" onclick={cycleTheme} title="Cycle theme (ctrl+shift+T)"
+						>{themeState.current}</button
 					>
-				{:else}
-					<a
-						href={resolve(`/login?next=${encodeURIComponent(page.url.pathname)}` as '/login')}
-						class="ui-btn ui-btn-sm ui-btn-primary">sign in</a
+					<button
+						class="ui-btn ui-btn-sm"
+						onclick={() => {
+							immersive = false;
+							modalOpen = true;
+						}}
+						title="Settings (esc)">settings</button
 					>
-				{/if}
-				<button class="ui-btn ui-btn-sm" onclick={cycleTheme} title="Cycle theme (ctrl+shift+T)"
-					>{themeState.current}</button
-				>
-				<button class="ui-btn ui-btn-sm" onclick={() => (modalOpen = true)} title="Settings (esc)"
-					>settings</button
-				>
-			</div>
+				</div>
+			{/if}
 		</div>
 	</header>
 
@@ -984,62 +1288,81 @@
 
 	<main class="mx-auto flex min-h-0 w-full max-w-[80rem] flex-1 flex-col px-4 py-4 md:px-6">
 		<!-- Test toolbar: every setting that changes the test is here, in one row. -->
-		<div class="flex flex-wrap items-center gap-x-6 gap-y-3 pb-3">
-			<div class="flex items-center gap-2">
-				<label class="ui-label" for="test-language">language</label>
-				<select
-					id="test-language"
-					class="ui-select"
-					value={lang}
-					onchange={(e) => setLanguage(e.currentTarget.value as Language)}
-					disabled={phase === 'typing'}
-				>
-					{#each LANGUAGES as l (l)}
-						<option value={l}>{LANGUAGE_LABELS[l]}</option>
-					{/each}
-				</select>
-			</div>
-
-			{#if !zen}
+		{#if !immersive}
+			<div class="flex flex-wrap items-center gap-x-6 gap-y-3 pb-3">
 				<div class="flex items-center gap-2">
-					<span class="ui-label">timer</span>
+					<label class="ui-label" for="test-language">language</label>
+					<select
+						id="test-language"
+						class="ui-select"
+						value={lang}
+						onchange={(e) => setLanguage(e.currentTarget.value as Language)}
+						disabled={phase === 'typing'}
+					>
+						{#each LANGUAGES as l (l)}
+							<option value={l}>{LANGUAGE_LABELS[l]}</option>
+						{/each}
+					</select>
+				</div>
+
+				{#if !zen}
+					<div class="flex items-center gap-2">
+						<span class="ui-label">timer</span>
+						<div class="flex items-center gap-1">
+							{#each TIMES as t (t)}
+								<button
+									class="ui-chip"
+									aria-pressed={timer === t}
+									onclick={() => setTimer(t)}
+									disabled={phase === 'typing'}
+								>
+									{t}s
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<div class="flex items-center gap-2">
+					<span class="ui-label">space + enter</span>
 					<div class="flex items-center gap-1">
-						{#each TIMES as t (t)}
+						{#each WHITESPACE_MODES as mode (mode)}
 							<button
 								class="ui-chip"
-								aria-pressed={timer === t}
-								onclick={() => setTimer(t)}
+								aria-pressed={whitespaceMode === mode}
+								onclick={() => setWhitespaceMode(mode)}
 								disabled={phase === 'typing'}
+								title={WHITESPACE_MODE_HINTS[mode]}
 							>
-								{t}s
+								{WHITESPACE_MODE_LABELS[mode]}
 							</button>
 						{/each}
 					</div>
 				</div>
-			{/if}
 
-			{#if !zen && !guest}
-				<div class="flex items-center gap-2">
-					<span class="ui-label">race</span>
-					<button class="ui-chip" aria-expanded={botsOpen} onclick={() => (botsOpen = !botsOpen)}>
-						{#if effectiveBots.length === 0}
-							solo
-						{:else}
-							{effectiveBots.length} bot{effectiveBots.length === 1 ? '' : 's'}
-						{/if}
-						<span aria-hidden="true">▾</span>
+				{#if !zen && !guest}
+					<div class="flex items-center gap-2">
+						<span class="ui-label">race</span>
+						<button class="ui-chip" aria-expanded={botsOpen} onclick={() => (botsOpen = !botsOpen)}>
+							{#if effectiveBots.length === 0}
+								solo
+							{:else}
+								{effectiveBots.length} bot{effectiveBots.length === 1 ? '' : 's'}
+							{/if}
+							<span aria-hidden="true">▾</span>
+						</button>
+					</div>
+				{/if}
+
+				<div class="ml-auto flex items-center gap-2">
+					<button class="ui-btn ui-btn-sm" onclick={resetGame} title="Restart (tab)">
+						restart <span class="kbd">tab</span>
 					</button>
 				</div>
-			{/if}
-
-			<div class="ml-auto flex items-center gap-2">
-				<button class="ui-btn ui-btn-sm" onclick={resetGame} title="Restart (tab)">
-					restart <span class="kbd">tab</span>
-				</button>
 			</div>
-		</div>
+		{/if}
 
-		{#if botsOpen && !zen}
+		{#if !immersive && botsOpen && !zen}
 			<div class="mb-3 border border-(--border) bg-(--bg) p-3">
 				<div class="flex flex-wrap items-center justify-between gap-2">
 					<div class="flex items-center gap-2">
@@ -1079,6 +1402,7 @@
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="relative flex min-h-0 flex-1 flex-col border border-(--border) bg-(--fbg)"
+			class:border-transparent={immersive}
 			role="group"
 			aria-label="Typing test"
 			onclick={(e) => {
@@ -1087,33 +1411,35 @@
 				focusInput();
 			}}
 		>
-			<!-- Status strip -->
-			<div
-				class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-4 py-2 font-mono text-[10px] md:px-5"
-			>
-				<div class="flex min-w-0 items-center gap-2">
-					{#if !wasmReady}
-						<span class="h-1.5 w-1.5 bg-(--silver)/35"></span>
-						<span class="text-(--silver)/45">loading snippet…</span>
-					{:else if phase === 'idle'}
-						<span class="h-1.5 w-1.5 bg-(--mer)"></span>
-						<span class="font-bold tracking-[0.08em] text-(--mer) uppercase">start typing</span>
-						<span class="truncate text-(--silver)/40">
-							— the timer starts with your first keystroke
-						</span>
-					{:else if phase === 'typing'}
-						<span class="h-1.5 w-1.5 bg-(--mer)"></span>
-						<span class="text-(--silver)/55">{zen ? 'zen mode' : 'running'}</span>
-						<span class="truncate text-(--silver)/35">
-							· line {currentLine + 1} · {typingProgress}%
-						</span>
-					{:else}
-						<span class="h-1.5 w-1.5 bg-(--mer)"></span>
-						<span class="text-(--silver)/55">result</span>
-						<span class="text-(--silver)/35">· {LANGUAGE_LABELS[lang]} · {finalTime}s</span>
-					{/if}
+			{#if !immersive}
+				<!-- Status strip -->
+				<div
+					class="flex flex-wrap items-center justify-between gap-2 border-b border-(--border) px-4 py-2 font-mono text-[10px] md:px-5"
+				>
+					<div class="flex min-w-0 items-center gap-2">
+						{#if !wasmReady}
+							<span class="h-1.5 w-1.5 bg-(--silver)/35"></span>
+							<span class="text-(--silver)/45">loading snippet…</span>
+						{:else if phase === 'idle'}
+							<span class="h-1.5 w-1.5 bg-(--mer)"></span>
+							<span class="font-bold tracking-[0.08em] text-(--mer) uppercase">start typing</span>
+							<span class="truncate text-(--silver)/40">
+								— the timer starts with your first keystroke
+							</span>
+						{:else if phase === 'typing'}
+							<span class="h-1.5 w-1.5 bg-(--mer)"></span>
+							<span class="text-(--silver)/55">{zen ? 'zen mode' : 'running'}</span>
+							<span class="truncate text-(--silver)/35">
+								· line {currentLine + 1} · {typingProgress}%
+							</span>
+						{:else}
+							<span class="h-1.5 w-1.5 bg-(--mer)"></span>
+							<span class="text-(--silver)/55">result</span>
+							<span class="text-(--silver)/35">· {LANGUAGE_LABELS[lang]} · {finalTime}s</span>
+						{/if}
+					</div>
 				</div>
-			</div>
+			{/if}
 
 			{#if phase === 'done'}
 				<div class="min-h-0 flex-1 overflow-y-auto">
@@ -1375,7 +1701,10 @@
 														class="bot-caret-mark"
 														style={`left:${depth * 3}px;background:${bot.color}`}
 													></span>{/each}</span
-											>{/if}{display_chars[i]}</span
+											>{/if}{#if display_chars[i] === '\n' || display_chars[i] === '\r'}<span
+												class="newline-glyph"
+												aria-hidden="true">{charGlyph(i)}</span
+											>{:else}{display_chars[i]}{/if}</span
 									>
 								{/each}</span
 							>
@@ -1393,23 +1722,25 @@
 			{/if}
 		</div>
 
-		<!-- Footer hints -->
-		<div
-			class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] text-(--silver)/40"
-		>
-			<span><span class="kbd">tab</span> restart</span>
-			<span><span class="kbd">esc</span> settings</span>
-			<span class="hidden sm:inline"><span class="kbd">ctrl+shift+l</span> language</span>
-			<span class="hidden sm:inline"><span class="kbd">ctrl+shift+s</span> timer</span>
-			{#if effectiveBots.length > 0 && !zen}
-				<span class="text-(--mer)/70">
-					bots: {effectiveBots.map((id) => botProfile(id).label).join(' · ')}
-				</span>
-			{/if}
-			{#if guest}
-				<span class="ml-auto text-(--silver)/35">guest mode · runs are not saved</span>
-			{/if}
-		</div>
+		{#if !immersive}
+			<!-- Footer hints -->
+			<div
+				class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] text-(--silver)/40"
+			>
+				<span><span class="kbd">tab</span> restart</span>
+				<span><span class="kbd">esc</span> settings</span>
+				<span class="hidden sm:inline"><span class="kbd">ctrl+shift+l</span> language</span>
+				<span class="hidden sm:inline"><span class="kbd">ctrl+shift+s</span> timer</span>
+				{#if effectiveBots.length > 0 && !zen}
+					<span class="text-(--mer)/70">
+						bots: {effectiveBots.map((id) => botProfile(id).label).join(' · ')}
+					</span>
+				{/if}
+				{#if guest}
+					<span class="ml-auto text-(--silver)/35">guest mode · runs are not saved</span>
+				{/if}
+			</div>
+		{/if}
 	</main>
 </div>
 

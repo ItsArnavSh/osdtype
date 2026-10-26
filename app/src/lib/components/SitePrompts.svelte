@@ -146,13 +146,22 @@
 				Start on line 1. The clock starts on your first key.
 			</p>
 
-			<div class="mt-5 grid gap-4 border-y border-(--border) py-4 sm:grid-cols-2">
+			<div class="mt-5 grid gap-4 border-y border-(--border) py-4 sm:grid-cols-3">
 				<div>
 					<div class="font-mono text-[10px] tracking-[0.14em] text-(--mer)/70 uppercase">
 						language + timer
 					</div>
 					<p class="mt-1 font-mono text-[10px] leading-relaxed text-(--silver)/40">
 						Both are just above the code. Change them before you start.
+					</p>
+				</div>
+				<div>
+					<div class="font-mono text-[10px] tracking-[0.14em] text-(--mer)/70 uppercase">
+						space + enter
+					</div>
+					<p class="mt-1 font-mono text-[10px] leading-relaxed text-(--silver)/40">
+						Adaptive is the default: missed spaces pass, extra spaces count, and enters are manual.
+						Switch it above the code.
 					</p>
 				</div>
 				<div>
