@@ -133,7 +133,7 @@ while Vercel serves the public static frontend:
 
 - **API** — <https://api.15.134.14.153.sslip.io>
 - **AWS web fallback** — <https://app.15.134.14.153.sslip.io>
-- **Frontend** — <https://osdtype-w5vr-six.vercel.app/>
+- **Frontend** — <https://osd-typ.in/>
 - **Stack** — `docker-compose.aws.yml` runs the Go API, PostgreSQL 17, Redis 7
   and Caddy on the instance. Postgres and Redis are private to the Compose
   network and persist in Docker volumes.

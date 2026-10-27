@@ -18,7 +18,7 @@ API because ACM cannot validate the temporary `sslip.io` hostnames.
 
 | Piece | Where |
 | --- | --- |
-| Frontend | <https://osdtype-w5vr-six.vercel.app/> (Vercel) |
+| Frontend | <https://osd-typ.in/> (Vercel) |
 | API | <https://api.15.134.14.153.sslip.io> (Caddy → Go API) |
 | AWS web fallback | <https://app.15.134.14.153.sslip.io> (same static build) |
 | PostgreSQL 17 | Docker container on the EC2 instance, private Compose network |
