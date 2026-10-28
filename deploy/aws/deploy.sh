@@ -28,6 +28,7 @@ git reset --hard origin/main
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 export IMAGE_TAG="$TAG"
+export BLOG_IMAGE_TAG="blog-${TAG}"
 
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$ECR_REGISTRY"
@@ -42,21 +43,27 @@ install -m 0644 deploy/aws/osdtype-backup.timer /etc/systemd/system/osdtype-back
 systemctl daemon-reload
 systemctl enable --now osdtype-backup.timer
 
-# Wait for the API healthcheck before declaring success.
-for _ in $(seq 1 30); do
+# Wait for both the API and the blog before declaring success.
+API_STATUS=""
+BLOG_STATUS=""
+for _ in $(seq 1 60); do
   API_ID="$(docker compose -f docker-compose.aws.yml --env-file .env.prod ps -q api || true)"
+  BLOG_ID="$(docker compose -f docker-compose.aws.yml --env-file .env.prod ps -q blog || true)"
   if [ -n "$API_ID" ]; then
-    STATUS="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$API_ID" 2>/dev/null || true)"
-    if [ "$STATUS" = "healthy" ] || [ "$STATUS" = "running" ]; then
-      docker image prune -f >/dev/null
-      echo "deployed image tag ${TAG}; api status ${STATUS}"
-      exit 0
-    fi
+    API_STATUS="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$API_ID" 2>/dev/null || true)"
+  fi
+  if [ -n "$BLOG_ID" ]; then
+    BLOG_STATUS="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$BLOG_ID" 2>/dev/null || true)"
+  fi
+  if { [ "$API_STATUS" = "healthy" ] || [ "$API_STATUS" = "running" ]; } && [ "$BLOG_STATUS" = "healthy" ]; then
+    docker image prune -f >/dev/null
+    echo "deployed image tag ${TAG}; api status ${API_STATUS}; blog status ${BLOG_STATUS}"
+    exit 0
   fi
   sleep 2
 done
 
-echo "api did not become healthy" >&2
+echo "services did not become healthy (api=${API_STATUS:-missing}, blog=${BLOG_STATUS:-missing})" >&2
 docker compose -f docker-compose.aws.yml --env-file .env.prod ps >&2 || true
-docker compose -f docker-compose.aws.yml --env-file .env.prod logs --tail=120 api >&2 || true
+docker compose -f docker-compose.aws.yml --env-file .env.prod logs --tail=120 api blog >&2 || true
 exit 1

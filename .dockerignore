@@ -12,3 +12,4 @@ codegen/target
 server/tmp
 assets
 *.png
+blog-src

@@ -25,6 +25,7 @@ env:
   EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
   PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
   PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL }}
+  BLOG_URL: https://blog.15.134.14.153.sslip.io
 
 jobs:
   build:
@@ -97,6 +98,26 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
+      - name: Check out blog source
+        uses: actions/checkout@v4
+        with:
+          repository: ItsArnavSh/ItsArnavSh.github.io
+          ref: main
+          path: blog-src
+
+      - name: Build and push blog image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./blog-src/blogapp
+          file: ./blog-src/blogapp/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/osdtype-web:blog-${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/osdtype-web:blog-latest
+          cache-from: type=gha,scope=blog
+          cache-to: type=gha,mode=max,scope=blog
+
   deploy:
     name: Deploy on EC2
     if: vars.DEPLOY_ENABLED == 'true'
@@ -151,7 +172,13 @@ jobs:
       - name: Smoke test API and web fallback
         run: |
           set -euo pipefail
-          for url in "${PUBLIC_API_URL}/ping" "${PUBLIC_WEB_URL}/"; do
+          for url in \
+            "${PUBLIC_API_URL}/ping" \
+            "${PUBLIC_WEB_URL}/" \
+            "${BLOG_URL}/healthz" \
+            "${BLOG_URL}/sitemap.xml" \
+            "${BLOG_URL}/robots.txt" \
+            "${BLOG_URL}/devlog"; do
             ok=0
             for _ in $(seq 1 30); do
               if curl -fsS --max-time 10 "$url" >/dev/null; then
@@ -166,3 +193,10 @@ jobs:
             fi
             echo "smoke test passed: $url"
           done
+
+          redirect="$(curl -sS -o /dev/null -w '%{redirect_url}' "${BLOG_URL}/")"
+          if [ "$redirect" != "https://itsarnavsh.github.io/" ]; then
+            echo "blog root redirect is wrong: ${redirect:-<empty>}" >&2
+            exit 1
+          fi
+          echo "smoke test passed: ${BLOG_URL}/ -> ${redirect}"

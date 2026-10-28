@@ -48,3 +48,21 @@
 		-Server
 	}
 }
+
+{$BLOG_DOMAIN} {
+	reverse_proxy blog:8080
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}

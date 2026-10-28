@@ -139,6 +139,46 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  blog:
+    # Blog image tags live in the existing osdtype-web ECR repository so the
+    # deployment user does not need ECR repository-admin permissions.
+    image: ${ECR_REGISTRY:-local}/osdtype-web:${BLOG_IMAGE_TAG:-blog-latest}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.prod
+    environment:
+      PORT: "8080"
+      SITE_URL: "https://blog.15.134.14.153.sslip.io"
+      MAIN_SITE_URL: "https://itsarnavsh.github.io/"
+      DATABASE_URL: "postgres://osdtype:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}@postgres:5432/arnav_blog?sslmode=disable"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.prod}@redis:6379/1"
+      BLOG_SECRET: "${JWTKEY:?set JWTKEY in .env.prod}"
+      GITHUB_CLIENT_ID: "${GITHUB_KEY:?set GITHUB_KEY in .env.prod}"
+      ADMIN_USERNAME: "ItsArnavSh"
+      BLOG_DEV: "false"
+      BLOG_DEV_LOGIN: "false"
+      BLOG_SEED: "true"
+      BLOG_SECURE_COOKIES: "true"
+      MEDIA_DIR: "/app/data/media"
+      SITE_TZ: "Asia/Kolkata"
+    expose:
+      - "8080"
+    volumes:
+      - blog_media:/app/data/media
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   gateway:
     image: ${ECR_REGISTRY:-local}/osdtype-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -148,6 +188,7 @@ services:
     environment:
       WEB_DOMAIN: "${WEB_DOMAIN}"
       API_DOMAIN: "${API_DOMAIN}"
+      BLOG_DOMAIN: "${BLOG_DOMAIN:-blog.15.134.14.153.sslip.io}"
     ports:
       - "80:80"
       - "443:443"
@@ -166,5 +207,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  blog_media:
   caddy_data:
   caddy_config:
