@@ -25,6 +25,13 @@ chmod 600 .env.prod
 git fetch --depth=1 origin main
 git reset --hard origin/main
 
+# This script can update itself. Re-exec once after the reset so the new
+# version runs instead of the copy Bash may have buffered at startup.
+if [ "${OSDTYPE_DEPLOY_REEXEC:-0}" != "1" ]; then
+  export OSDTYPE_DEPLOY_REEXEC=1
+  exec "$0" "$@"
+fi
+
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 export IMAGE_TAG="$TAG"

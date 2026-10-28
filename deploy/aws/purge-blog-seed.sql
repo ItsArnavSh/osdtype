@@ -1,19 +1,13 @@
 -- The production blog was seeded with sample dispatches while it was being
--- built. BLOG_SEED is disabled now; remove those rows exactly once.
+-- built. Remove those rows. This is safe to run on every deploy: the slugs
+-- belong to the retired sample editions, and the marker records the cleanup.
 CREATE TABLE IF NOT EXISTS blog_maintenance (
     key TEXT PRIMARY KEY,
     done_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-WITH marker AS (
-    INSERT INTO blog_maintenance (key)
-    VALUES ('purge-template-dispatches-v1')
-    ON CONFLICT (key) DO NOTHING
-    RETURNING key
-)
 DELETE FROM posts
-WHERE EXISTS (SELECT 1 FROM marker)
-  AND (blog, slug) IN (
+WHERE (blog, slug) IN (
     ('devlog', 'a-newspaper-that-thinks-its-a-database'),
     ('devlog', 'latex-but-make-it-the-browsers-problem'),
     ('devlog', 'a-small-go-server-deliberately-boring'),
@@ -26,4 +20,8 @@ WHERE EXISTS (SELECT 1 FROM marker)
     ('journal', 'a-walk-without-a-podcast'),
     ('journal', 'the-photograph-you-didnt-take'),
     ('journal', 'the-controller-on-the-shelf')
-  );
+);
+
+INSERT INTO blog_maintenance (key)
+VALUES ('purge-template-dispatches-v1')
+ON CONFLICT (key) DO NOTHING;
