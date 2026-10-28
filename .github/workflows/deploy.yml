@@ -112,9 +112,10 @@ jobs:
           file: ./blog-src/blogapp/Dockerfile
           platforms: linux/arm64
           push: true
+          # ECR keeps these tags immutable, and deploy.sh pins blog-${sha}.
+          # Do not add a moving blog-latest tag here.
           tags: |
             ${{ env.ECR_REGISTRY }}/osdtype-web:blog-${{ github.sha }}
-            ${{ env.ECR_REGISTRY }}/osdtype-web:blog-latest
           cache-from: type=gha,scope=blog
           cache-to: type=gha,mode=max,scope=blog
 
