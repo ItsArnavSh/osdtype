@@ -163,7 +163,7 @@ services:
       ADMIN_USERNAME: "ItsArnavSh"
       BLOG_DEV: "false"
       BLOG_DEV_LOGIN: "false"
-      BLOG_SEED: "true"
+      BLOG_SEED: "false"
       BLOG_SECURE_COOKIES: "true"
       MEDIA_DIR: "/app/data/media"
       SITE_TZ: "Asia/Kolkata"

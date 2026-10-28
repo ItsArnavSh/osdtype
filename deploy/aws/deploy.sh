@@ -56,6 +56,11 @@ for _ in $(seq 1 60); do
     BLOG_STATUS="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$BLOG_ID" 2>/dev/null || true)"
   fi
   if { [ "$API_STATUS" = "healthy" ] || [ "$API_STATUS" = "running" ]; } && [ "$BLOG_STATUS" = "healthy" ]; then
+    # Remove the sample dispatches once. The marker table makes this a no-op
+    # on later deploys.
+    docker compose -f docker-compose.aws.yml --env-file .env.prod exec -T postgres \
+      psql -U osdtype -d arnav_blog -v ON_ERROR_STOP=1 <deploy/aws/purge-blog-seed.sql
+
     docker image prune -f >/dev/null
     echo "deployed image tag ${TAG}; api status ${API_STATUS}; blog status ${BLOG_STATUS}"
     exit 0
