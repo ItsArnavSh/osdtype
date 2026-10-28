@@ -141,7 +141,8 @@ services:
 
   blog:
     # Blog image tags live in the existing osdtype-web ECR repository so the
-    # deployment user does not need ECR repository-admin permissions.
+    # deployment user does not need ECR repository-admin permissions. The
+    # workflow builds this image from ItsArnavSh/ItsArnavSh.github.io main.
     image: ${ECR_REGISTRY:-local}/osdtype-web:${BLOG_IMAGE_TAG:-blog-latest}
     restart: unless-stopped
     stop_grace_period: 30s
