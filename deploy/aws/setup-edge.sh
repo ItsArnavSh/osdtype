@@ -49,7 +49,7 @@ if [ -z "$CERT_ARN" ] || [ "$CERT_ARN" = "None" ]; then
   CERT_ARN="$("${AWS[@]}" acm request-certificate \
     --domain-name "$CERT_DOMAIN" \
     --validation-method DNS \
-    --idempotency-token "osdtype-native-api" \
+    --idempotency-token "osdtype_native_api" \
     --query 'CertificateArn' --output text)"
 else
   echo "    reusing ${CERT_ARN}"
