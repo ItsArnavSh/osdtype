@@ -17,6 +17,7 @@ API_DOMAIN="${API_DOMAIN:-api.osd-typ.in}"
 # A wildcard cert avoids a CNAME conflict: ACM validates *.osd-typ.in at
 # _token.osd-typ.in, which can coexist with the api.osd-typ.in CNAME.
 CERT_DOMAIN="${CERT_DOMAIN:-*.${API_DOMAIN#*.}}"
+ZONE_DOMAIN="${API_DOMAIN#*.}"
 ORIGIN_DOMAIN="${ORIGIN_DOMAIN:-api.15.134.14.153.sslip.io}"
 ENV_FILE="${ENV_FILE:-.env.prod}"
 TEMPLATE="deploy/aws/cloudfront-waf.yaml"
@@ -89,8 +90,8 @@ cat <<EOF
     Name:  ${VALIDATION_NAME}
     Value: ${VALIDATION_VALUE}
 
-    GoDaddy's Name field often omits the domain suffix; if it appends
-    ${API_DOMAIN}, enter only the part before .${API_DOMAIN}.
+    GoDaddy's Name field often omits the zone suffix; if it appends
+    ${ZONE_DOMAIN}, enter only the part before .${ZONE_DOMAIN}.
 
 EOF
 
