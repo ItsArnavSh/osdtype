@@ -2,6 +2,11 @@
 	# Caddy stores certificates in /data. The compose file mounts a named volume there.
 	# Keep the admin API internal to the container network.
 	admin off
+
+	# The rate-limit handler is a third-party module; run it before any
+	# response is written so direct origin floods are cheap to reject.
+	order rate_limit before respond
+
 	servers {
 		timeouts {
 			read_header 10s
@@ -12,57 +17,127 @@
 	}
 }
 
+# Shared access log. The SPA authenticates WebSocket upgrades with
+# ?token=<jwt>, so redact that query parameter before it reaches Docker logs.
+(log_common) {
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					replace token REDACTED
+				}
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+				request>headers>Referer delete
+				request>headers>X-Origin-Verify delete
+			}
+		}
+	}
+}
+
+# Browser-facing security headers for the static site and blog.
+(web_headers) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		X-Permitted-Cross-Domain-Policies "none"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}
+
+# API responses are consumed cross-origin by the Vercel frontend.
+(api_headers) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "cross-origin"
+		X-Permitted-Cross-Domain-Policies "none"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}
+
 # Optional AWS-hosted static fallback. Vercel remains the public frontend; the
 # API lives on a separate hostname so the AWS fallback and API are same-site.
 {$WEB_DOMAIN} {
+	import log_common
+	import web_headers
+
+	rate_limit {
+		zone web {
+			key {client_ip}
+			events 600
+			window 1m
+			ipv6_prefix 64
+		}
+	}
+
 	root * /srv
 	try_files {path} /index.html
 	file_server
 	encode zstd gzip
-
-	header {
-		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-		Cross-Origin-Opener-Policy "same-origin"
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		-Server
-	}
 }
 
 {$API_DOMAIN} {
-	reverse_proxy api:8080
-	encode zstd gzip
+	import log_common
+	import api_headers
+
+	# CloudFront adds this header. A request without it reached the origin
+	# directly, so never proxy it to the API. Enforcement is rolled out via
+	# ORIGIN_VERIFY_ENABLED so the old direct API URL keeps working until the
+	# CloudFront distribution is live.
+	@not_cloudfront expression `{env.ORIGIN_VERIFY_ENABLED} == "true" && ({env.ORIGIN_VERIFY_SECRET} == "" || {header.X-Origin-Verify} != {env.ORIGIN_VERIFY_SECRET})`
+	respond @not_cloudfront "forbidden" 403
+
+	# Direct traffic gets a strict per-IP ceiling. CloudFront traffic is
+	# rate-limited by AWS WAF at the edge instead.
+	rate_limit {
+		zone api_direct {
+			match {
+				expression `{env.ORIGIN_VERIFY_ENABLED} != "true" || {env.ORIGIN_VERIFY_SECRET} == "" || {header.X-Origin-Verify} != {env.ORIGIN_VERIFY_SECRET}`
+			}
+			key {client_ip}
+			events 600
+			window 1m
+			ipv6_prefix 64
+		}
+	}
+
 	request_body {
 		max_size 2MB
 	}
 
-	header {
-		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-		Cross-Origin-Opener-Policy "same-origin"
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		-Server
-	}
+	reverse_proxy api:8080
+	encode zstd gzip
 }
 
 {$BLOG_DOMAIN} {
-	reverse_proxy blog:8080
-	encode zstd gzip
+	import log_common
+	import web_headers
+
+	rate_limit {
+		zone blog {
+			key {client_ip}
+			events 600
+			window 1m
+			ipv6_prefix 64
+		}
+	}
+
 	request_body {
 		max_size 25MB
 	}
 
-	header {
-		X-Content-Type-Options "nosniff"
-		X-Frame-Options "SAMEORIGIN"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-		Cross-Origin-Opener-Policy "same-origin"
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		-Server
-	}
+	reverse_proxy blog:8080
+	encode zstd gzip
 }

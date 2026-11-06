@@ -190,6 +190,10 @@ services:
       WEB_DOMAIN: "${WEB_DOMAIN}"
       API_DOMAIN: "${API_DOMAIN}"
       BLOG_DOMAIN: "${BLOG_DOMAIN:-blog.15.134.14.153.sslip.io}"
+      # CloudFront sends this secret as X-Origin-Verify. Set ENABLED=true only
+      # after the distribution is live and the frontend uses its hostname.
+      ORIGIN_VERIFY_ENABLED: "${ORIGIN_VERIFY_ENABLED:-false}"
+      ORIGIN_VERIFY_SECRET: "${ORIGIN_VERIFY_SECRET:-}"
     ports:
       - "80:80"
       - "443:443"

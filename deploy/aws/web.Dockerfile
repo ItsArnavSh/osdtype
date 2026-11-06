@@ -17,7 +17,17 @@ RUN npm ci
 COPY app/ ./
 RUN npm run build
 
-FROM caddy:2-alpine
+# Caddy's official image has no rate-limit handler. Build the same Caddy
+# release with mholt/caddy-ratelimit pinned to a commit so origin floods can
+# be rejected before they reach the API.
+FROM caddy:2.11.4-builder AS caddy-build
+RUN xcaddy build v2.11.4 \
+	--with github.com/mholt/caddy-ratelimit@5625512f24f6f59d6f64fb3aafe5eecff0b286db
+
+FROM caddy:2.11.4-alpine
+
+COPY --from=caddy-build /usr/bin/caddy /usr/bin/caddy
+RUN caddy list-modules | grep -qx 'http.handlers.rate_limit'
 
 COPY deploy/aws/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/build /srv

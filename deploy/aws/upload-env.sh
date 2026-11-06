@@ -26,7 +26,7 @@ if grep -Eq '^[A-Za-z_][A-Za-z0-9_]*=.*REPLACE_WITH_' "$ENV_FILE"; then
   exit 1
 fi
 
-for key in POSTGRES_PASSWORD REDIS_PASSWORD JWTKEY GITHUB_KEY GITHUB_AUTH GITHUB_REDIRECT_URL PUBLIC_ORIGIN PUBLIC_API_URL API_DOMAIN WEB_DOMAIN; do
+for key in POSTGRES_PASSWORD REDIS_PASSWORD JWTKEY GITHUB_KEY GITHUB_AUTH GITHUB_REDIRECT_URL PUBLIC_ORIGIN PUBLIC_API_URL API_DOMAIN WEB_DOMAIN ORIGIN_VERIFY_SECRET; do
   if ! grep -q "^${key}=..*" "$ENV_FILE"; then
     echo "missing or empty ${key} in $ENV_FILE" >&2
     exit 1
@@ -40,6 +40,12 @@ for key in POSTGRES_PASSWORD REDIS_PASSWORD; do
     exit 1
   fi
 done
+
+origin_secret="$(grep '^ORIGIN_VERIFY_SECRET=' "$ENV_FILE" | head -n1 | cut -d= -f2-)"
+if [ "${#origin_secret}" -lt 32 ]; then
+  echo "ORIGIN_VERIFY_SECRET in $ENV_FILE must be at least 32 characters" >&2
+  exit 1
+fi
 
 umask 077
 aws ssm put-parameter \

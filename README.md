@@ -131,12 +131,16 @@ Environment overrides understood by the server include `PORT`, `JWTKEY`,
 For v0.0.1 the entire backend runs on one EC2 instance in `ap-southeast-2`
 while Vercel serves the public static frontend:
 
-- **API** — <https://api.15.134.14.153.sslip.io>
+- **API** — <https://api.osd-typ.in> (CloudFront + AWS WAF → Caddy → Go API)
+- **API origin** — <https://api.15.134.14.153.sslip.io> (CloudFront only)
 - **AWS web fallback** — <https://app.15.134.14.153.sslip.io>
 - **Frontend** — <https://osd-typ.in/>
 - **Stack** — `docker-compose.aws.yml` runs the Go API, PostgreSQL 17, Redis 7
   and Caddy on the instance. Postgres and Redis are private to the Compose
   network and persist in Docker volumes.
+- **Edge** — CloudFront + WAFv2 managed rules and per-IP rate limits. Caddy
+  rejects direct origin traffic unless it carries the CloudFront
+  `X-Origin-Verify` header.
 - **Images** — GitHub Actions builds ARM64 API/web images, pushes them to ECR,
   and deploys through SSM. The workflow is gated by `DEPLOY_ENABLED=true`.
 - **Secrets** — `/osdtype/prod/env` in SSM Parameter Store. The local

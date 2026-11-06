@@ -1,0 +1,322 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Edge protection for the OSDTYP API: CloudFront in front of the Caddy origin,
+  AWS WAF managed rules and per-IP rate limits, and an origin-verification
+  header so the API cannot be reached directly.
+
+Parameters:
+  ApiDomainName:
+    Type: String
+    Default: api.osd-typ.in
+    Description: Public API hostname served by CloudFront.
+  OriginDomainName:
+    Type: String
+    Default: api.15.134.14.153.sslip.io
+    Description: Caddy origin hostname. Must have a valid TLS certificate.
+  CertificateArn:
+    Type: String
+    Description: ACM certificate ARN for ApiDomainName in us-east-1.
+  OriginVerifySecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Shared secret CloudFront sends to Caddy as X-Origin-Verify.
+  PriceClass:
+    Type: String
+    Default: PriceClass_200
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+  WafLogRetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 3653
+
+Resources:
+  WafLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # WAF requires this prefix for CloudWatch Logs destinations.
+      LogGroupName: !Sub "aws-waf-logs-osdtype-api-${AWS::AccountId}"
+      RetentionInDays: !Ref WafLogRetentionDays
+
+  ApiWebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: osdtype-api-edge
+      Scope: CLOUDFRONT
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: osdtype-api-edge
+      Rules:
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+              # The API accepts JSON/code-sized bodies; let the application
+              # enforce its own 1 MiB limit instead of WAF's 8 KB body rule.
+              RuleActionOverrides:
+                - Name: SizeRestrictions_BODY
+                  ActionToUse:
+                    Count: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: osdtype-common
+
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: osdtype-bad-inputs
+
+        - Name: AWSManagedRulesAmazonIpReputationList
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: osdtype-ip-reputation
+
+        # Authentication is the most attractive target for credential
+        # stuffing and OAuth floods.
+        - Name: RateLimitAuth
+          Priority: 10
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 20
+              EvaluationWindowSec: 300
+              AggregateKeyType: IP
+              ScopeDownStatement:
+                OrStatement:
+                  Statements:
+                    - ByteMatchStatement:
+                        FieldToMatch:
+                          UriPath: {}
+                        PositionalConstraint: STARTS_WITH
+                        SearchString: /auth/
+                        TextTransformations:
+                          - Priority: 0
+                            Type: NONE
+                    - ByteMatchStatement:
+                        FieldToMatch:
+                          UriPath: {}
+                        PositionalConstraint: STARTS_WITH
+                        SearchString: /login/
+                        TextTransformations:
+                          - Priority: 0
+                            Type: NONE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: osdtype-rate-auth
+
+        # The application also limits bug reports to 5/hour/IP; this is the
+        # coarse edge ceiling for the same endpoint.
+        - Name: RateLimitBugs
+          Priority: 11
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 10
+              EvaluationWindowSec: 600
+              AggregateKeyType: IP
+              ScopeDownStatement:
+                ByteMatchStatement:
+                  FieldToMatch:
+                    UriPath: {}
+                  PositionalConstraint: STARTS_WITH
+                  SearchString: /bugs
+                  TextTransformations:
+                    - Priority: 0
+                      Type: NONE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: osdtype-rate-bugs
+
+        - Name: RateLimitWebSocket
+          Priority: 12
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 30
+              EvaluationWindowSec: 300
+              AggregateKeyType: IP
+              ScopeDownStatement:
+                ByteMatchStatement:
+                  FieldToMatch:
+                    UriPath: {}
+                  PositionalConstraint: EXACTLY
+                  SearchString: /ws
+                  TextTransformations:
+                    - Priority: 0
+                      Type: NONE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: osdtype-rate-ws
+
+        # Catch-all ceiling for everything else.
+        - Name: RateLimitApi
+          Priority: 13
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 600
+              EvaluationWindowSec: 300
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: osdtype-rate-api
+
+  ApiWebAclLogging:
+    Type: AWS::WAFv2::LoggingConfiguration
+    Properties:
+      ResourceArn: !GetAtt ApiWebAcl.Arn
+      LogDestinationConfigs:
+        - !GetAtt WafLogGroup.Arn
+      # WAF logs can contain credentials and WebSocket tokens. Keep the path
+      # and action, but never store headers or query strings.
+      RedactedFields:
+        - SingleHeader:
+            Name: authorization
+        - SingleHeader:
+            Name: cookie
+        - QueryString: {}
+
+  ApiResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: osdtype-api-security
+        Comment: Security headers for the OSDTYP API edge
+        SecurityHeadersConfig:
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Preload: false
+            Override: true
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+            Override: true
+          XSSProtection:
+            Protection: true
+            ModeBlock: true
+            Override: true
+        CustomHeadersConfig:
+          Items:
+            - Header: Permissions-Policy
+              Value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+              Override: true
+            - Header: Cross-Origin-Opener-Policy
+              Value: same-origin
+              Override: true
+            - Header: Cross-Origin-Resource-Policy
+              Value: cross-origin
+              Override: true
+
+  ApiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: OSDTYP API edge
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: !Ref PriceClass
+        Aliases:
+          - !Ref ApiDomainName
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        WebACLId: !GetAtt ApiWebAcl.Arn
+        Origins:
+          - Id: api-origin
+            DomainName: !Ref OriginDomainName
+            OriginCustomHeaders:
+              - HeaderName: X-Origin-Verify
+                HeaderValue: !Ref OriginVerifySecret
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+              OriginReadTimeout: 30
+              OriginKeepaliveTimeout: 5
+        DefaultCacheBehavior:
+          TargetOriginId: api-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - POST
+            - PATCH
+            - DELETE
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          ResponseHeadersPolicyId: !Ref ApiResponseHeadersPolicy
+          Compress: false
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: none
+      Tags:
+        - Key: Application
+          Value: osdtype
+
+Outputs:
+  DistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref ApiDistribution
+  DistributionDomainName:
+    Description: CloudFront hostname; add a CNAME from ApiDomainName to this
+    Value: !GetAtt ApiDistribution.DomainName
+  WebAclArn:
+    Description: WAF web ACL ARN
+    Value: !GetAtt ApiWebAcl.Arn
+  WafLogGroupName:
+    Description: CloudWatch Logs group receiving WAF logs
+    Value: !Ref WafLogGroup

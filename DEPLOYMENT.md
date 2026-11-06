@@ -13,17 +13,18 @@ state is moved out of process.
 ## Current production: one AWS VM + Vercel frontend
 
 For v0.0.1 the whole backend runs on one EC2 instance in `ap-southeast-2`.
-Vercel serves the public frontend and CloudFront/WAF is not yet in front of the
-API because ACM cannot validate the temporary `sslip.io` hostnames.
+Vercel serves the public frontend; CloudFront + AWS WAF protect the API edge.
 
 | Piece | Where |
 | --- | --- |
 | Frontend | <https://osd-typ.in/> (Vercel) |
-| API | <https://api.15.134.14.153.sslip.io> (Caddy → Go API) |
+| API | <https://api.osd-typ.in> (CloudFront + WAF → Caddy → Go API) |
+| API origin | <https://api.15.134.14.153.sslip.io> (Caddy, CloudFront only) |
 | AWS web fallback | <https://app.15.134.14.153.sslip.io> (same static build) |
 | PostgreSQL 17 | Docker container on the EC2 instance, private Compose network |
 | Redis 7 | Docker container on the EC2 instance, AOF persistence, private network |
 | TLS / reverse proxy | Caddy in the `osdtype-web` image, automatic Let's Encrypt |
+| Edge / WAF | CloudFront + WAFv2, stack `osdtype-edge` in `us-east-1` |
 | Images | ECR repos `osdtype-api` and `osdtype-web`, built by GitHub Actions |
 | Deploy | GitHub Actions → SSM Run Command → `deploy/aws/deploy.sh` |
 | Secrets | SSM SecureString `/osdtype/prod/env`; local `.env.prod` is gitignored |
@@ -61,10 +62,49 @@ docker compose -f docker-compose.aws.yml --env-file .env.prod stats
   keeps 7 days locally in `/var/backups/osdtype`, and uploads gzip dumps to
   `s3://osdtype-backups-309857583292-ap-southeast-2/postgres/` (SSE-S3,
   private, 30-day lifecycle).
-- CloudFront + AWS WAF is the intended edge DDoS/WAF layer once a real custom
-  domain exists (or if the API moves to a stable `cloudfront.net` hostname).
-  At that point restrict the EC2 security group to the CloudFront origin-facing
-  prefix list.
+### Edge protection (CloudFront + AWS WAF)
+
+The API is fronted by CloudFront and an AWS WAF web ACL. WAF applies AWS
+managed rules (Common, Known Bad Inputs, IP Reputation) plus per-IP rate limits:
+
+| Scope | Limit |
+| --- | --- |
+| `/auth/*`, `/login/*` | 20 requests / 5 minutes / IP |
+| `/bugs*` | 10 requests / 10 minutes / IP |
+| `/ws` | 30 upgrades / 5 minutes / IP |
+| all API traffic | 600 requests / 5 minutes / IP |
+
+Caddy still terminates TLS at the origin. When `ORIGIN_VERIFY_ENABLED=true`
+it rejects any request without the `X-Origin-Verify` header that CloudFront
+adds, so the `sslip.io` origin cannot be used to bypass WAF. Caddy also
+rate-limits direct (non-CloudFront) traffic and writes JSON access logs with
+WebSocket `token` query values redacted.
+
+Setup and cutover:
+
+1. Confirm `ORIGIN_VERIFY_SECRET` is set in `.env.prod`, then run
+   `./deploy/aws/setup-edge.sh` from the repository root. It requests a
+   wildcard ACM certificate (`*.osd-typ.in`) in `us-east-1`, prints the
+   validation CNAME, deploys `deploy/aws/cloudfront-waf.yaml`, and prints the
+   CloudFront CNAME target. The wildcard avoids a DNS conflict between the
+   ACM `_token.api…` validation record and the `api` CNAME.
+2. Add the `_…osd-typ.in` ACM validation CNAME at the DNS provider (currently
+   GoDaddy), then add `api` → the `*.cloudfront.net` target. Keeping the
+   validation record in place lets ACM renew the certificate automatically.
+3. Set `PUBLIC_API_URL=https://api.osd-typ.in` and
+   `GITHUB_REDIRECT_URL=https://api.osd-typ.in/auth/github/callback` in
+   `.env.prod`, run `./deploy/aws/upload-env.sh`, then run
+   `./deploy/aws/deploy.sh latest` through SSM.
+4. Update the GitHub OAuth app callback and Vercel's `VITE_API_URL` to the same
+   hostname, then redeploy the frontend.
+5. Verify `https://api.osd-typ.in/ping` and a complete GitHub sign-in.
+6. Set `ORIGIN_VERIFY_ENABLED=true` in `.env.prod`, upload, and deploy again.
+   This is the step that makes direct access to the origin fail closed.
+7. Set `COOKIE_SAMESITE=lax` once the frontend and API are both under
+   `osd-typ.in`; this removes the third-party-cookie dependency.
+
+WAF logs go to `/aws-waf-logs-osdtype-api-<account>` in `us-east-1`
+(30-day retention). The CloudFormation stack is named `osdtype-edge`.
 
 ## 0. Pre-flight
 
